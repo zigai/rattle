@@ -54,7 +54,7 @@ dev = [
     "ruff",
 ]
 lsp = [
-    "pygls[ws] ~= 2.0.0",
+    "pygls[ws] ~= 2.1.0",
 ]
 pretty = [
     "rich >= 12.6.0",
