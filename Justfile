@@ -22,17 +22,17 @@ venv: install
 
 # check code style and potential issues
 lint: _require-uv
-  uv run --extra dev ruff check src/fixit scripts examples docs/conf.py
-  uv run --extra dev ruff format --check src/fixit scripts examples docs/conf.py
-  uv run --extra dev python -m fixit lint src/fixit
+  uv run --extra dev ruff check src/rattle scripts examples docs/conf.py
+  uv run --extra dev ruff format --check src/rattle scripts examples docs/conf.py
+  uv run --extra dev python -m rattle lint src/rattle
 
 # format code
 format: _require-uv
-  uv run --extra dev ruff format src/fixit scripts examples docs/conf.py
+  uv run --extra dev ruff format src/rattle scripts examples docs/conf.py
 
 # fix automatically fixable linting issues
 fix: _require-uv
-  uv run --extra dev ruff check --fix src/fixit scripts examples docs/conf.py
+  uv run --extra dev ruff check --fix src/rattle scripts examples docs/conf.py
 
 # run the pytest suite
 test: _require-uv

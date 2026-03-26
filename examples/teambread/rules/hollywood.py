@@ -5,7 +5,7 @@
 
 import libcst
 
-from fixit import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, Valid
 
 
 class HollywoodName(LintRule):

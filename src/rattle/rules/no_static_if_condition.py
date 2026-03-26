@@ -1,0 +1,157 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+
+import libcst as cst
+import libcst.matchers as m
+
+from rattle import Invalid, LintRule, Valid
+
+
+class NoStaticIfCondition(LintRule):
+    CODE = "RAT014"
+    """Discourages ``if`` conditions which evaluate to a static value (e.g. ``or True``, ``and False``, etc)."""
+
+    MESSAGE: str = (
+        "Your if condition appears to evaluate to a static value (e.g. `or True`, `and False`). "
+        "Please double check this logic and if it is actually temporary debug code."
+    )
+    VALID = [
+        Valid(
+            """
+            if my_func() or not else_func():
+                pass
+            """
+        ),
+        Valid(
+            """
+            if function_call(True):
+                pass
+            """
+        ),
+        Valid(
+            """
+            # ew who would this???
+            def true():
+                return False
+            if true() and else_call():  # True or False
+                pass
+            """
+        ),
+        Valid(
+            """
+            # ew who would this???
+            if False or some_func():
+                pass
+            """
+        ),
+    ]
+    INVALID = [
+        Invalid(
+            """
+            if True:
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if crazy_expression or True:
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if crazy_expression and False:
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if crazy_expression and not True:
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if crazy_expression or not False:
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if crazy_expression or (something() or True):
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if crazy_expression and (something() and (not True)):
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if crazy_expression and (something() and (other_func() and not True)):
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if (crazy_expression and (something() and (not True))) or True:
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            async def some_func() -> none:
+                if (await expression()) and False:
+                    pass
+            """,
+        ),
+    ]
+
+    @classmethod
+    def _extract_static_bool(cls, node: cst.BaseExpression) -> bool | None:
+        if m.matches(node, m.Call()):
+            # cannot reason about function calls
+            return None
+        if m.matches(node, m.Name("True")):
+            return True
+
+        if m.matches(node, m.Name("False")):
+            return False
+
+        if m.matches(node, m.UnaryOperation(operator=m.Not())):
+            unary_node = cst.ensure_type(node, cst.UnaryOperation)
+            return cls._negate_static_bool(unary_node.expression)
+
+        if m.matches(node, m.BooleanOperation()):
+            return cls._extract_static_bool_from_operation(
+                cst.ensure_type(node, cst.BooleanOperation)
+            )
+
+        return None
+
+    @classmethod
+    def _negate_static_bool(cls, node: cst.BaseExpression) -> bool | None:
+        sub_value = cls._extract_static_bool(node)
+        return None if sub_value is None else not sub_value
+
+    @classmethod
+    def _extract_static_bool_from_operation(cls, node: cst.BooleanOperation) -> bool | None:
+        left_value = cls._extract_static_bool(node.left)
+        right_value = cls._extract_static_bool(node.right)
+
+        if m.matches(node.operator, m.Or()) and (right_value is True or left_value is True):
+            return True
+
+        if m.matches(node.operator, m.And()) and (right_value is False or left_value is False):
+            return False
+
+        return None
+
+    def visit_If(self, node: cst.If) -> None:
+        if self._extract_static_bool(node.test) in {True, False}:
+            self.report(node, self.MESSAGE)

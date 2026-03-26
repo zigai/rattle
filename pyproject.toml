@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rattle"
-readme = "README.rst"
+readme = "README.md"
 authors = [
     {name="zigai"},
 ]
@@ -36,8 +36,8 @@ description = "A lint framework that helps you write better Python code."
 [project.optional-dependencies]
 docs = [
     "jinja2 == 3.1.6",
+    "myst-parser == 4.0.1",
     "sphinx == 8.0.2",
-    "sphinx-mdinclude == 0.6.2",
 ]
 dev = [
     "attribution == 1.8.0",
@@ -61,16 +61,15 @@ pretty = [
 ]
 
 [project.scripts]
-rattle = "fixit.cli:main"
+rattle = "rattle.cli:main"
 
 [project.urls]
 Home = "https://github.com/zigai/rattle"
-Github = "https://github.com/zigai/rattle"
-Changelog = "https://github.com/zigai/rattle/blob/main/CHANGELOG.md"
+Issues = "https://github.com/zigai/rattle/issues"
 
 [tool.attribution]
 name = "Rattle"
-package = "fixit"
+package = "rattle"
 signed_tags = true
 version_file = false
 ignored_authors = ["dependabot"]
@@ -78,12 +77,12 @@ ignored_authors = ["dependabot"]
 [tool.black]
 target-version = ["py310"]
 
-[tool.fixit]
-enable = ["fixit.rules"]
+[tool.rattle]
+enable = ["rattle.rules"]
 python-version = "3.10"
 formatter = "ufmt"
 
-[[tool.fixit.overrides]]
+[[tool.rattle.overrides]]
 path = "examples"
 enable = [".examples.noop"]
 
@@ -91,7 +90,7 @@ enable = [".examples.noop"]
 source = "vcs"
 
 [tool.hatch.build.hooks.vcs]
-version-file = "src/fixit/__version__.py"
+version-file = "src/rattle/__version__.py"
 
 [tool.hatch.build]
 exclude = [
@@ -101,7 +100,7 @@ exclude = [
 ]
 
 [tool.pyright]
-include = ["src/fixit"]
+include = ["src/rattle"]
 extraPaths = ["src"]
 pythonVersion = "3.10"
 typeCheckingMode = "standard"
@@ -114,7 +113,7 @@ reportMissingParameterType = "warning"
 skip = ".git,uv.lock"
 
 [tool.pytest.ini_options]
-testpaths = ["src/fixit/tests"]
+testpaths = ["src/rattle/tests"]
 python_files = [
     "test_*.py",
     "config.py",
@@ -208,7 +207,7 @@ exclude = ["build"]
 "examples/*.py" = ["INP001"]
 "examples/**/*.py" = ["INP001"]
 "scripts/*.py" = ["INP001"]
-"src/fixit/tests/*.py" = [
+"src/rattle/tests/*.py" = [
     "A002",
     "A004",
     "ANN001",
@@ -234,7 +233,7 @@ exclude = ["build"]
     "UP035",
     "UP045",
 ]
-"src/fixit/tests/**/*.py" = [
+"src/rattle/tests/**/*.py" = [
     "A002",
     "A004",
     "ANN001",
@@ -285,7 +284,7 @@ skip-magic-trailing-comma = false
 line-ending = "lf"
 
 [tool.ruff.lint.isort]
-known-first-party = ["fixit"]
+known-first-party = ["rattle"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

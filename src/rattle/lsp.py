@@ -1,0 +1,209 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+import threading
+from collections.abc import Callable, Generator
+from functools import partial
+from pathlib import Path
+from typing import Any, TypeVar, cast
+
+from lsprotocol.types import (
+    TEXT_DOCUMENT_DID_CHANGE,
+    TEXT_DOCUMENT_DID_OPEN,
+    TEXT_DOCUMENT_FORMATTING,
+    Diagnostic,
+    DiagnosticSeverity,
+    DidChangeTextDocumentParams,
+    DidOpenTextDocumentParams,
+    DocumentFormattingParams,
+    Position,
+    PublishDiagnosticsParams,
+    Range,
+    TextEdit,
+)
+from pygls import uris
+from pygls.lsp.server import LanguageServer
+from pygls.workspace.text_document import TextDocument
+
+from .__version__ import __version__
+from .api import rattle_bytes
+from .config import generate_config, locate_configs
+from .ftypes import Config, FileContent, LSPOptions, Options, Result
+from .util import capture
+
+
+class LSP:
+    """
+    Server for the Language Server Protocol.
+    Provides diagnostics as you type, and exposes a formatter.
+    https://microsoft.github.io/language-server-protocol/.
+    """
+
+    def __init__(self, rattle_options: Options, lsp_options: LSPOptions) -> None:
+        self.rattle_options = rattle_options
+        self.lsp_options = lsp_options
+
+        self._config_cache: dict[Path, tuple[tuple[tuple[str, int], ...], Config]] = {}
+
+        # separate debounce timer per URI so that linting one URI
+        # doesn't cancel linting another
+        self._validate_uri: dict[str, Callable[[int], None]] = {}
+
+        self.lsp = LanguageServer("rattle-lsp", __version__)
+        # `partial` since `pygls` can register functions but not methods
+        self.lsp.feature(TEXT_DOCUMENT_DID_OPEN)(partial(self.on_did_open))
+        self.lsp.feature(TEXT_DOCUMENT_DID_CHANGE)(partial(self.on_did_change))
+        self.lsp.feature(TEXT_DOCUMENT_FORMATTING)(partial(self.format))
+
+    def load_config(self, path: Path) -> Config:
+        """Cached fetch of pyproject.toml configs for rattle_bytes."""
+        fingerprint = self._config_fingerprint(path)
+        cached = self._config_cache.get(path)
+        if cached and cached[0] == fingerprint:
+            return cached[1]
+
+        config = generate_config(path, options=self.rattle_options, explicit_path=False)
+        self._config_cache[path] = (fingerprint, config)
+        return config
+
+    def _config_fingerprint(self, path: Path) -> tuple[tuple[str, int], ...]:
+        if self.rattle_options.config_file:
+            config_paths = [self.rattle_options.config_file]
+        else:
+            config_paths = locate_configs(path)
+
+        fingerprint: list[tuple[str, int]] = []
+        for config_path in config_paths:
+            resolved = config_path.resolve()
+            try:
+                mtime_ns = resolved.stat().st_mtime_ns
+            except FileNotFoundError:
+                mtime_ns = -1
+            fingerprint.append((resolved.as_posix(), mtime_ns))
+
+        return tuple(fingerprint)
+
+    def diagnostic_generator(
+        self, uri: str, autofix: bool = False
+    ) -> Generator[Result, bool, FileContent | None] | None:
+        """LSP wrapper (provides document state from `pygls`) for `rattle_bytes`."""
+        path_uri = uris.to_fs_path(uri)
+        if not path_uri:
+            return None
+        path = Path(path_uri)
+        config = self.load_config(path)
+        if config.excluded:
+            return None
+
+        doc: TextDocument = self.lsp.workspace.get_text_document(uri)
+        return rattle_bytes(
+            path,
+            doc.source.encode(),
+            autofix=autofix,
+            config=config,
+        )
+
+    def _validate(self, uri: str, version: int) -> None:
+        """Effect: publishes Rattle diagnostics to the LSP client."""
+        generator = self.diagnostic_generator(uri)
+        if not generator:
+            return
+        diagnostics = []
+        for result in generator:
+            violation = result.violation
+            if not violation:
+                continue
+            diagnostic = Diagnostic(
+                Range(
+                    Position(  # LSP is 0-indexed; Rattle line numbers are 1-indexed
+                        violation.range.start.line - 1, violation.range.start.column
+                    ),
+                    Position(violation.range.end.line - 1, violation.range.end.column),
+                ),
+                violation.message,
+                severity=DiagnosticSeverity.Warning,
+                code=violation.rule_name,
+                source="rattle",
+            )
+            diagnostics.append(diagnostic)
+        self.lsp.text_document_publish_diagnostics(
+            PublishDiagnosticsParams(uri, diagnostics, version)
+        )
+
+    def validate(self, uri: str, version: int) -> None:
+        """Effect: may publish Rattle diagnostics to the LSP client after a debounce delay."""
+        if uri not in self._validate_uri:
+            self._validate_uri[uri] = debounce(self.lsp_options.debounce_interval)(
+                partial(self._validate, uri)
+            )
+        self._validate_uri[uri](version)
+
+    def on_did_open(self, params: DidOpenTextDocumentParams) -> None:
+        self.validate(params.text_document.uri, params.text_document.version)
+
+    def on_did_change(self, params: DidChangeTextDocumentParams) -> None:
+        self.validate(params.text_document.uri, params.text_document.version)
+
+    def format(self, params: DocumentFormattingParams) -> list[TextEdit] | None:
+        generator = self.diagnostic_generator(params.text_document.uri, autofix=True)
+        if generator is None:
+            return None
+
+        captured = capture(generator)
+        for _ in captured:
+            pass
+        formatted_content = captured.result
+        if not formatted_content:
+            return None
+
+        doc: TextDocument = self.lsp.workspace.get_text_document(params.text_document.uri)
+        entire_range = Range(
+            start=Position(line=0, character=0),
+            end=Position(line=len(doc.lines) - 1, character=len(doc.lines[-1])),
+        )
+
+        return [TextEdit(new_text=formatted_content.decode(), range=entire_range)]
+
+    def start(self) -> None:
+        """Effect: occupies the specified I/O channels."""
+        if self.lsp_options.ws:
+            self.lsp.start_ws("localhost", self.lsp_options.ws)
+        if self.lsp_options.tcp:
+            self.lsp.start_tcp("localhost", self.lsp_options.tcp)
+        if self.lsp_options.stdio:
+            self.lsp.start_io()
+
+
+VoidFunction = TypeVar("VoidFunction", bound=Callable[..., None])
+
+
+class Debouncer:
+    def __init__(self, f: Callable[..., Any], interval: float) -> None:
+        self.f = f
+        self.interval = interval
+        self._timer: threading.Timer | None = None
+        self._lock = threading.Lock()
+
+    def __call__(self, *args: object, **kwargs: object) -> None:
+        with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+            self._timer = threading.Timer(self.interval, self.f, args, kwargs)
+            self._timer.start()
+
+
+def debounce(interval: float) -> Callable[[VoidFunction], VoidFunction]:
+    """
+    Wait `interval` seconds before calling `f`, and cancel if called again.
+    The decorated function will return None immediately,
+    ignoring the delayed return value of `f`.
+    """
+
+    def decorator(f: VoidFunction) -> VoidFunction:
+        if interval <= 0:
+            return f
+        return cast(VoidFunction, Debouncer(f, interval))
+
+    return decorator

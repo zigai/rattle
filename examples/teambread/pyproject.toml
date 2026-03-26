@@ -1,4 +1,4 @@
-[tool.fixit]
+[tool.rattle]
 enable = [
     ".rules.hollywood",
 ]

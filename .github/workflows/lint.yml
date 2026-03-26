@@ -18,8 +18,8 @@ jobs:
       - name: Install
         run: uv sync --inexact --extra dev
       - name: Check formatting with Ruff
-        run: uv run --extra dev ruff format --check src/fixit scripts examples docs/conf.py
+        run: uv run --extra dev ruff format --check src/rattle scripts examples docs/conf.py
       - name: Run Ruff lint
-        run: uv run --extra dev ruff check src/fixit scripts examples docs/conf.py
-      - name: Run Fixit lint
-        run: uv run --extra dev python -m fixit lint src/fixit
+        run: uv run --extra dev ruff check src/rattle scripts examples docs/conf.py
+      - name: Run Rattle lint
+        run: uv run --extra dev python -m rattle lint src/rattle
