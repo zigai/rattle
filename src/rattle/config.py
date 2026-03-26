@@ -3,20 +3,18 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import glob
 import importlib
 import inspect
 import logging
 import pkgutil
 import platform
-import re
 import sys
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from functools import cache
 from importlib.machinery import ModuleSpec
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import (
     Any,
@@ -675,25 +673,20 @@ def _relative_path_str(path: Path, base: Path) -> str | None:
         return None
 
 
-@cache
-def _compile_glob_pattern(pattern: str) -> re.Pattern[str]:
-    return re.compile(glob.translate(pattern, recursive=True, include_hidden=True, seps="/"))
-
-
 def _path_matches_glob(relative_path: str, pattern: str) -> bool:
     has_glob = any(char in pattern for char in GLOB_META_CHARS)
 
     if "/" not in pattern:
         parts = relative_path.split("/")
         if has_glob:
-            regex = _compile_glob_pattern(pattern)
-            return any(regex.fullmatch(part) for part in parts)
+            path = PurePosixPath()
+            return any(path.joinpath(part).match(pattern) for part in parts)
         return pattern in parts
 
     if not has_glob:
         return relative_path == pattern or relative_path.startswith(f"{pattern}/")
 
-    return bool(_compile_glob_pattern(pattern).fullmatch(relative_path))
+    return PurePosixPath(relative_path).match(pattern)
 
 
 def get_sequence(

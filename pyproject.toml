@@ -89,9 +89,6 @@ enable = [".examples.noop"]
 [tool.hatch.version]
 source = "vcs"
 
-[tool.hatch.build.hooks.vcs]
-version-file = "src/rattle/__version__.py"
-
 [tool.hatch.build]
 exclude = [
     "/.github",
