@@ -52,7 +52,7 @@ author = ""
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
-    "sphinx_mdinclude",
+    "myst_parser",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -61,10 +61,13 @@ templates_path = ["_templates"]
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = [
-    # included in other docs
-    "guide/*.rst"
-]
+exclude_patterns: list[str] = []
+
+source_suffix = {
+    ".md": "markdown",
+}
+
+myst_heading_anchors = 3
 
 autodoc_default_options = {
     "members": True,
@@ -91,7 +94,7 @@ html_theme = "alabaster"
 html_theme_options = {
     "description": "Advanced linting framework",
     "fixed_sidebar": True,
-    "badge_branch": "master",
+    "badge_branch": "main",
     "github_button": False,
     "github_user": "zigai",
     "github_repo": "rattle",

@@ -22,7 +22,7 @@ This installs all project extras into `.venv` and sets up the local
 ```shell-session
 $ source .venv/bin/activate
 
-(fixit) $
+(rattle) $
 ```
 
 ## Developing
@@ -30,7 +30,7 @@ $ source .venv/bin/activate
 Once activated, Rattle can be run locally:
 
 ```shell-session
-(fixit) $ fixit [args]
+(rattle) $ rattle [args]
 ```
 
 To run the test suite, type checker, and linters:
