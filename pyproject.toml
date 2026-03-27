@@ -3,7 +3,7 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "rattle"
+name = "rattle-lint"
 readme = "README.md"
 authors = [
     {name="zigai"},
@@ -95,6 +95,9 @@ exclude = [
     "/examples",
     "/legacy",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rattle"]
 
 [tool.pyright]
 include = ["src/rattle"]

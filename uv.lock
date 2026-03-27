@@ -990,7 +990,7 @@ wheels = [
 ]
 
 [[package]]
-name = "rattle"
+name = "rattle-lint"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
