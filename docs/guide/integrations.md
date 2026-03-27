@@ -11,7 +11,7 @@ Rattle can lint as you type and can also be used to format files.
 To enable this, install the `lsp` extras, for example:
 
 ```console
-$ pip install "rattle[lsp]"
+$ pip install "rattle-lint[lsp]"
 ```
 
 Then configure an LSP client to launch and connect to the Rattle LSP server.

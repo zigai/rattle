@@ -113,7 +113,7 @@ Show applied fixes in unified diff format when applied automatically.
 Start the language server providing IDE features over
 [LSP](https://microsoft.github.io/language-server-protocol/).
 This command is only available if Rattle is installed with the `lsp` extras,
-for example `pip install "rattle[lsp]"`. See {ref}`ide_integrations` for more
+for example `pip install "rattle-lint[lsp]"`. See {ref}`ide_integrations` for more
 details.
 
 ```console

@@ -7,7 +7,7 @@
 Install Rattle from PyPI:
 
 ```console
-$ pip install rattle
+$ pip install rattle-lint
 ```
 
 By default, Rattle enables the lint rules that ship with Rattle, all of which

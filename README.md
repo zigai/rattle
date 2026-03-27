@@ -18,13 +18,13 @@ Rattle is a fork of [Fixit](https://github.com/Instagram/Fixit).
 Install the CLI from PyPI:
 
 ```bash
-pip install rattle
+pip install rattle-lint
 ```
 
 Install editor/LSP support too:
 
 ```bash
-pip install "rattle[lsp]"
+pip install "rattle-lint[lsp]"
 ```
 
 ## Basic Usage
