@@ -487,9 +487,9 @@ class Foo(NamedTuple):
     pass
 
 # suggested fix
-from typing import NamedTuple
+import dataclasses
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class Foo:
     pass
 
@@ -501,9 +501,9 @@ class Foo(NT):
     pass
 
 # suggested fix
-from typing import NamedTuple as NT
+import dataclasses
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class Foo:
     pass
 
