@@ -109,21 +109,29 @@ class UseAsyncSleepInAsyncDef(LintRule):
                 time.sleep(1)
             """
         ),
+        Invalid(
+            """
+            import time
+            async def outer():
+                def inner():
+                    pass
+                time.sleep(1)
+            """
+        ),
     ]
 
     def __init__(self) -> None:
         super().__init__()
-        # is async func
-        self.async_func = False
+        self.function_stack: list[bool] = []
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-        self.async_func = node.asynchronous is not None
+        self.function_stack.append(node.asynchronous is not None)
 
     def leave_FunctionDef(self, _original_node: cst.FunctionDef) -> None:
-        self.async_func = False
+        self.function_stack.pop()
 
     def visit_Call(self, node: cst.Call) -> None:
-        if not self.async_func:
+        if not self.function_stack or not self.function_stack[-1]:
             return
 
         metadata = list(self.get_metadata(QualifiedNameProvider, node, ()))

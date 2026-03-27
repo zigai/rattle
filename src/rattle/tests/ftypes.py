@@ -109,6 +109,9 @@ class TypesTest(TestCase):
             ("foo, bar", Tags(("bar", "foo"))),
             ("foo, !bar", Tags(("foo",), ("bar",))),
             ("foo, -bar, foo, glob", Tags(("foo", "glob"), ("bar",))),
+            ("foo,", Tags(("foo",))),
+            ("foo,,bar", Tags(("bar", "foo"))),
+            (",", Tags()),
         ):
             with self.subTest(value):
                 result = Tags.parse(value)

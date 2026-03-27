@@ -108,7 +108,8 @@ class LSP:
     def _validate(self, uri: str, version: int) -> None:
         """Effect: publishes Rattle diagnostics to the LSP client."""
         generator = self.diagnostic_generator(uri)
-        if not generator:
+        if generator is None:
+            self.lsp.text_document_publish_diagnostics(PublishDiagnosticsParams(uri, [], version))
             return
         diagnostics = []
         for result in generator:

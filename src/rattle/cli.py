@@ -7,6 +7,7 @@ import logging
 import sys
 import unittest
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 import click
@@ -41,6 +42,62 @@ def splash(visited: set[Path], dirty: set[Path], autofixes: int = 0, fixed: int 
         click.secho(message, err=True)
     else:
         click.secho(f"{len(visited)} {f(len(visited))} clean", err=True)
+
+
+def _output_config_for_path(path: Path, options: Options) -> Config:
+    return generate_config(path, options=options)
+
+
+@dataclass
+class _FixState:
+    exit_code: int = 0
+    autofixes: int = 0
+    fixed: int = 0
+
+
+def _prompt_for_fix(generator: capture, state: _FixState) -> bool:
+    answer = click.prompt(
+        "Apply autofix?",
+        default="y",
+        type=click.Choice("ynq", case_sensitive=False),
+    )
+    if answer == "y":
+        generator.respond(answer=True)
+        state.fixed += 1
+        return False
+
+    state.exit_code |= 1
+    return answer == "q"
+
+
+def _update_fix_state(
+    result: object,
+    *,
+    autofix: bool,
+    interactive: bool,
+    generator: capture,
+    state: _FixState,
+) -> bool:
+    error = getattr(result, "error", None)
+    if error:
+        state.exit_code |= 2
+        return False
+
+    violation = getattr(result, "violation", None)
+    if not violation:
+        return False
+
+    if interactive and violation.autofixable:
+        state.autofixes += 1
+        return _prompt_for_fix(generator, state)
+
+    if autofix and violation.autofixable:
+        state.autofixes += 1
+        state.fixed += 1
+        return False
+
+    state.exit_code |= 1
+    return False
 
 
 @click.group()
@@ -133,11 +190,11 @@ def lint(
     visited: set[Path] = set()
     dirty: set[Path] = set()
     autofixes = 0
-    config = generate_config(options=options)
     for result in rattle_paths(
         paths, options=options, metrics_hook=print if options.print_metrics else None
     ):
         visited.add(result.path)
+        config = _output_config_for_path(result.path, options)
         if print_result(
             result,
             show_diff=diff,
@@ -187,12 +244,10 @@ def fix(
     is_stdin = bool(paths[0] and str(paths[0]) == "-")
     interactive = interactive and not is_stdin
     autofix = not interactive
-    exit_code = 0
+    state = _FixState()
 
     visited: set[Path] = set()
     dirty: set[Path] = set()
-    autofixes = 0
-    fixed = 0
 
     # TODO: make this parallel
     generator = capture(
@@ -204,9 +259,9 @@ def fix(
             metrics_hook=print if options.print_metrics else None,
         )
     )
-    config = generate_config(options=options)
     for result in generator:
         visited.add(result.path)
+        config = _output_config_for_path(result.path, options)
         # for STDIN, we need STDOUT to equal the fixed content, so
         # move everything else to STDERR
         if print_result(
@@ -217,24 +272,17 @@ def fix(
             output_template=config.output_template,
         ):
             dirty.add(result.path)
-            if autofix and result.violation and result.violation.autofixable:
-                autofixes += 1
-                fixed += 1
-        if interactive and result.violation and result.violation.autofixable:
-            autofixes += 1
-            answer = click.prompt(
-                "Apply autofix?",
-                default="y",
-                type=click.Choice("ynq", case_sensitive=False),
-            )
-            if answer == "y":
-                generator.respond(answer=True)
-                fixed += 1
-            elif answer == "q":
-                break
+        if _update_fix_state(
+            result,
+            autofix=autofix,
+            interactive=interactive,
+            generator=generator,
+            state=state,
+        ):
+            break
 
-    splash(visited, dirty, autofixes, fixed)
-    ctx.exit(exit_code)
+    splash(visited, dirty, state.autofixes, state.fixed)
+    ctx.exit(state.exit_code)
 
 
 @main.command()

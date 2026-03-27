@@ -60,3 +60,16 @@ exclude = ["ignored.py"]
 
     resolved = lsp.load_config(target_path)
     assert resolved.excluded is True
+
+
+def test_lsp_validate_clears_diagnostics_when_file_is_excluded() -> None:
+    lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
+    published = []
+    lsp.diagnostic_generator = lambda _uri: None  # type: ignore[method-assign]
+    lsp.lsp.text_document_publish_diagnostics = published.append
+
+    lsp._validate("file:///tmp/example.py", 7)
+
+    assert len(published) == 1
+    assert published[0].diagnostics == []
+    assert published[0].version == 7

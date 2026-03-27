@@ -41,6 +41,7 @@ class CollapseIsinstanceChecks(LintRule):
         Valid("isinstance(x, y) or isinstance(x)"),
         Valid("isinstance(x) or isinstance(x, y)"),
         Valid("isinstance(x, y) or isinstance(t, y)"),
+        Valid("isinstance(f(), A) or isinstance(f(), B)"),
         Valid("isinstance(x, y) and isinstance(x, z)"),
         Valid("isinstance(x, y) or isinstance(x, (z, q))"),
         Valid("isinstance(x, (y, z)) or isinstance(x, q)"),
@@ -149,6 +150,10 @@ class CollapseIsinstanceChecks(LintRule):
                     continue
 
                 target, match = call.args[0].value, call.args[1].value
+                if not self.is_safe_target(target):
+                    operands.append(operand)
+                    continue
+
                 for possible_target, matches in targets.items():
                     if target.deep_equals(possible_target):
                         matches.append(match)
@@ -160,3 +165,8 @@ class CollapseIsinstanceChecks(LintRule):
                 operands.append(operand)
 
         return operands, targets
+
+    def is_safe_target(self, target: cst.BaseExpression) -> bool:
+        # Re-evaluating arbitrary expressions can change semantics. Restrict collapsing
+        # to plain names, where repeated evaluation is safe.
+        return isinstance(target, cst.Name)

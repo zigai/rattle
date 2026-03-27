@@ -6,6 +6,7 @@
 
 import libcst as cst
 import libcst.matchers as m
+from libcst import MaybeSentinel
 from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
@@ -143,6 +144,15 @@ class DeprecatedABCImport(LintRule):
             expected_replacement="from collections import defaultdict\nfrom collections.abc import Container",
         ),
         Invalid(
+            "from collections import defaultdict, Container\nfrom collections import OrderedDict, Mapping",
+            expected_replacement=(
+                "from collections import defaultdict\n"
+                "from collections.abc import Container\n"
+                "from collections import OrderedDict\n"
+                "from collections.abc import Mapping"
+            ),
+        ),
+        Invalid(
             """
             class MyTest(collections.Container):
                 def test(self):
@@ -158,10 +168,6 @@ class DeprecatedABCImport(LintRule):
 
     def __init__(self) -> None:
         super().__init__()
-        # If the module needs to updated
-        self.update_module: bool = False
-        # The original imports
-        self.imports_names: list[str] = []
 
     def is_except_block(self, node: cst.CSTNode) -> bool:
         """
@@ -189,14 +195,48 @@ class DeprecatedABCImport(LintRule):
         if node.module and node.module.value == "collections" and any(import_names_in_abc):
             # Replacing the case where there are ABCs mixed with non-ABCs requires
             # splitting a single import statement into two separate imports. This
-            # cannot be achieved in this method and is offloaded to leaving the module.
+            # is handled by replacing the parent statement with two statements.
             if not all(import_names_in_abc):
-                # We set this variable which triggers the `self.report` to be called
-                # in `leave_Module`. We report in the `leave_Module`
-                # so that we can add an additional `SimpleStatementLine` for the new
-                # import
-                self.update_module = True
-                self.imports_names = import_names
+                parent = self.get_metadata(ParentNodeProvider, node, None)
+                if not isinstance(parent, cst.SimpleStatementLine):
+                    self.report(node, self.MESSAGE)
+                    return
+
+                assert isinstance(node.names, tuple)
+                non_abcs = tuple(
+                    _normalize_import_alias(alias)
+                    for alias in node.names
+                    if alias.name.value not in ABCS
+                )
+                abcs = tuple(
+                    _normalize_import_alias(alias)
+                    for alias in node.names
+                    if alias.name.value in ABCS
+                )
+                replacement = cst.FlattenSentinel(
+                    [
+                        cst.SimpleStatementLine(
+                            body=(
+                                cst.ImportFrom(
+                                    module=cst.Name(value="collections"),
+                                    names=non_abcs,
+                                ),
+                            )
+                        ),
+                        cst.SimpleStatementLine(
+                            body=(
+                                cst.ImportFrom(
+                                    module=cst.Attribute(
+                                        value=cst.Name(value="collections"),
+                                        attr=cst.Name(value="abc"),
+                                    ),
+                                    names=abcs,
+                                ),
+                            )
+                        ),
+                    ]
+                )
+                self.report(parent, self.MESSAGE, replacement=replacement)
             else:
                 self.report(
                     node,
@@ -208,77 +248,6 @@ class DeprecatedABCImport(LintRule):
                         )
                     ),
                 )
-
-    def get_import_from(
-        self, node: cst.SimpleStatementLine | cst.BaseCompoundStatement
-    ) -> cst.ImportFrom | None:
-        """
-        Iterate over a Statement Sequence and return a Statement if it is a
-        `cst.ImportFrom` statement.
-        """
-        imp = m.findall(
-            node,
-            m.ImportFrom(
-                module=m.Name("collections"),
-                names=m.OneOf([m.ImportAlias(name=m.Name(n)) for n in self.imports_names]),
-            ),
-        )
-        return imp[0] if len(imp) > 0 and isinstance(imp[0], cst.ImportFrom) else None
-
-    def leave_Module(self, original_node: cst.Module) -> None:
-        """While leaving the module, check if we need to split up imports."""
-        if self.update_module:
-            # Filter the ABCs and non-ABCs
-            abcs: list[str] = []
-            non_abcs: list[str] = []
-            for name in self.imports_names:
-                (non_abcs, abcs)[name in ABCS].append(name)
-
-            node_body = list(original_node.body)
-
-            # Iterate over the module to find bad imports
-            for idx, statement in enumerate(node_body):
-                # Find if the statement is the one we are searching for
-                import_statement = self.get_import_from(statement)
-                if import_statement:
-                    # Remove the original import statement
-                    node_body.remove(statement)
-                    # Add the non ABC imports
-                    node_body.insert(
-                        idx,
-                        cst.SimpleStatementLine(
-                            body=(
-                                cst.ImportFrom(
-                                    module=cst.Name(value="collections"),
-                                    names=[
-                                        cst.ImportAlias(name=cst.Name(value=imp))
-                                        for imp in non_abcs
-                                    ],
-                                ),
-                            )
-                        ),
-                    )
-                    # Add the ABC imports
-                    node_body.insert(
-                        idx + 1,
-                        cst.SimpleStatementLine(
-                            body=(
-                                cst.ImportFrom(
-                                    module=cst.Attribute(
-                                        value=cst.Name(value="collections"),
-                                        attr=cst.Name(value="abc"),
-                                    ),
-                                    names=[
-                                        cst.ImportAlias(name=cst.Name(value=imp)) for imp in abcs
-                                    ],
-                                ),
-                            )
-                        ),
-                    )
-
-            self.report(
-                original_node, self.MESSAGE, replacement=original_node.with_changes(body=node_body)
-            )
 
     def visit_ImportAlias(self, node: cst.ImportAlias) -> None:
         """This catches the `import collections.<ABC>` cases."""
@@ -350,3 +319,7 @@ class DeprecatedABCImport(LintRule):
                         ]
                     ),
                 )
+
+
+def _normalize_import_alias(alias: cst.ImportAlias) -> cst.ImportAlias:
+    return alias.with_changes(comma=MaybeSentinel.DEFAULT)

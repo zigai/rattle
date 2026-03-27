@@ -176,7 +176,7 @@ class Tags(Container[str]):
 
         include = set()
         exclude = set()
-        tokens = {value.strip() for value in value.lower().split(",")}
+        tokens = {token.strip() for token in value.lower().split(",") if token.strip()}
         for token in tokens:
             if token[0] in "!^-":
                 exclude.add(token[1:])

@@ -632,7 +632,10 @@ class ConfigTest(TestCase):
                 "[tool.rattle]\noutput-format = 'this is some weird format'\n"
             )
 
-            with pytest.raises(config.ConfigError, match="output-format"):
+            with pytest.raises(
+                config.ConfigError,
+                match=r"unknown value 'this is some weird format'",
+            ):
                 config.generate_config(self.tdp / "outer" / "foo.py")
 
         with self.subTest("options require concrete rule"):
@@ -943,6 +946,34 @@ class ConfigTest(TestCase):
                     catch_exceptions=True,
                 )
                 assert re.search(r"file .*f_string\.py line \d+ rule UseFstring", result.output)
+
+            with self.subTest("per-file output-format"):
+                nested = self.tdp / "nested"
+                nested.mkdir()
+                (self.tdp / "pyproject.toml").write_text(
+                    dedent(
+                        """
+                        [tool.rattle]
+                        output-format = "vscode"
+                        """
+                    )
+                )
+                (nested / "pyproject.toml").write_text(
+                    dedent(
+                        """
+                        [tool.rattle]
+                        output-format = "custom"
+                        output-template = "CUSTOM {rule_name} {path}"
+                        """
+                    )
+                )
+                nested_file = nested / "nested_f_string.py"
+                nested_file.write_text("name = '{name}'.format(name='Jane Doe')")
+
+                result = runner.invoke(
+                    main, ["lint", nested_file.as_posix()], catch_exceptions=False
+                )
+                assert re.search(r"CUSTOM UseFstring .*nested_f_string\.py", result.output)
 
     def test_validate_config(self) -> None:
         with self.subTest("validate-config valid"), TemporaryDirectory() as td:

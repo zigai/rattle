@@ -966,7 +966,7 @@ def merge_configs(  # noqa: C901 - config merge orchestration
             try:
                 output_format = OutputFormat(value)
             except ValueError as e:
-                raise ConfigError("output-format: unknown value {value!r}", config=config) from e
+                raise ConfigError(f"output-format: unknown value {value!r}", config=config) from e
 
         if value := data.pop("output-template", ""):
             output_template = value
