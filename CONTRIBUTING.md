@@ -83,12 +83,6 @@ requests:
 $ gh pr create
 ```
 
-If you are a Rattle maintainer, we recommend using [ghstack][] (see below):
-
-```shell-session
-$ ghstack submit
-```
-
 ## Code style
 
 You can ensure your changes are well formatted, and imports are sorted:
@@ -146,40 +140,5 @@ want to use it with, so that it can install hooks and new commands:
 $ git branchless init
 ```
 
-
-## ghstack
-
-[ghstack][] is a tool for simplifying and
-automating the process of submitting stacked PRs, where each PR in the stack
-builds and depends on changes from the previous PR.
-
-Unfortunately, ghstack requires push access to the upstream repo, so this can
-only be used by project maintainers.
-
-ghstack is a Python package, and we recommend installing it using [uv][]:
-
-```shell-session
-$ uv tool install ghstack
-```
-
-Once installed, you can run ghstack to submit a stack of PRs from your active
-branch, one PR for each commit in the branch:
-
-```shell-session
-$ ghstack submit
-```
-
-Note that any PRs created with ghstack *cannot* be merged using the normal
-Github merge UI — you must use ghstack to "land" the stack so that it can
-automatically rebase and merge each commit in the correct order, and update
-any outstanding PRs accordingly. You can do this by passing the URL to the
-last PR in the stack that you want to land:
-
-```shell-session
-$ ghstack land $PR_URL
-```
-
 [gh]: https://cli.github.com/
-[ghstack]: https://github.com/ezyang/ghstack
-[pipx]: https://pypa.github.io/pipx/
 [uv]: https://docs.astral.sh/uv/

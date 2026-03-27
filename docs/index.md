@@ -13,9 +13,8 @@ with the repository README. This docs home focuses on where to go next.
 - [Integrations](guide/integrations.md)
 - [Built-in rules](guide/builtins.md)
 
-## Reference and background
+## Reference
 
-- [Historical Context](why.md)
 - [API reference](api.md)
 - [Contributing](contributing.md)
 
@@ -23,7 +22,6 @@ with the repository README. This docs home focuses on where to go next.
 :hidden:
 :maxdepth: 1
 
-why
 guide
 api
 contributing
