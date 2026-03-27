@@ -2,8 +2,6 @@
 
 Rattle is a Python linting framework built on [LibCST](https://libcst.readthedocs.io) with support for autofixes, custom in-repo lint rules, and hierarchical configuration.
 
-Rattle is a long-lived fork of [Fixit](https://github.com/Instagram/Fixit) and is maintained independently.
-
 ## Install
 
 Install the CLI from PyPI:
@@ -33,6 +31,33 @@ rattle fix path/to/code
 ```
 
 Rattle reads configuration from `pyproject.toml` under `[tool.rattle]`.
+
+## Example Configuration
+
+Example `pyproject.toml` you can use as a starting point:
+
+```toml
+[tool.rattle]
+root = true
+python-version = "3.10"
+formatter = "ufmt"
+output-format = "rattle"
+disable = [
+    "NoStaticIfCondition",
+    "UseAssertIn",
+]
+per-file-disable = {"tests/generated.py" = ["UseFstring"]}
+
+[tool.rattle.options]
+UseFstring = {simple_expression_max_length = 40}
+
+[[tool.rattle.overrides]]
+path = "tests"
+enable = ["UseAssertIn"]
+
+[tool.rattle.overrides.options.UseFstring]
+simple_expression_max_length = 60
+```
 
 ## Features
 
