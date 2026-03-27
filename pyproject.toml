@@ -51,7 +51,7 @@ dev = [
     "tomli",
     "ufmt == 2.8.0",
     "usort == 1.0.8.post1",
-    "ruff",
+    "ruff==0.15.8",
 ]
 lsp = [
     "pygls[ws] ~= 2.0.0",
