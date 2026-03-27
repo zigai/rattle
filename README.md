@@ -48,15 +48,13 @@ disable = [
 ]
 per-file-disable = {"tests/generated.py" = ["UseFstring"]}
 
-[tool.rattle.options]
-UseFstring = {simple_expression_max_length = 40}
+[tool.rattle.options.UseFstring]
+simple_expression_max_length = 40
 
 [[tool.rattle.overrides]]
 path = "tests"
 enable = ["UseAssertIn"]
-
-[tool.rattle.overrides.options.UseFstring]
-simple_expression_max_length = 60
+options = { UseFstring = { simple_expression_max_length = 60 } }
 ```
 
 ## Features

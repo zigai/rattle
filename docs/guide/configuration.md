@@ -213,9 +213,8 @@ Valid keys are:
 - an exact alias such as `UseFstring`
 
 ```toml
-[tool.rattle.options]
-"rattle.rules:ExampleRule" = {greeting = "hello world"}
-"RAT024" = {simple_expression_max_length = 42}
+[tool.rattle.options.UseFstring]
+simple_expression_max_length = 42
 ```
 
 Option keys must point to one concrete lint rule class, not a package, module,
@@ -236,6 +235,13 @@ greeting = "hello world"
 answer = 42
 ```
 
+Inline mappings are still supported:
+
+```toml
+[tool.rattle.options]
+UseFstring = {simple_expression_max_length = 42}
+```
+
 (overrides)=
 
 ## `[[tool.rattle.overrides]]`
@@ -249,13 +255,35 @@ defining the subpath it applies to along with any values from the main table.
 [[tool.rattle.overrides]]
 path = "foo/bar"
 disable = ["rattle.rules:ExampleRule"]
-
-[tool.rattle.overrides.options."rattle.rules:Story"]
-closing = "goodnight moon"
+options = {"rattle.rules:Story" = {closing = "goodnight moon"}}
 
 [[tool.rattle.overrides]]
 path = "fizz/buzz"
 enable = ["plugin:SomethingNeat"]
+```
+
+For example:
+
+```toml
+[tool.rattle.options.UseFstring]
+simple_expression_max_length = 40
+
+[[tool.rattle.overrides]]
+path = "tests"
+options = { UseFstring = { simple_expression_max_length = 60 } }
+```
+
+In that configuration, `UseFstring.simple_expression_max_length` is `40`
+globally and `60` for files under `tests/`.
+
+The expanded TOML table form is also supported when needed:
+
+```toml
+[[tool.rattle.overrides]]
+path = "tests"
+
+[tool.rattle.overrides.options.UseFstring]
+simple_expression_max_length = 60
 ```
 
 ## `[tool.rattle.per-file-enable]` and `[tool.rattle.per-file-disable]`
