@@ -149,12 +149,15 @@ Set it to an empty string, `""`, to disable target version checking.
 
 Type: `str`
 
-Code formatting style to apply after fixing source files.
+Optional post-fix formatting style to apply after Rattle rewrites a file.
+Leave this unset if formatting should remain fully owned by the repository's
+existing tooling.
 
 Supported code styles:
 
 - `(unset)`: no style is applied
 - `"black"`: [Black](https://black.readthedocs.io/) code formatter
+- `"ruff"`: [Ruff format](https://docs.astral.sh/ruff/formatter/) code formatter
 - `"ufmt"`: [µfmt](https://ufmt.omnilib.dev/) code style, combining
   [µsort](https://usort.readthedocs.io/) import sorting with
   [Black](https://black.readthedocs.io/) formatting

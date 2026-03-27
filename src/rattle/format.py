@@ -9,6 +9,8 @@ Post-transform file formatters.
 NOTE: be sure to update docs/guide/configuration.rst to include any new formatters.
 """
 
+import shutil
+import subprocess
 from pathlib import Path
 
 from libcst import Module
@@ -16,6 +18,13 @@ from libcst import Module
 from .ftypes import Config, FileContent
 
 FORMAT_STYLES: dict[str | None, type["Formatter"]] = {}
+
+
+def _resolve_required_executable(name: str) -> str:
+    executable = shutil.which(name)
+    if executable is None:
+        raise RuntimeError(f"{name} formatter is not installed")
+    return executable
 
 
 class Formatter:
@@ -60,6 +69,31 @@ class UfmtFormatter(Formatter):
         return ufmt.ufmt_bytes(
             path, module.bytes, black_config=black_config, usort_config=usort_config
         )
+
+
+class RuffFormatter(Formatter):
+    STYLE = "ruff"
+
+    def format(self, module: Module, path: Path) -> FileContent:
+        proc = subprocess.run(  # noqa: S603 - fixed executable and args
+            [
+                _resolve_required_executable("ruff"),
+                "format",
+                "--stdin-filename",
+                path.as_posix(),
+                "-",
+            ],
+            input=module.bytes,
+            capture_output=True,
+            check=False,
+        )
+
+        if proc.returncode != 0:
+            stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+            message = stderr or "ruff format failed"
+            raise RuntimeError(message)
+
+        return proc.stdout
 
 
 def format_module(module: Module, path: Path, config: Config) -> FileContent:

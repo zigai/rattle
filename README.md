@@ -40,7 +40,6 @@ Example `pyproject.toml` you can use as a starting point:
 [tool.rattle]
 root = true
 python-version = "3.10"
-formatter = "ufmt"
 output-format = "rattle"
 disable = [
     "NoStaticIfCondition",
