@@ -1,25 +1,30 @@
-name: Publish
+name: Upload Python Package
 on:
-  push:
-    tags:
-      - v*
+  release:
+    types: [published]
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: pyproject.toml
-          python-version: "3.12"
-          activate-environment: true
-      - name: Build
-        run: uv build
-      - name: Publish
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Build and publish
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TOKEN }}
+        run: |
+          uv build
+          uv run --with twine twine upload dist/*
