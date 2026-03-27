@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 dynamic = ["version"]
-description = "A lint framework that helps you write better Python code."
+description = "A framework for custom Python linters with auto-fixes and hierarchical configuration"
 
 [project.optional-dependencies]
 docs = [
