@@ -166,6 +166,8 @@ class SmokeTest(TestCase):
                 assert '5 |     value = f"hello world"' in result.output
 
             with self.subTest("fixing with formatting via stdin"):
+                (tdp / "pyproject.toml").write_text("[tool.rattle]\nformatter='ufmt'\n")
+
                 result = self.runner.invoke(
                     main,
                     ["fix", "-", path.as_posix()],
