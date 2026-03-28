@@ -56,6 +56,7 @@ BUILTIN_RULE_MODULES = ("rattle.rules", "rattle.rules.extra")
 
 log = logging.getLogger(__name__)
 GLOB_META_CHARS = frozenset("*?[")
+_logged_rule_load_failures: set[tuple[Path, Path | None, str, str, str]] = set()
 
 
 class ConfigError(ValueError):
@@ -320,6 +321,33 @@ def _enable_root_import_path(enable_root_import: bool | Path, root: Path) -> Pat
     return root
 
 
+def _log_rule_load_failure_once(
+    selector: RuleSelector,
+    error: Exception,
+    *,
+    root: Path,
+    enable_root_import: bool | Path,
+) -> None:
+    import_root = _enable_root_import_path(enable_root_import, root)
+    key = (
+        root.resolve(),
+        import_root.resolve() if import_root is not None else None,
+        str(selector),
+        error.__class__.__name__,
+        str(error),
+    )
+    if key in _logged_rule_load_failures:
+        return
+
+    _logged_rule_load_failures.add(key)
+    log.warning(
+        "Failed to load rules '%s': %s: %s",
+        selector,
+        error.__class__.__name__,
+        error,
+    )
+
+
 def _build_rule_registry(
     selectors: Iterable[RuleSelector],
     *,
@@ -350,11 +378,11 @@ def _build_rule_registry(
                     raise
                 registry.import_errors[selector] = error
                 if log_failures:
-                    log.warning(
-                        "Failed to load rules '%s': %s: %s",
+                    _log_rule_load_failure_once(
                         selector,
-                        error.__class__.__name__,
                         error,
+                        root=root,
+                        enable_root_import=enable_root_import,
                     )
                 rules = ()
 
@@ -401,15 +429,18 @@ def _resolve_selector(selector: RuleSelector, registry: RuleRegistry) -> RuleRes
 def _resolve_selector_or_log(
     selector: RuleSelector,
     registry: RuleRegistry,
+    *,
+    root: Path,
+    enable_root_import: bool | Path,
 ) -> RuleResolution | None:
     try:
         return _resolve_selector(selector, registry)
     except Exception as error:  # noqa: BLE001 - import boundary
-        log.warning(
-            "Failed to load rules '%s': %s: %s",
+        _log_rule_load_failure_once(
             selector,
-            error.__class__.__name__,
             error,
+            root=root,
+            enable_root_import=enable_root_import,
         )
         return None
 
@@ -433,7 +464,12 @@ def collect_rule_types(
     )
 
     for selector in config.enable:
-        resolution = _resolve_selector_or_log(selector, registry)
+        resolution = _resolve_selector_or_log(
+            selector,
+            registry,
+            root=config.root,
+            enable_root_import=config.enable_root_import,
+        )
         if resolution is None:
             continue
         if resolution.concrete:
@@ -441,7 +477,12 @@ def collect_rule_types(
         all_rules |= set(resolution.rules)
 
     for selector in config.disable:
-        resolution = _resolve_selector_or_log(selector, registry)
+        resolution = _resolve_selector_or_log(
+            selector,
+            registry,
+            root=config.root,
+            enable_root_import=config.enable_root_import,
+        )
         if resolution is None:
             continue
         disabled_rules.update(
