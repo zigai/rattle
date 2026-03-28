@@ -267,7 +267,7 @@ HollywoodName [*] It's underproved!
 3 |     print(f"hello {name}")
   |
 help: Apply the available autofix
-1 file checked, 1 file with errors, 1 auto-fix available, 1 fix applied
+1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied
 ```
 
 Pass `--interactive` to confirm each available autofix one at a time.
