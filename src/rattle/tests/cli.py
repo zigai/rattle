@@ -61,6 +61,35 @@ class CliTest(TestCase):
             assert result.exit_code == 0
             assert path.read_text() == 'value = "hello"\n'
 
+    def test_fix_logs_missing_rule_collection_once(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "pyproject.toml").write_text(
+                '[tool.rattle]\ndisable = ["rattle_blank_lines.rules"]\n'
+            )
+            first = root / "first.py"
+            second = root / "second.py"
+            first.write_text("value = 1\n")
+            second.write_text("other = 2\n")
+
+            with self.assertLogs("rattle.config", level="WARNING") as logs:
+                result = self.runner.invoke(
+                    main,
+                    ["fix", first.as_posix(), second.as_posix()],
+                    catch_exceptions=False,
+                )
+
+            assert result.exit_code == 0
+            assert result.stdout == ""
+            assert result.stderr == "2 files clean\n"
+            assert (
+                sum(
+                    "Failed to load rules 'rattle_blank_lines.rules'" in message
+                    for message in logs.output
+                )
+                == 1
+            )
+
     def test_fix_returns_nonzero_when_interactive_fix_is_quit(self) -> None:
         with TemporaryDirectory() as td:
             path = Path(td) / "fstring.py"
