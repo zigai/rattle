@@ -22,21 +22,41 @@ from .testing import generate_lint_rule_test_cases
 from .util import capture
 
 
-def splash(visited: set[Path], dirty: set[Path], autofixes: int = 0, fixed: int = 0) -> None:
+def splash(
+    visited: set[Path],
+    violation_files: set[Path],
+    error_files: set[Path],
+    violations: int = 0,
+    autofixes: int = 0,
+    fixed: int = 0,
+) -> None:
     def f(v: int) -> str:
         return "file" if v == 1 else "files"
 
-    if dirty:
-        reports = [
-            click.style(f"{len(visited)} {f(len(visited))} checked"),
-            click.style(f"{len(dirty)} {f(len(dirty))} with errors", fg="yellow", bold=True),
-        ]
+    if violation_files or error_files:
+        reports = [click.style(f"{len(visited)} {f(len(visited))} checked")]
+        if violations:
+            reports.append(
+                click.style(
+                    f"{violations} violation{'s' if violations != 1 else ''} "
+                    f"in {len(violation_files)} {f(len(violation_files))}",
+                    fg="yellow",
+                    bold=True,
+                )
+            )
+        if error_files:
+            reports.append(
+                click.style(
+                    f"{len(error_files)} {f(len(error_files))} with errors",
+                    fg="yellow",
+                    bold=True,
+                )
+            )
         if autofixes:
-            word = "fix" if autofixes == 1 else "fixes"
-            reports += [click.style(f"{autofixes} auto-{word} available", bold=True)]
+            reports.append(click.style(f"{autofixes} autofixable", bold=True))
         if fixed:
             word = "fix" if fixed == 1 else "fixes"
-            reports += [click.style(f"{fixed} {word} applied", bold=True)]
+            reports.append(click.style(f"{fixed} {word} applied", bold=True))
 
         message = ", ".join(reports)
         click.secho(message, err=True)
@@ -51,6 +71,7 @@ def _output_config_for_path(path: Path, options: Options) -> Config:
 @dataclass
 class _FixState:
     exit_code: int = 0
+    violations: int = 0
     autofixes: int = 0
     fixed: int = 0
 
@@ -92,6 +113,8 @@ def _update_fix_state(
     violation = getattr(result, "violation", None)
     if not violation:
         return False
+
+    state.violations += 1
 
     if interactive and violation.autofixable:
         state.autofixes += 1
@@ -194,7 +217,9 @@ def lint(
 
     exit_code = 0
     visited: set[Path] = set()
-    dirty: set[Path] = set()
+    violation_files: set[Path] = set()
+    error_files: set[Path] = set()
+    violations = 0
     autofixes = 0
     for result in rattle_paths(
         paths, options=options, metrics_hook=print if options.print_metrics else None
@@ -207,15 +232,17 @@ def lint(
             output_format=config.output_format,
             output_template=config.output_template,
         ):
-            dirty.add(result.path)
             if result.violation:
+                violation_files.add(result.path)
+                violations += 1
                 exit_code |= 1
                 if result.violation.autofixable:
                     autofixes += 1
             if result.error:
+                error_files.add(result.path)
                 exit_code |= 2
 
-    splash(visited, dirty, autofixes)
+    splash(visited, violation_files, error_files, violations, autofixes)
     ctx.exit(exit_code)
 
 
@@ -253,7 +280,8 @@ def fix(
     state = _FixState()
 
     visited: set[Path] = set()
-    dirty: set[Path] = set()
+    violation_files: set[Path] = set()
+    error_files: set[Path] = set()
 
     # TODO: make this parallel
     generator = capture(
@@ -277,7 +305,10 @@ def fix(
             output_format=config.output_format,
             output_template=config.output_template,
         ):
-            dirty.add(result.path)
+            if result.violation:
+                violation_files.add(result.path)
+            if result.error:
+                error_files.add(result.path)
         if _update_fix_state(
             result,
             autofix=autofix,
@@ -287,7 +318,14 @@ def fix(
         ):
             break
 
-    splash(visited, dirty, state.autofixes, state.fixed)
+    splash(
+        visited,
+        violation_files,
+        error_files,
+        state.violations,
+        state.autofixes,
+        state.fixed,
+    )
     ctx.exit(state.exit_code)
 
 
