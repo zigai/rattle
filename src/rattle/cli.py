@@ -56,11 +56,17 @@ class _FixState:
 
 
 def _prompt_for_fix(generator: capture, state: _FixState) -> bool:
-    answer = click.prompt(
-        "Apply autofix?",
-        default="y",
-        type=click.Choice("ynq", case_sensitive=False),
-    )
+    prompt = "Apply autofix? [Y]es, [n]o, [q]uit: "
+    while True:
+        click.echo(prompt, nl=False, err=True)
+        answer = click.getchar(echo=True).lower()
+        click.echo(err=True)
+        if answer in {"\n", "\r"}:
+            answer = "y"
+        if answer in {"y", "n", "q"}:
+            break
+        click.echo("Press y to apply, n to skip, or q to quit fixing.", err=True)
+
     if answer == "y":
         generator.respond(answer=True)
         state.fixed += 1
@@ -219,8 +225,8 @@ def lint(
     "--interactive/--automatic",
     "-i/-a",
     is_flag=True,
-    default=True,
-    help="how to apply fixes; interactive by default unless STDIN",
+    default=False,
+    help="how to apply fixes; automatic by default unless --interactive is set",
 )
 @click.option("--diff", "-d", is_flag=True, help="show diff even with --automatic")
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
