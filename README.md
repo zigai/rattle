@@ -1,5 +1,11 @@
 # Rattle
 
+[![Tests](https://github.com/zigai/rattle/actions/workflows/tests.yml/badge.svg)](https://github.com/zigai/rattle/actions/workflows/tests.yml)
+[![PyPI version](https://badge.fury.io/py/rattle-lint.svg)](https://badge.fury.io/py/rattle-lint)
+![Supported versions](https://img.shields.io/badge/python-3.10+-blue.svg)
+[![Downloads](https://static.pepy.tech/badge/rattle-lint)](https://pepy.tech/project/rattle-lint)
+[![license](https://img.shields.io/github/license/zigai/rattle.svg)](https://github.com/zigai/rattle/blob/main/LICENSE)
+
 Rattle is a Python linting framework built on [LibCST](https://libcst.readthedocs.io) with support for autofixes, custom in-repo lint rules, and hierarchical configuration.
 
 Rattle is a fork of [Fixit](https://github.com/Instagram/Fixit).
