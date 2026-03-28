@@ -65,4 +65,4 @@ options = { UseFstring = { simple_expression_max_length = 60 } }
 
 ## License
 
-MIT; see LICENSE and NOTICE.
+MIT
