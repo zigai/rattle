@@ -32,7 +32,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "--automatic", path.as_posix()],
+                ["fix", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -45,22 +45,48 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "--automatic", path.as_posix()],
+                ["fix", path.as_posix()],
                 catch_exceptions=False,
             )
 
             assert result.exit_code == 2
 
+    def test_fix_applies_autofixes_by_default(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('value = f"hello"\n')
+
+            result = self.runner.invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
+
+            assert result.exit_code == 0
+            assert path.read_text() == 'value = "hello"\n'
+
     def test_fix_returns_nonzero_when_interactive_fix_is_quit(self) -> None:
         with TemporaryDirectory() as td:
             path = Path(td) / "fstring.py"
-            path.write_text("name = '{}'.format(user)\n")
+            path.write_text('value = f"hello"\n')
 
             result = self.runner.invoke(
                 main,
-                ["fix", path.as_posix()],
-                input="q\n",
+                ["fix", "--interactive", path.as_posix()],
+                input="q",
                 catch_exceptions=False,
             )
 
             assert result.exit_code == 1
+            assert path.read_text() == 'value = f"hello"\n'
+
+    def test_fix_interactive_accepts_single_keypress(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('value = f"hello"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["fix", "--interactive", path.as_posix()],
+                input="y",
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+            assert path.read_text() == 'value = "hello"\n'

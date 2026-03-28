@@ -90,7 +90,7 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "--automatic", path.as_posix()],
+                    ["fix", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -106,7 +106,7 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "--automatic", path.as_posix()],
+                    ["fix", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -141,7 +141,7 @@ class SmokeTest(TestCase):
                 path.write_text(ruff_content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "--automatic", path.as_posix()],
+                    ["fix", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -343,7 +343,7 @@ class SmokeTest(TestCase):
 
             expected = clean.read_text()
 
-            result = self.runner.invoke(main, ["fix", "--automatic", td])
+            result = self.runner.invoke(main, ["fix", td])
             errors = defaultdict(list)
             pattern = re.compile(
                 r"(?m)^(?P<header>[^\n]+)\n --> (?P<path>.+):(?P<line>\d+):(?P<col>\d+)$"
@@ -406,7 +406,7 @@ class SmokeTest(TestCase):
             path.write_text(content)
             result = self.runner.invoke(
                 main,
-                ["fix", "--automatic", path.as_posix()],
+                ["fix", path.as_posix()],
                 catch_exceptions=False,
             )
 
