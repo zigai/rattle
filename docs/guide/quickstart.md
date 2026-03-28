@@ -257,7 +257,7 @@ Note that the `lint` command only shows lint errors and suggested changes.
 The `fix` command applies those changes to the codebase:
 
 ```console
-$ rattle fix --automatic sourdough/baker.py
+$ rattle fix sourdough/baker.py
 HollywoodName [*] It's underproved!
  --> sourdough/baker.py:2:12
   |
@@ -270,8 +270,7 @@ help: Apply the available autofix
 1 file checked, 1 file with errors, 1 auto-fix available, 1 fix applied
 ```
 
-By default, the `fix` command prompts interactively for each available change,
-and lets the user accept or decline it.
+Pass `--interactive` to confirm each available autofix one at a time.
 
 Now that the suggested changes have been applied, the codebase is clean:
 

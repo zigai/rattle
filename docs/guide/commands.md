@@ -96,11 +96,13 @@ $ rattle fix [--interactive | --automatic [--diff]] [PATH ...]
 ### `--interactive / -i`
 
 Interactively prompt the user to apply or decline each available autofix.
-This is the default behavior.
+Press `y` to apply, `n` to skip, or `q` to stop prompting and leave the
+remaining fixes unapplied.
 
 ### `--automatic / -a`
 
 Automatically apply suggested fixes for all lint errors when available.
+This is the default behavior.
 
 ### `--diff / -d`
 
