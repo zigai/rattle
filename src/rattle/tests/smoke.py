@@ -230,7 +230,7 @@ class SmokeTest(TestCase):
             assert "UseFstring [*] Do not use printf style formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert result.exit_code == 1
-            assert result.stderr == "2 files checked, 1 file with errors, 1 auto-fix available\n"
+            assert result.stderr == "2 files checked, 1 violation in 1 file, 1 autofixable\n"
 
     def test_directory_with_selector_overrides_from_cli(self) -> None:
         with TemporaryDirectory() as td:
@@ -271,7 +271,7 @@ class SmokeTest(TestCase):
             assert "included.py" in result.output
             assert "ignored.py" not in result.output
             assert result.exit_code == 1
-            assert result.stderr == "1 file checked, 1 file with errors, 1 auto-fix available\n"
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
 
     def test_directory_with_errors(self) -> None:
         with TemporaryDirectory() as td:
@@ -283,6 +283,7 @@ class SmokeTest(TestCase):
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
             assert result.exit_code == 2
+            assert result.stderr == "2 files checked, 1 file with errors\n"
 
     def test_directory_with_violations_and_errors(self) -> None:
         with TemporaryDirectory() as td:
@@ -297,6 +298,10 @@ class SmokeTest(TestCase):
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
             assert result.exit_code == 3
+            assert (
+                result.stderr
+                == "3 files checked, 1 violation in 1 file, 1 file with errors, 1 autofixable\n"
+            )
 
     def test_directory_with_autofixes(self) -> None:
         with TemporaryDirectory() as td:
@@ -370,6 +375,11 @@ class SmokeTest(TestCase):
                     "6:8 CompareSingletonPrimitivesByIs",
                 ] == sorted(errors[multi])
                 assert expected == multi.read_text()
+
+            assert (
+                result.stderr
+                == "3 files checked, 4 violations in 2 files, 4 autofixable, 4 fixes applied\n"
+            )
 
     def test_lint_directory_with_no_rules_enabled(self) -> None:
         content = dedent(
