@@ -65,7 +65,7 @@ class CliTest(TestCase):
         with TemporaryDirectory() as td:
             root = Path(td)
             (root / "pyproject.toml").write_text(
-                '[tool.rattle]\ndisable = ["rattle_blank_lines.rules"]\n'
+                '[tool.rattle]\ndisable = ["missing_rules_collection.rules"]\n'
             )
             first = root / "first.py"
             second = root / "second.py"
@@ -84,7 +84,7 @@ class CliTest(TestCase):
             assert result.stderr == "2 files clean\n"
             assert (
                 sum(
-                    "Failed to load rules 'rattle_blank_lines.rules'" in message
+                    "Failed to load rules 'missing_rules_collection.rules'" in message
                     for message in logs.output
                 )
                 == 1
