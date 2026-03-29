@@ -38,6 +38,7 @@ fix: _require-uv
 test: _require-uv
   uv run --extra dev --extra lsp pytest
 
+
 # build the package
 build: _require-uv
   uv build
