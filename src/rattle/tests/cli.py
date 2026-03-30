@@ -7,14 +7,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
-from click.testing import CliRunner
-
 from rattle.cli import main
+
+from .helpers import make_cli_runner
 
 
 class CliTest(TestCase):
     def setUp(self) -> None:
-        self.runner = CliRunner(mix_stderr=False)
+        self.runner = make_cli_runner()
 
     def test_upgrade_command_removed(self) -> None:
         result = self.runner.invoke(main, ["upgrade"], catch_exceptions=False)

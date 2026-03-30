@@ -12,7 +12,6 @@ from typing import List, Sequence, Tuple, Type
 from unittest import TestCase
 
 import pytest
-from click.testing import CliRunner
 
 from rattle import config
 from rattle.cli import main
@@ -29,6 +28,8 @@ from rattle.ftypes import (
 )
 from rattle.rule import LintRule
 from rattle.util import chdir
+
+from .helpers import make_cli_runner
 
 
 class ConfigTest(TestCase):
@@ -892,7 +893,7 @@ class ConfigTest(TestCase):
                 )
             )
 
-            runner = CliRunner(mix_stderr=False)
+            runner = make_cli_runner()
             content = "name = '{name}'.format(name='Jane Doe')"
             filepath = self.tdp / "f_string.py"
             filepath.write_text(content)

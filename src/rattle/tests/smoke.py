@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import json
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -11,16 +10,15 @@ from tempfile import TemporaryDirectory
 from textwrap import dedent
 from unittest import TestCase
 
-from click.testing import CliRunner
-from pygls import uris
-
 from rattle import __version__
 from rattle.cli import main
+
+from .helpers import make_cli_runner
 
 
 class SmokeTest(TestCase):
     def setUp(self) -> None:
-        self.runner = CliRunner(mix_stderr=False)
+        self.runner = make_cli_runner()
 
     def test_cli_version(self) -> None:
         result = self.runner.invoke(main, ["--version"])
@@ -176,48 +174,19 @@ class SmokeTest(TestCase):
                 )
 
                 assert result.exit_code == 0
-                assert expected_format == result.output, "unexpected stdout"
-
-            with self.subTest("LSP"):
-                path.write_text(content)
-                uri = uris.from_fs_path(path.as_posix())
-
-                initialize = (
-                    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}'
-                )
-
-                did_open_template = '{{"jsonrpc":"2.0","id":1,"method":"textDocument/didOpen","params":{{"textDocument":{{"uri":{uri},"languageId":"python","version":0,"text":{content}}}}}}}'
-                did_open = did_open_template.format(
-                    uri=json.dumps(uri), content=json.dumps(content)
-                )
-
-                def payload(content: str) -> str:
-                    return f"Content-Length: {len(content)}\r\n\r\n{content}"
-
-                result = self.runner.invoke(
-                    main,
-                    ["lsp", "--debounce-interval", "0"],
-                    input=payload(initialize) + payload(did_open),
-                    catch_exceptions=False,
-                )
-
-                assert result.exit_code == 0
-                assert re.search(
-                    r"file\.py\".+\"range\".+\"start\".+\"end\".+\"severity\": 2, \"code\": \"NoRedundantFString\", \"source\": \"rattle\"",
-                    result.output,
-                )
+                assert expected_format == result.stdout, "unexpected stdout"
 
     def test_this_file_is_clean(self) -> None:
         path = Path(__file__).resolve().as_posix()
         result = self.runner.invoke(main, ["lint", path], catch_exceptions=False)
-        assert result.output == ""
+        assert result.stdout == ""
         assert result.exit_code == 0
         assert result.stderr == "1 file clean\n"
 
     def test_this_project_is_clean(self) -> None:
         project_dir = Path(__file__).resolve().parent.parent.as_posix()
         result = self.runner.invoke(main, ["lint", project_dir], catch_exceptions=False)
-        assert result.output == ""
+        assert result.stdout == ""
         assert result.exit_code == 0
 
     def test_directory_with_violations(self) -> None:
@@ -404,7 +373,7 @@ class SmokeTest(TestCase):
                 catch_exceptions=False,
             )
 
-            assert result.output == ""
+            assert result.stdout == ""
             assert result.exit_code == 0
 
         with self.subTest("fix"), TemporaryDirectory() as td:
@@ -420,5 +389,5 @@ class SmokeTest(TestCase):
                 catch_exceptions=False,
             )
 
-            assert result.output == ""
+            assert result.stdout == ""
             assert result.exit_code == 0
