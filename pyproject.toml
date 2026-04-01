@@ -49,7 +49,7 @@ dev = [
     "pytest>=9.0.2",
     "pyright",
     "tomli",
-    "ufmt == 2.8.0",
+    "ufmt == 2.9.1",
     "usort == 1.0.8.post1",
     "ruff==0.15.8",
 ]
