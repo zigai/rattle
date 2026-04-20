@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+import os
 import sys
 import traceback
 from collections.abc import Generator, Iterable
@@ -31,6 +32,27 @@ from .ftypes import (
 from .output import render_rattle_result
 
 LOG = logging.getLogger(__name__)
+
+
+def _available_cpu_count() -> int:
+    try:
+        return len(os.sched_getaffinity(0))
+    except AttributeError:
+        return os.cpu_count() or 1
+
+
+def _default_worker_count(cpu_count: int | None = None) -> int:
+    """
+    Pick a fast default worker count without saturating the machine.
+
+    Reserve at least one logical CPU and, on larger machines, roughly 25% of the
+    available CPU capacity so the desktop stays responsive during lint runs.
+    """
+    available = cpu_count if cpu_count is not None else _available_cpu_count()
+    if available <= 1:
+        return 1
+
+    return max(1, min(available - 1, (available * 3) // 4))
 
 
 def _display_path(path: Path) -> Path:
@@ -342,6 +364,38 @@ def _rattle_file_wrapper(
     )
 
 
+def _rattle_paths_group(
+    group: list[Path],
+    *,
+    autofix: bool,
+    options: Options | None,
+    explicit_path: bool,
+    metrics_hook: MetricsHook | None,
+) -> Generator[Result, None, None]:
+    concurrency = min(len(group), _default_worker_count())
+    if concurrency <= 1:
+        for path in group:
+            yield from rattle_file(
+                path,
+                autofix=autofix,
+                options=options,
+                explicit_path=explicit_path,
+                metrics_hook=metrics_hook,
+            )
+        return
+
+    fn = partial(
+        _rattle_file_wrapper,
+        autofix=autofix,
+        options=options,
+        explicit_path=explicit_path,
+        metrics_hook=metrics_hook,
+    )
+    runner = trailrunner.Trailrunner(concurrency=concurrency)
+    for _, results in runner.run_iter(group, fn):
+        yield from results
+
+
 def rattle_paths(
     paths: Iterable[Path],
     *,
@@ -410,12 +464,10 @@ def rattle_paths(
                 if not group:
                     continue
 
-                fn = partial(
-                    _rattle_file_wrapper,
+                yield from _rattle_paths_group(
+                    group,
                     autofix=autofix,
                     options=options,
                     explicit_path=explicit_path,
                     metrics_hook=metrics_hook,
                 )
-                for _, results in trailrunner.run_iter(group, fn):
-                    yield from results
