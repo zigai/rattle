@@ -95,6 +95,29 @@ class OutputTest(TestCase):
             == rendered
         )
 
+    def test_render_rattle_brief_violation(self) -> None:
+        violation = LintViolation(
+            rule_name="NoRedundantFString",
+            range=CodeRange(
+                start=CodePosition(line=12, column=4),
+                end=CodePosition(line=12, column=8),
+            ),
+            message="f-string doesn't have placeholders, remove redundant f-string.",
+            node=libcst.Name("value"),
+            replacement=libcst.Name("fixed"),
+        )
+
+        rendered = render_rattle_result(
+            Result(Path("src/example.py"), violation),
+            path=Path("src/example.py"),
+            brief=True,
+        )
+
+        assert rendered == (
+            "NoRedundantFString [*] f-string doesn't have placeholders, "
+            "remove redundant f-string.  --> src/example.py:12:5"
+        )
+
     def test_render_rattle_parser_syntax_error(self) -> None:
         source = b"print)\nvalue = 1\n"
         with pytest.raises(libcst.ParserSyntaxError) as caught:
@@ -124,6 +147,24 @@ class OutputTest(TestCase):
             ).rstrip()
             == rendered
         )
+
+    def test_render_rattle_brief_parser_syntax_error(self) -> None:
+        source = b"print)\nvalue = 1\n"
+        with pytest.raises(libcst.ParserSyntaxError) as caught:
+            libcst.parse_module(source.decode())
+
+        rendered = render_rattle_result(
+            Result(
+                Path("broken.py"),
+                violation=None,
+                error=(caught.value, "traceback"),
+                source=source,
+            ),
+            path=Path("broken.py"),
+            brief=True,
+        )
+
+        assert rendered == "invalid-syntax: tokenizer error: unmatched ')'  --> broken.py:1:1"
 
     def test_render_rattle_result_with_color(self) -> None:
         source = b"value = f'hello'\n"

@@ -61,6 +61,41 @@ class CliTest(TestCase):
             assert result.exit_code == 0
             assert path.read_text() == 'value = "hello"\n'
 
+    def test_lint_brief_prints_one_line_diagnostics(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('value = f"hello"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["lint", "--brief", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 1
+            assert result.stdout.splitlines() == [
+                "NoRedundantFString [*] f-string doesn't have placeholders, "
+                f"remove redundant f-string.  --> {path.as_posix()}:1:9"
+            ]
+
+    def test_fix_brief_prints_one_line_diagnostics(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('value = f"hello"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["fix", "--brief", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+            assert result.stdout.splitlines() == [
+                "NoRedundantFString [*] f-string doesn't have placeholders, "
+                f"remove redundant f-string.  --> {path.as_posix()}:1:9"
+            ]
+            assert path.read_text() == 'value = "hello"\n'
+
     def test_fix_logs_missing_rule_collection_once(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)
