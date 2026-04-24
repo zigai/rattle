@@ -75,8 +75,12 @@ first path, then the second path is used for configuration lookup and error
 messages, and the input is read from standard input.
 
 ```console
-$ rattle lint [--diff] [PATH ...]
+$ rattle lint [--brief] [--diff] [PATH ...]
 ```
+
+### `--brief`
+
+Print each diagnostic on one line, without source snippets or help text.
 
 ### `--diff / -d`
 
@@ -90,7 +94,7 @@ from standard input, and the fixed output is printed to standard output,
 ignoring `--interactive`.
 
 ```console
-$ rattle fix [--interactive | --automatic [--diff]] [PATH ...]
+$ rattle fix [--interactive | --automatic] [--brief] [--diff] [PATH ...]
 ```
 
 ### `--interactive / -i`
@@ -103,6 +107,10 @@ remaining fixes unapplied.
 
 Automatically apply suggested fixes for all lint errors when available.
 This is the default behavior.
+
+### `--brief`
+
+Print each diagnostic on one line, without source snippets or help text.
 
 ### `--diff / -d`
 
