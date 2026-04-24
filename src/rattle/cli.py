@@ -198,10 +198,12 @@ def main(
 
 @main.command()
 @click.pass_context
+@click.option("--brief", is_flag=True, help="Print each diagnostic on one line")
 @click.option("--diff", "-d", is_flag=True, help="Show diff of suggested changes")
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
 def lint(
     ctx: click.Context,
+    brief: bool,
     diff: bool,
     paths: Sequence[Path],
 ) -> None:
@@ -231,6 +233,7 @@ def lint(
             show_diff=diff,
             output_format=config.output_format,
             output_template=config.output_template,
+            brief=brief,
         ):
             if result.violation:
                 violation_files.add(result.path)
@@ -255,11 +258,13 @@ def lint(
     default=False,
     help="how to apply fixes; automatic by default unless --interactive is set",
 )
+@click.option("--brief", is_flag=True, help="Print each diagnostic on one line")
 @click.option("--diff", "-d", is_flag=True, help="show diff even with --automatic")
 @click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
 def fix(
     ctx: click.Context,
     interactive: bool,
+    brief: bool,
     diff: bool,
     paths: Sequence[Path],
 ) -> None:
@@ -304,6 +309,7 @@ def fix(
             stderr=is_stdin,
             output_format=config.output_format,
             output_template=config.output_template,
+            brief=brief,
         ):
             if result.violation:
                 violation_files.add(result.path)

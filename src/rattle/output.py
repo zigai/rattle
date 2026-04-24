@@ -13,26 +13,38 @@ _PARSER_ERROR_PREFIX = re.compile(r"^parser error:\s*", re.IGNORECASE)
 _PARSER_LOCATION_PREFIX = re.compile(r"^error at \d+:\d+:\s*", re.IGNORECASE)
 
 
-def render_rattle_result(result: Result, *, path: Path, color: bool = False) -> str | None:
+def render_rattle_result(
+    result: Result, *, path: Path, color: bool = False, brief: bool = False
+) -> str | None:
     """Render a result using the default terminal presentation."""
     if result.violation:
-        return _render_violation(path, result.violation, result.source, color=color)
+        return _render_violation(path, result.violation, result.source, color=color, brief=brief)
 
     if result.error:
         error, _ = result.error
         if isinstance(error, ParserSyntaxError):
-            return _render_syntax_error(path, error, result.source, color=color)
+            return _render_syntax_error(path, error, result.source, color=color, brief=brief)
 
     return None
 
 
 def _render_violation(
-    path: Path, violation: LintViolation, source: FileContent | None, *, color: bool
+    path: Path,
+    violation: LintViolation,
+    source: FileContent | None,
+    *,
+    color: bool,
+    brief: bool,
 ) -> str:
     header = _error_style(violation.rule_name, color=color)
     if violation.autofixable:
         header += f" {_fix_marker(color=color)}"
     header += f" {violation.message}"
+    if brief:
+        return _render_brief_block(
+            header=header, path=path, code_range=violation.range, color=color
+        )
+
     lines = _render_block(
         header=header,
         path=path,
@@ -45,7 +57,12 @@ def _render_violation(
 
 
 def _render_syntax_error(
-    path: Path, error: ParserSyntaxError, source: FileContent | None, *, color: bool
+    path: Path,
+    error: ParserSyntaxError,
+    source: FileContent | None,
+    *,
+    color: bool,
+    brief: bool,
 ) -> str:
     source_lines = _decode_source_lines(source)
     line_text = source_lines[error.raw_line - 1] if error.raw_line - 1 < len(source_lines) else ""
@@ -54,17 +71,29 @@ def _render_syntax_error(
         start=CodePosition(line=error.raw_line, column=error.raw_column),
         end=CodePosition(line=error.raw_line, column=end_column),
     )
+    header = (
+        f"{_error_style('invalid-syntax', color=color)}: {_normalize_parser_message(error.message)}"
+    )
+    if brief:
+        return _render_brief_block(header=header, path=path, code_range=error_range, color=color)
+
     lines = _render_block(
-        header=(
-            f"{_error_style('invalid-syntax', color=color)}: "
-            f"{_normalize_parser_message(error.message)}"
-        ),
+        header=header,
         path=path,
         code_range=error_range,
         source=source,
         color=color,
     )
     return "\n".join(lines)
+
+
+def _render_brief_block(*, header: str, path: Path, code_range: CodeRange, color: bool) -> str:
+    display_column = code_range.start.column + 1
+    return (
+        f"{header} "
+        f"{_line_no_style(' --> ', color=color)}"
+        f"{path.as_posix()}:{code_range.start.line}:{display_column}"
+    )
 
 
 def _render_block(
@@ -175,11 +204,11 @@ def _to_display_column(source_line: str, column: int) -> int:
     return len(source_line[:column].expandtabs())
 
 
-def _style(text: str, *, color: bool, **styles: str | bool) -> str:
+def _style(text: str, *, color: bool, fg: str | None = None, bold: bool | None = None) -> str:
     if not color:
         return text
 
-    return click.style(text, **styles)
+    return click.style(text, fg=fg, bold=bold)
 
 
 def _error_style(text: str, *, color: bool) -> str:

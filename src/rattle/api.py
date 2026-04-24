@@ -68,15 +68,18 @@ def _result_from_exception(
     return Result(path, violation=None, error=(error, traceback.format_exc()), source=source)
 
 
-def _print_rattle_result(result: Result, *, path: Path, show_diff: bool, stderr: bool) -> bool:
-    rendered = render_rattle_result(result, path=path, color=True)
+def _print_rattle_result(
+    result: Result, *, path: Path, show_diff: bool, stderr: bool, brief: bool
+) -> bool:
+    rendered = render_rattle_result(result, path=path, color=True, brief=brief)
     if rendered is None:
         return False
 
     click.echo(rendered, err=stderr, color=None)
     if show_diff and result.violation and result.violation.diff:
         echo_color_precomputed_diff(result.violation.diff)
-    click.echo(err=stderr, color=None)
+    if not brief or (show_diff and result.violation and result.violation.diff):
+        click.echo(err=stderr, color=None)
     return True
 
 
@@ -88,6 +91,7 @@ def _print_violation_result(
     stderr: bool,
     output_format: OutputFormat,
     output_template: str,
+    brief: bool,
 ) -> bool:
     violation = result.violation
     assert violation is not None
@@ -100,7 +104,7 @@ def _print_violation_result(
         message += " (has autofix)"
 
     if output_format == OutputFormat.rattle:
-        if _print_rattle_result(result, path=path, show_diff=show_diff, stderr=stderr):
+        if _print_rattle_result(result, path=path, show_diff=show_diff, stderr=stderr, brief=brief):
             return True
         raise NotImplementedError("missing rattle renderer for lint violation")
 
@@ -131,12 +135,13 @@ def _print_error_result(
     show_diff: bool,
     stderr: bool,
     output_format: OutputFormat,
+    brief: bool,
 ) -> bool:
     error, tb = result.error or (None, "")
     assert error is not None
 
     if output_format == OutputFormat.rattle and isinstance(error, ParserSyntaxError):
-        if _print_rattle_result(result, path=path, show_diff=show_diff, stderr=stderr):
+        if _print_rattle_result(result, path=path, show_diff=show_diff, stderr=stderr, brief=brief):
             return True
         raise NotImplementedError("missing rattle renderer for syntax error")
 
@@ -177,6 +182,7 @@ def print_result(
     stderr: bool = False,
     output_format: OutputFormat = OutputFormat.rattle,
     output_template: str = "",
+    brief: bool = False,
 ) -> int:
     """
     Print linting results in a simple format designed for human eyes.
@@ -196,6 +202,7 @@ def print_result(
             stderr=stderr,
             output_format=output_format,
             output_template=output_template,
+            brief=brief,
         )
 
     if result.error:
@@ -205,6 +212,7 @@ def print_result(
             show_diff=show_diff,
             stderr=stderr,
             output_format=output_format,
+            brief=brief,
         )
 
     LOG.debug("%s: clean", path)
