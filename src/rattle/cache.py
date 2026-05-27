@@ -129,6 +129,7 @@ class ResultCache:
         path: Path,
         config: Config,
         autofix: bool,
+        allow_cached_dirty_results: bool = False,
     ) -> tuple[list[Result] | None, set[str], bool]:
         cached_results = self._read_result(
             cache_key,
@@ -140,6 +141,9 @@ class ResultCache:
             return None, set(), False
 
         if all(result.violation is None for result in cached_results):
+            return cached_results, set(), True
+
+        if not autofix and allow_cached_dirty_results:
             return cached_results, set(), True
 
         if not autofix:
@@ -245,25 +249,6 @@ class ResultCache:
             pending_paths.append((path, explicit_path))
         return pending_paths
 
-    def collect_uncached_paths(
-        self,
-        included_paths: list[tuple[Path, Config, bool]],
-        *,
-        include_diff: bool,
-    ) -> Generator[Result, None, list[tuple[Path, Config, bool]]]:
-        uncached_paths: list[tuple[Path, Config, bool]] = []
-        for path, config, explicit_path in included_paths:
-            cached_results = self._read_usable_result(
-                path,
-                config,
-                include_diff=include_diff,
-            )
-            if cached_results is None:
-                uncached_paths.append((path, config, explicit_path))
-            else:
-                yield from cached_results
-        return uncached_paths
-
     def _result_entry_path(self, cache_key: str) -> Path:
         return self.root / cache_key[:2] / f"{cache_key}.json"
 
@@ -305,32 +290,6 @@ class ResultCache:
             for violation in entry.violations
         ]
 
-    def _read_usable_result(
-        self,
-        path: Path,
-        config: Config,
-        *,
-        include_diff: bool,
-    ) -> list[Result] | None:
-        path = path.resolve()
-        try:
-            stat = path.stat()
-        except OSError:
-            return None
-
-        cache_key = self.result_key(path, stat, config, include_diff=include_diff)
-        cached_results = self._read_result(
-            cache_key,
-            stat,
-            path=path,
-            config=config,
-        )
-        if cached_results is None:
-            return None
-        if any(result.violation is not None for result in cached_results):
-            return None
-        return cached_results
-
     def _read_clean_status(
         self,
         path: Path,
@@ -371,11 +330,7 @@ class ResultCache:
         ):
             return None
 
-        try:
-            source = path.read_bytes()
-        except OSError:
-            return None
-        return Result(path, violation=None, source=source)
+        return Result(path, violation=None)
 
     def _write_json(
         self,
@@ -668,7 +623,7 @@ def _decode_result_cache_entry(value: object, stat: os.stat_result) -> ResultCac
         return ResultCacheEntry(
             mtime_ns=stat.st_mtime_ns,
             size=stat.st_size,
-            status=status,
+            status="clean",
             rule_fingerprints=rule_fingerprints,
             rule_fingerprint_hash=rule_fingerprint_hash,
             source=None,
@@ -692,7 +647,7 @@ def _decode_result_cache_entry(value: object, stat: os.stat_result) -> ResultCac
     return ResultCacheEntry(
         mtime_ns=stat.st_mtime_ns,
         size=stat.st_size,
-        status=status,
+        status="violations",
         rule_fingerprints=rule_fingerprints,
         rule_fingerprint_hash=rule_fingerprint_hash,
         source=source,
@@ -728,11 +683,7 @@ def _decode_cached_source(entry: ResultCacheEntry) -> FileContent | None:
 
 
 def _cached_clean_results(path: Path, config: Config) -> list[Result] | None:
-    try:
-        source = path.read_bytes()
-    except OSError:
-        return None
-    return [Result(path, violation=None, source=source, config=config)]
+    return [Result(path, violation=None, config=config)]
 
 
 def _serialize_violation(violation: LintViolation) -> dict[str, object]:

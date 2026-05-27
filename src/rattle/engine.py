@@ -92,6 +92,16 @@ def diff_violation(path: Path, module: Module, violation: LintViolation) -> str:
     )
 
 
+def diff_module(path: Path, before: Module, after: Module) -> str:
+    """Generate string diff representation between two module versions."""
+    return unified_diff(
+        before.code,
+        after.code,
+        path.name,
+        n=1,
+    )
+
+
 def _resolve_violation_position(
     position_metadata: Mapping[CSTNode, CodeRange],
     violation: LintViolation,
@@ -292,5 +302,6 @@ class LintRunner:
 
 __all__ = (
     "LintRunner",
+    "diff_module",
     "diff_violation",
 )
