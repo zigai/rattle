@@ -100,3 +100,11 @@ def chdir(path: Path) -> Generator[None, None, None]:
         yield
     finally:
         os.chdir(cwd)
+
+
+__all__ = (
+    "Capture",
+    "append_sys_path",
+    "capture",
+    "chdir",
+)

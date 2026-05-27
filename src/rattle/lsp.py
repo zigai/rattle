@@ -208,3 +208,10 @@ def debounce(interval: float) -> Callable[[VoidFunction], VoidFunction]:
         return cast(VoidFunction, Debouncer(f, interval))
 
     return decorator
+
+
+__all__ = (
+    "LSP",
+    "Debouncer",
+    "debounce",
+)

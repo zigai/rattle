@@ -230,3 +230,6 @@ def _secondary_code_style(text: str, *, color: bool) -> str:
 
 def _fix_marker(*, color: bool) -> str:
     return f"[{_help_style('*', color=color)}]"
+
+
+__all__ = ("render_rattle_result",)
