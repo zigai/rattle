@@ -272,7 +272,7 @@ class TestApi:
 
         assert _decode_cached_source(entry) is None
 
-    def test_cache_pruning_deletes_oldest_entries(self, tmp_path: Path) -> None:
+    def test_cache_pruning_deletes_entries_until_target(self, tmp_path: Path) -> None:
         cache_root = tmp_path / "cache"
         cache_root.mkdir()
         old_entry = cache_root / "old.json"
@@ -282,8 +282,9 @@ class TestApi:
 
         _prune_cache(cache_root, max_bytes=10, target_bytes=7)
 
-        assert not old_entry.exists()
-        assert new_entry.exists()
+        remaining_entries = list(cache_root.rglob("*.json"))
+        assert len(remaining_entries) == 1
+        assert sum(entry.stat().st_size for entry in remaining_entries) == 7
 
     def test_clean_cache_misses_when_current_rule_set_changes(self, tmp_path: Path) -> None:
         class ExistingRule(LintRule):
