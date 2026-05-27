@@ -12,7 +12,7 @@ from pathlib import Path
 
 import click
 
-from rattle import __version__
+from rattle.__version__ import __version__
 
 from .api import print_result, rattle_paths
 from .config import collect_rules, generate_config, parse_rule, validate_config
@@ -69,14 +69,14 @@ def _output_config_for_path(path: Path, options: Options) -> Config:
 
 
 @dataclass
-class _FixState:
+class FixState:
     exit_code: int = 0
     violations: int = 0
     autofixes: int = 0
     fixed: int = 0
 
 
-def _prompt_for_fix(generator: capture, state: _FixState) -> bool:
+def _prompt_for_fix(generator: capture, state: FixState) -> bool:
     prompt = "Apply autofix? [Y]es, [n]o, [q]uit: "
     while True:
         click.echo(prompt, nl=False, err=True)
@@ -103,7 +103,7 @@ def _update_fix_state(
     autofix: bool,
     interactive: bool,
     generator: capture,
-    state: _FixState,
+    state: FixState,
 ) -> bool:
     error = getattr(result, "error", None)
     if error:
@@ -224,10 +224,15 @@ def lint(
     violations = 0
     autofixes = 0
     for result in rattle_paths(
-        paths, options=options, metrics_hook=print if options.print_metrics else None
+        paths,
+        include_diff=diff,
+        options=options,
+        metrics_hook=print if options.print_metrics else None,
     ):
         visited.add(result.path)
-        config = _output_config_for_path(result.path, options)
+        if not result.violation and not result.error:
+            continue
+        config = result.config or _output_config_for_path(result.path, options)
         if print_result(
             result,
             show_diff=diff,
@@ -282,25 +287,27 @@ def fix(
     is_stdin = bool(paths[0] and str(paths[0]) == "-")
     interactive = interactive and not is_stdin
     autofix = not interactive
-    state = _FixState()
+    state = FixState()
 
     visited: set[Path] = set()
     violation_files: set[Path] = set()
     error_files: set[Path] = set()
 
-    # TODO: make this parallel
     generator = capture(
         rattle_paths(
             paths,
             autofix=autofix,
+            include_diff=interactive or diff,
             options=options,
-            parallel=False,
+            parallel=autofix,
             metrics_hook=print if options.print_metrics else None,
         )
     )
     for result in generator:
         visited.add(result.path)
-        config = _output_config_for_path(result.path, options)
+        if not result.violation and not result.error:
+            continue
+        config = result.config or _output_config_for_path(result.path, options)
         # for STDIN, we need STDOUT to equal the fixed content, so
         # move everything else to STDERR
         if print_result(
@@ -443,3 +450,16 @@ def validate_config_command(_ctx: click.Context, path: Path) -> None:
         for e in exceptions:
             pprint(e)
         sys.exit(-1)
+
+
+__all__ = (
+    "FixState",
+    "debug",
+    "fix",
+    "lint",
+    "lsp",
+    "main",
+    "splash",
+    "test",
+    "validate_config_command",
+)

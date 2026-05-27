@@ -4,11 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+import multiprocessing
 import os
 import sys
-import traceback
-from collections.abc import Generator, Iterable
+from collections.abc import Collection, Generator, Iterable
 from functools import partial
+from multiprocessing.context import BaseContext
 from pathlib import Path
 
 import click
@@ -16,6 +17,7 @@ import trailrunner
 from libcst import ParserSyntaxError
 from moreorless.click import echo_color_precomputed_diff
 
+from .cache import ResultCache
 from .config import collect_rules, generate_config
 from .engine import LintRunner
 from .format import format_module
@@ -30,8 +32,10 @@ from .ftypes import (
     Result,
 )
 from .output import render_rattle_result
+from .rule import LintRule
 
 LOG = logging.getLogger(__name__)
+ConfiguredPath = tuple[Path, Config, bool]
 
 
 def _available_cpu_count() -> int:
@@ -45,7 +49,7 @@ def _default_worker_count(cpu_count: int | None = None) -> int:
     """
     Pick a fast default worker count without saturating the machine.
 
-    Reserve at least one logical CPU and, on larger machines, roughly 25% of the
+    Reserve at least one logical CPU and, where possible, roughly 25% of the
     available CPU capacity so the desktop stays responsive during lint runs.
     """
     available = cpu_count if cpu_count is not None else _available_cpu_count()
@@ -55,6 +59,15 @@ def _default_worker_count(cpu_count: int | None = None) -> int:
     return max(1, min(available - 1, (available * 3) // 4))
 
 
+def _process_context() -> BaseContext | None:
+    if os.name != "posix":
+        return None
+    try:
+        return multiprocessing.get_context("fork")
+    except ValueError:
+        return None
+
+
 def _display_path(path: Path) -> Path:
     try:
         return path.relative_to(Path.cwd())
@@ -62,10 +75,32 @@ def _display_path(path: Path) -> Path:
         return path
 
 
-def _result_from_exception(
-    path: Path, error: Exception, *, source: FileContent | None = None
-) -> Result:
-    return Result(path, violation=None, error=(error, traceback.format_exc()), source=source)
+def _drive_rattle_bytes(
+    runner: Generator[Result, bool, FileContent | None],
+    *,
+    cacheable: bool,
+) -> Generator[Result, bool, tuple[FileContent | None, bool, bool, list[LintViolation]]]:
+    clean = True
+    cache_violations: list[LintViolation] = []
+
+    while True:
+        try:
+            result = next(runner)
+        except StopIteration as stop:
+            return stop.value, clean, cacheable, cache_violations
+
+        while True:
+            if result.violation or result.error:
+                clean = False
+            if result.error:
+                cacheable = False
+            if result.violation:
+                cache_violations.append(result.violation)
+            send_value = yield result
+            try:
+                result = runner.send(bool(send_value))
+            except StopIteration as stop:
+                return stop.value, clean, cacheable, cache_violations
 
 
 def _print_rattle_result(
@@ -95,6 +130,7 @@ def _print_violation_result(
 ) -> bool:
     violation = result.violation
     assert violation is not None
+    assert violation.range is not None
 
     rule_name = violation.rule_name
     start_line = violation.range.start.line
@@ -168,9 +204,12 @@ def _expand_paths(paths: Iterable[Path]) -> tuple[list[tuple[Path, bool]], bool,
                 raise ValueError("too many stdin paths")
         else:
             is_explicit = path.is_file()
-            expanded_paths.extend(
-                (expanded_path, is_explicit) for expanded_path in trailrunner.walk(path)
-            )
+            if is_explicit:
+                expanded_paths.append((path, True))
+            else:
+                expanded_paths.extend(
+                    (expanded_path, False) for expanded_path in trailrunner.walk(path)
+                )
 
     return expanded_paths, is_stdin, stdin_path
 
@@ -225,6 +264,8 @@ def rattle_bytes(
     *,
     config: Config,
     autofix: bool = False,
+    include_diff: bool = False,
+    rules: Collection[LintRule] | None = None,
     metrics_hook: MetricsHook | None = None,
 ) -> Generator[Result, bool, FileContent | None]:
     """
@@ -244,24 +285,26 @@ def rattle_bytes(
 
     """
     try:
-        rules = collect_rules(config)
+        rules = rules if rules is not None else collect_rules(config)
 
         if not rules:
-            yield Result(path, violation=None, source=content)
+            yield Result(path, violation=None, source=content, config=config)
             return None
 
         runner = LintRunner(path, content)
         pending_fixes: list[LintViolation] = []
 
         clean = True
-        for violation in runner.collect_violations(rules, config, metrics_hook):
+        for violation in runner.collect_violations(
+            rules, config, metrics_hook, include_diff=include_diff
+        ):
             clean = False
-            fix = yield Result(path, violation, source=content)
+            fix = yield Result(path, violation, source=content, config=config)
             if fix or autofix:
                 pending_fixes.append(violation)
 
         if clean:
-            yield Result(path, violation=None, source=content)
+            yield Result(path, violation=None, source=content, config=config)
 
         if pending_fixes:
             updated = runner.apply_replacements(pending_fixes)
@@ -270,7 +313,7 @@ def rattle_bytes(
     except Exception as error:  # noqa: BLE001 - result conversion boundary
         # TODO: this is not the right place to catch errors
         LOG.debug("Exception while linting", exc_info=error)
-        yield _result_from_exception(path, error, source=content)
+        yield Result.from_exception(path, error, source=content, config=config)
 
     return None
 
@@ -279,6 +322,7 @@ def rattle_stdin(
     path: Path,
     *,
     autofix: bool = False,
+    include_diff: bool = False,
     options: Options | None = None,
     metrics_hook: MetricsHook | None = None,
 ) -> Generator[Result, bool, None]:
@@ -292,28 +336,37 @@ def rattle_stdin(
     configuration.
     """
     path = path.resolve()
+    content: FileContent | None = None
+    config: Config | None = None
 
     try:
-        content: FileContent = sys.stdin.buffer.read()
+        stdin_content = sys.stdin.buffer.read()
+        content = stdin_content
         config = generate_config(path, options=options, explicit_path=True)
         if config.excluded:
             return
 
         updated = yield from rattle_bytes(
-            path, content, config=config, autofix=autofix, metrics_hook=metrics_hook
+            path,
+            stdin_content,
+            config=config,
+            autofix=autofix,
+            include_diff=include_diff,
+            metrics_hook=metrics_hook,
         )
         if autofix:
-            sys.stdout.buffer.write(updated or content)
+            sys.stdout.buffer.write(updated or stdin_content)
 
     except Exception as error:  # noqa: BLE001 - stdin boundary
         LOG.debug("Exception while rattle_stdin", exc_info=error)
-        yield _result_from_exception(path, error, source=content if "content" in locals() else None)
+        yield Result.from_exception(path, error, source=content, config=config)
 
 
 def rattle_file(
     path: Path,
     *,
     autofix: bool = False,
+    include_diff: bool = False,
     options: Options | None = None,
     explicit_path: bool = False,
     metrics_hook: MetricsHook | None = None,
@@ -330,29 +383,132 @@ def rattle_file(
     See :func:`rattle_bytes` for semantics.
     """
     path = path.resolve()
+    config: Config | None = None
 
     try:
-        content: FileContent = path.read_bytes()
         config = generate_config(path, options=options, explicit_path=explicit_path)
         if config.excluded:
             return
 
-        updated = yield from rattle_bytes(
-            path, content, config=config, autofix=autofix, metrics_hook=metrics_hook
+        yield from rattle_configured_file(
+            path,
+            config=config,
+            autofix=autofix,
+            include_diff=include_diff,
+            options=options,
+            explicit_path=explicit_path,
+            metrics_hook=metrics_hook,
         )
-        if updated and updated != content:
-            LOG.info("%s: writing changes to file", path)
-            path.write_bytes(updated)
 
     except Exception as error:  # noqa: BLE001 - file boundary
         LOG.debug("Exception while rattle_file", exc_info=error)
-        yield _result_from_exception(path, error, source=content if "content" in locals() else None)
+        yield Result.from_exception(
+            path,
+            error,
+            config=config,
+        )
+
+
+def rattle_configured_file(
+    path: Path,
+    *,
+    config: Config,
+    autofix: bool = False,
+    include_diff: bool = False,
+    options: Options | None = None,
+    explicit_path: bool = False,
+    metrics_hook: MetricsHook | None = None,
+) -> Generator[Result, bool, None]:
+    path = path.resolve()
+    content: FileContent | None = None
+
+    try:
+        stat = path.stat()
+        cache = ResultCache.from_environment() if metrics_hook is None else None
+        cache_key = cache.result_key(path, stat, config, include_diff=include_diff) if cache else ""
+        cached_results: list[Result] | None = None
+        cached_autofix_rule_names: set[str] = set()
+        if cache is not None:
+            cached_results, cached_autofix_rule_names, cached_result_is_complete = (
+                cache.read_configured_file(
+                    cache_key,
+                    stat,
+                    path=path,
+                    config=config,
+                    autofix=autofix,
+                )
+            )
+            if cached_result_is_complete:
+                yield from cached_results or ()
+                return
+
+        rules = collect_rules(config)
+        if cached_autofix_rule_names:
+            cached_passthrough = [
+                result
+                for result in cached_results or ()
+                if result.violation is not None
+                and result.violation.rule_name not in cached_autofix_rule_names
+            ]
+            yield from cached_passthrough
+            rules = [rule for rule in rules if rule.name in cached_autofix_rule_names]
+        if not rules:
+            content = path.read_bytes()
+            yield Result(path, violation=None, source=content, config=config)
+            return
+
+        content = path.read_bytes()
+        runner = rattle_bytes(
+            path,
+            content,
+            config=config,
+            autofix=autofix,
+            include_diff=include_diff,
+            rules=rules,
+            metrics_hook=metrics_hook,
+        )
+        updated, clean, cacheable, cache_violations = yield from _drive_rattle_bytes(
+            runner,
+            cacheable=not autofix,
+        )
+
+        if updated and updated != content:
+            LOG.info("%s: writing changes to file", path)
+            path.write_bytes(updated)
+        elif clean and cache is not None:
+            cache.write_result(cache_key, stat, rules=rules)
+            cache.write_clean_status(
+                path,
+                stat,
+                options=options,
+                explicit_path=explicit_path,
+                include_diff=include_diff,
+                rules=rules,
+            )
+        elif cacheable and cache is not None and cache_violations:
+            cache.write_result(
+                cache_key,
+                stat,
+                source=content,
+                violations=cache_violations,
+                rules=rules,
+            )
+
+    except Exception as error:  # noqa: BLE001 - file boundary
+        LOG.debug("Exception while rattle_configured_file", exc_info=error)
+        yield Result.from_exception(
+            path,
+            error,
+            source=content,
+            config=config,
+        )
 
 
 def _rattle_file_wrapper(
     path: Path,
     *,
     autofix: bool = False,
+    include_diff: bool = False,
     options: Options | None = None,
     explicit_path: bool = False,
     metrics_hook: MetricsHook | None = None,
@@ -365,6 +521,29 @@ def _rattle_file_wrapper(
         rattle_file(
             path,
             autofix=autofix,
+            include_diff=include_diff,
+            options=options,
+            explicit_path=explicit_path,
+            metrics_hook=metrics_hook,
+        )
+    )
+
+
+def _rattle_configured_file_wrapper(
+    item: ConfiguredPath,
+    *,
+    autofix: bool = False,
+    include_diff: bool = False,
+    options: Options | None = None,
+    metrics_hook: MetricsHook | None = None,
+) -> list[Result]:
+    path, config, explicit_path = item
+    return list(
+        rattle_configured_file(
+            path,
+            config=config,
+            autofix=autofix,
+            include_diff=include_diff,
             options=options,
             explicit_path=explicit_path,
             metrics_hook=metrics_hook,
@@ -373,19 +552,21 @@ def _rattle_file_wrapper(
 
 
 def _rattle_paths_group(
-    group: list[Path],
+    group: list[ConfiguredPath],
     *,
     autofix: bool,
+    include_diff: bool,
     options: Options | None,
-    explicit_path: bool,
     metrics_hook: MetricsHook | None,
-) -> Generator[Result, None, None]:
+) -> Generator[Result, bool, None]:
     concurrency = min(len(group), _default_worker_count())
     if concurrency <= 1:
-        for path in group:
-            yield from rattle_file(
+        for path, config, explicit_path in group:
+            yield from rattle_configured_file(
                 path,
+                config=config,
                 autofix=autofix,
+                include_diff=include_diff,
                 options=options,
                 explicit_path=explicit_path,
                 metrics_hook=metrics_hook,
@@ -393,21 +574,36 @@ def _rattle_paths_group(
         return
 
     fn = partial(
-        _rattle_file_wrapper,
+        _rattle_configured_file_wrapper,
         autofix=autofix,
+        include_diff=include_diff,
         options=options,
-        explicit_path=explicit_path,
         metrics_hook=metrics_hook,
     )
-    runner = trailrunner.Trailrunner(concurrency=concurrency)
-    for _, results in runner.run_iter(group, fn):
+    context = _process_context()
+    runner = trailrunner.Trailrunner(concurrency=concurrency, context=context)
+    for _, results in runner.run_iter(group, fn):  # type: ignore[arg-type]
         yield from results
+
+
+def _configured_paths(
+    pending_paths: list[tuple[Path, bool]],
+    *,
+    options: Options | None,
+) -> list[ConfiguredPath]:
+    included_paths: list[ConfiguredPath] = []
+    for path, explicit_path in pending_paths:
+        config = generate_config(path, options=options, explicit_path=explicit_path)
+        if not config.excluded:
+            included_paths.append((path, config, explicit_path))
+    return included_paths
 
 
 def rattle_paths(
     paths: Iterable[Path],
     *,
     autofix: bool = False,
+    include_diff: bool = False,
     options: Options | None = None,
     parallel: bool = True,
     metrics_hook: MetricsHook | None = None,
@@ -446,36 +642,58 @@ def rattle_paths(
 
     if is_stdin:
         yield from rattle_stdin(
-            stdin_path, autofix=autofix, options=options, metrics_hook=metrics_hook
+            stdin_path,
+            autofix=autofix,
+            include_diff=include_diff,
+            options=options,
+            metrics_hook=metrics_hook,
         )
+        return
+
+    cache = ResultCache.from_environment() if metrics_hook is None else None
+    if cache is None:
+        pending_paths = [(path.resolve(), explicit_path) for path, explicit_path in expanded_paths]
     else:
-        included_paths: list[tuple[Path, bool]] = []
-        for path, explicit_path in expanded_paths:
-            config = generate_config(path, options=options, explicit_path=explicit_path)
-            if not config.excluded:
-                included_paths.append((path, explicit_path))
+        pending_paths = yield from cache.collect_pending_paths(
+            expanded_paths,
+            include_diff=include_diff,
+            options=options,
+        )
+    included_paths = _configured_paths(pending_paths, options=options)
+    if cache is not None:
+        included_paths = yield from cache.collect_uncached_paths(
+            included_paths,
+            include_diff=include_diff,
+        )
 
-        if len(included_paths) == 1 or not parallel:
-            for path, explicit_path in included_paths:
-                yield from rattle_file(
-                    path,
-                    autofix=autofix,
-                    options=options,
-                    explicit_path=explicit_path,
-                    metrics_hook=metrics_hook,
-                )
-        else:
-            for explicit_path in (True, False):
-                group = [
-                    path for path, is_explicit in included_paths if is_explicit is explicit_path
-                ]
-                if not group:
-                    continue
+    if len(included_paths) == 1 or not parallel:
+        for path, config, explicit_path in included_paths:
+            yield from rattle_configured_file(
+                path,
+                config=config,
+                autofix=autofix,
+                include_diff=include_diff,
+                options=options,
+                explicit_path=explicit_path,
+                metrics_hook=metrics_hook,
+            )
+        return
 
-                yield from _rattle_paths_group(
-                    group,
-                    autofix=autofix,
-                    options=options,
-                    explicit_path=explicit_path,
-                    metrics_hook=metrics_hook,
-                )
+    yield from _rattle_paths_group(
+        included_paths,
+        autofix=autofix,
+        include_diff=include_diff,
+        options=options,
+        metrics_hook=metrics_hook,
+    )
+
+
+__all__ = (
+    "ConfiguredPath",
+    "print_result",
+    "rattle_bytes",
+    "rattle_configured_file",
+    "rattle_file",
+    "rattle_paths",
+    "rattle_stdin",
+)

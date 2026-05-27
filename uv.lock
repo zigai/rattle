@@ -997,6 +997,7 @@ dependencies = [
     { name = "libcst" },
     { name = "moreorless" },
     { name = "packaging" },
+    { name = "platformdirs" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "trailrunner" },
 ]
@@ -1041,6 +1042,7 @@ requires-dist = [
     { name = "moreorless", specifier = ">=0.4.0" },
     { name = "myst-parser", marker = "extra == 'docs'", specifier = "==4.0.1" },
     { name = "packaging", specifier = ">=21" },
+    { name = "platformdirs", specifier = ">=4,<5" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.5.1" },
     { name = "pygls", extras = ["ws"], marker = "extra == 'lsp'", specifier = "~=2.0.0" },
     { name = "pyright", marker = "extra == 'dev'" },
