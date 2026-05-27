@@ -5,9 +5,12 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import cast
 from unittest import TestCase
+from unittest.mock import patch
 
 from rattle.cli import main
+from rattle.ftypes import Options
 
 from .helpers import make_cli_runner
 
@@ -61,6 +64,22 @@ class CliTest(TestCase):
             assert result.exit_code == 0
             assert path.read_text() == 'value = "hello"\n'
 
+    def test_fix_no_format_overrides_configured_formatter(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "pyproject.toml").write_text("[tool.rattle]\nformatter='ruff'\n")
+            path = root / "fstring.py"
+            path.write_text("def f( ):\n    value = f'hello'\n")
+
+            result = self.runner.invoke(
+                main,
+                ["--no-format", "fix", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+            assert path.read_text() == "def f( ):\n    value = 'hello'\n"
+
     def test_lint_brief_prints_one_line_diagnostics(self) -> None:
         with TemporaryDirectory() as td:
             path = Path(td) / "fstring.py"
@@ -77,6 +96,23 @@ class CliTest(TestCase):
                 "NoRedundantFString [*] f-string doesn't have placeholders, "
                 f"remove redundant f-string.  --> {path.as_posix()}:1:9"
             ]
+
+    def test_lint_accepts_jobs_option(self) -> None:
+        seen_jobs: list[int | None] = []
+
+        def rattle_paths_stub(*_args: object, **kwargs: object) -> object:
+            seen_jobs.append(cast(Options, kwargs["options"]).jobs)
+            return iter(())
+
+        with patch("rattle.cli.rattle_paths", side_effect=rattle_paths_stub):
+            result = self.runner.invoke(
+                main,
+                ["--jobs", "2", "lint", "clean.py"],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 0
+        assert seen_jobs == [2]
 
     def test_fix_brief_prints_one_line_diagnostics(self) -> None:
         with TemporaryDirectory() as td:

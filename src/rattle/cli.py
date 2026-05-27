@@ -141,6 +141,13 @@ def _update_fix_state(
     help="Override default config file search behavior",
 )
 @click.option(
+    "--jobs",
+    "-j",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Number of worker processes to use when linting multiple files",
+)
+@click.option(
     "--tags",
     type=str,
     default="",
@@ -167,15 +174,18 @@ def _update_fix_state(
     help="Python format template to use with output format 'custom'",
 )
 @click.option("--print-metrics", is_flag=True, help="Print metrics of this run")
+@click.option("--no-format", is_flag=True, help="Skip configured post-fix formatting")
 def main(
     ctx: click.Context,
     debug: bool | None,
     config_file: Path | None,
+    jobs: int | None,
     tags: str,
     rules: str,
     output_format: OutputFormat | None,
     output_template: str,
     print_metrics: bool,
+    no_format: bool,
 ) -> None:
     level = logging.WARNING
     if debug is not None:
@@ -185,6 +195,7 @@ def main(
     ctx.obj = Options(
         debug=debug,
         config_file=config_file,
+        jobs=jobs,
         tags=Tags.parse(tags),
         rules=sorted(
             {parse_rule(r, Path.cwd()) for r in (rs.strip() for rs in rules.split(",")) if r},
@@ -193,6 +204,7 @@ def main(
         output_format=output_format,
         output_template=output_template,
         print_metrics=print_metrics,
+        no_format=no_format,
     )
 
 
@@ -226,6 +238,7 @@ def lint(
     for result in rattle_paths(
         paths,
         include_diff=diff,
+        allow_cached_dirty_results=True,
         options=options,
         metrics_hook=print if options.print_metrics else None,
     ):
