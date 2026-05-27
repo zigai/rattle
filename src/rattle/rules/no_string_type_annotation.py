@@ -23,6 +23,7 @@ class NoStringTypeAnnotation(LintRule):
     MESSAGE = (
         "String type hints are no longer necessary in Python, use the type identifier directly."
     )
+    SOURCE_PATTERNS = ("from __future__ import annotations",)
 
     VALID = [
         # Usage of a Class for instantiation and typing.

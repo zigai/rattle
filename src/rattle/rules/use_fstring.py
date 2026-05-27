@@ -82,7 +82,7 @@ class EscapeStringQuote(cst.CSTTransformer):
 
 class UseFstring(LintRule):
     CODE = "RAT024"
-    SOURCE_PATTERNS = (b".format", b"%")
+    SOURCE_PATTERNS = (".format", "%")
     """
     Encourages the use of f-string instead of %-formatting or .format() for high code quality and efficiency.
 

@@ -26,6 +26,7 @@ class ExplicitFrozenDataclass(LintRule):
         "Docs: https://docs.python.org/3/library/dataclasses.html"
     )
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
+    SOURCE_PATTERNS = ("dataclass",)
     VALID = [
         Valid(
             """

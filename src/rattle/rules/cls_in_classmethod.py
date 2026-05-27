@@ -40,6 +40,7 @@ class UseClsInClassmethod(LintRule):
     """Enforces using ``cls`` as the first argument in a ``@classmethod``."""
 
     METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider)
+    SOURCE_PATTERNS = ("classmethod",)
     MESSAGE = "When using @classmethod, the first argument must be `cls`."
     VALID = [
         Valid(

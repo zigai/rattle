@@ -3,11 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from pathlib import Path
+
 import libcst as cst
 import libcst.matchers as m
 from libcst.metadata import ScopeProvider
 
-from rattle import Invalid, LintRule, Valid
+from rattle import FileContent, Invalid, LintRule, Valid
 
 
 class ReplaceUnionWithOptional(LintRule):
@@ -86,6 +88,10 @@ class ReplaceUnionWithOptional(LintRule):
             """,
         ),
     ]
+
+    def should_lint_file(self, source: FileContent, path: Path) -> bool:
+        del path
+        return b"Union" in source and b"None" in source
 
     def leave_Annotation(self, original_node: cst.Annotation) -> None:
         if self.contains_union_with_none(original_node):

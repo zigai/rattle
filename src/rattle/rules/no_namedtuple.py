@@ -29,6 +29,7 @@ class NoNamedTuple(LintRule):
 
     MESSAGE: str = "Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency."
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
+    SOURCE_PATTERNS = ("NamedTuple", "namedtuple")
 
     VALID = [
         Valid(

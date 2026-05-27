@@ -12,13 +12,13 @@ from rattle import Invalid, LintRule, Valid
 class DeprecatedUnittestAsserts(LintRule):
     CODE = "RAT006"
     SOURCE_PATTERNS = (
-        b"assertEquals",
-        b"assertNotEquals",
-        b"assertAlmostEquals",
-        b"assertNotAlmostEquals",
-        b"assertRegexpMatches",
-        b"assertNotRegexpMatches",
-        b"assertRaisesRegexp",
+        "assertEquals",
+        "assertNotEquals",
+        "assertAlmostEquals",
+        "assertNotAlmostEquals",
+        "assertRegexpMatches",
+        "assertNotRegexpMatches",
+        "assertRaisesRegexp",
     )
     """
     Discourages the use of various deprecated unittest.TestCase functions.
