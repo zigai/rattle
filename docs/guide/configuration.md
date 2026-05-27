@@ -156,6 +156,10 @@ existing tooling.
 Supported code styles:
 
 - `(unset)`: no style is applied
+- `"auto"`: detect the formatter configured in `pyproject.toml`; this uses Ruff
+  when `[tool.ruff.format]` is present, µfmt when `[tool.ufmt]` or
+  `[tool.usort]` is present, Black when `[tool.black]` is present, and applies no
+  style when none are found
 - `"black"`: [Black](https://black.readthedocs.io/) code formatter
 - `"ruff"`: [Ruff format](https://docs.astral.sh/ruff/formatter/) code formatter
 - `"ufmt"`: [µfmt](https://ufmt.omnilib.dev/) code style, combining
