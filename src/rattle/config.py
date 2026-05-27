@@ -445,6 +445,24 @@ def _resolve_selector_or_log(
         return None
 
 
+def _iter_resolved_selectors(
+    selectors: Iterable[RuleSelector],
+    registry: RuleRegistry,
+    *,
+    root: Path,
+    enable_root_import: bool | Path,
+) -> Iterator[RuleResolution]:
+    for selector in selectors:
+        resolution = _resolve_selector_or_log(
+            selector,
+            registry,
+            root=root,
+            enable_root_import=enable_root_import,
+        )
+        if resolution is not None:
+            yield resolution
+
+
 def collect_rule_types(
     config: Config,
     *,
@@ -463,28 +481,22 @@ def collect_rule_types(
         strict=False,
     )
 
-    for selector in config.enable:
-        resolution = _resolve_selector_or_log(
-            selector,
-            registry,
-            root=config.root,
-            enable_root_import=config.enable_root_import,
-        )
-        if resolution is None:
-            continue
+    for resolution in _iter_resolved_selectors(
+        config.enable,
+        registry,
+        root=config.root,
+        enable_root_import=config.enable_root_import,
+    ):
         if resolution.concrete:
             named_enables |= set(resolution.rules)
         all_rules |= set(resolution.rules)
 
-    for selector in config.disable:
-        resolution = _resolve_selector_or_log(
-            selector,
-            registry,
-            root=config.root,
-            enable_root_import=config.enable_root_import,
-        )
-        if resolution is None:
-            continue
+    for resolution in _iter_resolved_selectors(
+        config.disable,
+        registry,
+        root=config.root,
+        enable_root_import=config.enable_root_import,
+    ):
         disabled_rules.update(
             {
                 rule_type: "disabled"
@@ -1283,3 +1295,33 @@ def validate_config(path: Path) -> list[str]:  # noqa: C901 - config validation 
         exceptions.append(f"Invalid config: {error.__class__.__name__}: {error}")
 
     return exceptions
+
+
+__all__ = (
+    "BUILTIN_RULE_MODULES",
+    "GLOB_META_CHARS",
+    "RATTLE_CONFIG_FILENAMES",
+    "RATTLE_LOCAL_MODULE",
+    "CollectionError",
+    "ConfigError",
+    "RuleRegistry",
+    "RuleResolution",
+    "collect_rule_types",
+    "collect_rules",
+    "find_rules",
+    "generate_config",
+    "get_options",
+    "get_rule_pattern_table",
+    "get_sequence",
+    "is_rule",
+    "local_rule_loader",
+    "locate_configs",
+    "materialize_rules",
+    "merge_configs",
+    "parse_exact_rule_target",
+    "parse_rule",
+    "read_configs",
+    "resolve_rule_settings",
+    "validate_config",
+    "walk_module",
+)
