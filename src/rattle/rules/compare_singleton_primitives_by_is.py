@@ -3,10 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import cast
-
 import libcst as cst
-from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, Valid
 
@@ -23,7 +20,6 @@ class CompareSingletonPrimitivesByIs(LintRule):
         "Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity."
         " Use `is` or `is not` instead."
     )
-    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
     VALID = [
         Valid("if x: pass"),
         Valid("if not x: pass"),
@@ -72,20 +68,8 @@ class CompareSingletonPrimitivesByIs(LintRule):
         ),
     ]
 
-    QUALIFIED_SINGLETON_PRIMITIVES: frozenset[QualifiedName] = frozenset(
-        {
-            QualifiedName(name=f"builtins.{name}", source=QualifiedNameSource.BUILTIN)
-            for name in ("True", "False", "None")
-        }
-    )
-
     def is_singleton(self, node: cst.BaseExpression) -> bool:
-        qual_name = cast(set[QualifiedName], self.get_metadata(QualifiedNameProvider, node, set()))
-        return bool(
-            isinstance(node, cst.Name)
-            and qual_name
-            and qual_name < self.QUALIFIED_SINGLETON_PRIMITIVES
-        )
+        return isinstance(node, cst.Name) and node.value in {"True", "False", "None"}
 
     def visit_Comparison(self, node: cst.Comparison) -> None:
         # Initialize the needs_report flag as False to begin with
