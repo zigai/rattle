@@ -378,7 +378,7 @@ def _prune_cache(
     entries: list[tuple[int, int, Path]] = []
     total_bytes = 0
     try:
-        paths = root.rglob("*.json")
+        paths = list(root.rglob("*.json"))
         for path in paths:
             try:
                 stat = path.stat()
