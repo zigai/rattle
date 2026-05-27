@@ -107,7 +107,7 @@ class TestApi:
     def test_rattle_configured_file_uses_clean_cache(self, tmp_path: Path) -> None:
         root = tmp_path
         path = root / "clean.py"
-        path.write_text("pass\n")
+        path.write_bytes(b"pass\n")
         cache_dir = root / "cache"
         config = Config(path=path, root=root)
 
@@ -129,7 +129,7 @@ class TestApi:
         paths = []
         for index in range(20):
             path = root / f"clean_{index}.py"
-            path.write_text(f"value = {index}\n")
+            path.write_bytes(f"value = {index}\n".encode())
             paths.append(path)
         cache_dir = root / "cache"
 
