@@ -118,3 +118,6 @@ class SortedAttributes(LintRule):
         assign = cst.ensure_type(statement_line.body[0], cst.Assign)
         target = cst.ensure_type(assign.targets[0].target, cst.Name)
         return target.value
+
+
+__all__ = ("SortedAttributes",)

@@ -128,3 +128,6 @@ class ReplaceUnionWithOptional(LintRule):
                 )
             ),
         )
+
+
+__all__ = ("ReplaceUnionWithOptional",)

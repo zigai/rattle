@@ -60,3 +60,6 @@ class UseLintFixmeComment(LintRule):
         target = "# noqa"
         if node.value[: len(target)].lower() == target:
             self.report(node, self.MESSAGE)
+
+
+__all__ = ("UseLintFixmeComment",)

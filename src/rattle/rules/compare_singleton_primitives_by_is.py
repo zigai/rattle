@@ -123,3 +123,6 @@ class CompareSingletonPrimitivesByIs(LintRule):
                 whitespace_after=original_op.whitespace_after,
             )
         )
+
+
+__all__ = ("CompareSingletonPrimitivesByIs",)

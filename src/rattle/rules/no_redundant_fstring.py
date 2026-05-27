@@ -11,6 +11,20 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
 class NoRedundantFString(LintRule):
     CODE = "RAT011"
+    SOURCE_PATTERNS = (
+        b"f'",
+        b'f"',
+        b"F'",
+        b'F"',
+        b"fr'",
+        b'fr"',
+        b"fR'",
+        b'fR"',
+        b"Fr'",
+        b'Fr"',
+        b"FR'",
+        b'FR"',
+    )
     """Remove redundant f-string without placeholders."""
 
     MESSAGE: str = "f-string doesn't have placeholders, remove redundant f-string."
@@ -42,6 +56,11 @@ class NoRedundantFString(LintRule):
             range=CodeRange(start=CodePosition(1, 11), end=CodePosition(1, 20)),
         ),
         Invalid(
+            "bad: str = fr'bad\t+'",
+            expected_replacement="bad: str = r'bad\t+'",
+            range=CodeRange(start=CodePosition(1, 11), end=CodePosition(1, 20)),
+        ),
+        Invalid(
             'bad: str = f"no args but messing up {{ braces }}"',
             expected_replacement='bad: str = "no args but messing up { braces }"',
             range=CodeRange(start=CodePosition(1, 11), end=CodePosition(1, 49)),
@@ -61,3 +80,6 @@ class NoRedundantFString(LintRule):
         )
 
         self.report(node, self.MESSAGE, replacement=cst.SimpleString(new_string_literal))
+
+
+__all__ = ("NoRedundantFString",)

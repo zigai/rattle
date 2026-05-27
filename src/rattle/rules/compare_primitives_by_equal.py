@@ -94,3 +94,6 @@ class ComparePrimitivesByEqual(LintRule):
             prev_comparator = comparator
 
         return node.with_changes(comparisons=comparisons)
+
+
+__all__ = ("ComparePrimitivesByEqual",)

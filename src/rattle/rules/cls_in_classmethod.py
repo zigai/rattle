@@ -18,7 +18,7 @@ from rattle import Invalid, LintRule, Valid
 CLS = "cls"
 
 
-class _RenameTransformer(cst.CSTTransformer):
+class RenameTransformer(cst.CSTTransformer):
     def __init__(
         self, names: list[cst.Name | cst.BaseString | cst.Attribute], new_name: str
     ) -> None:
@@ -277,5 +277,8 @@ class UseClsInClassmethod(LintRule):
                 # FunctionDef, Import, etc. We deliberately do not handle those here.
             refs += [r.node for r in a.references]
 
-        repl = node.visit(_RenameTransformer(refs, CLS))
+        repl = node.visit(RenameTransformer(refs, CLS))
         self.report(node, self.MESSAGE, replacement=repl)
+
+
+__all__ = ("UseClsInClassmethod",)

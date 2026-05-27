@@ -44,13 +44,46 @@ class RunnerTest(TestCase):
         assert list(violations) == []
         assert rule.called
 
+    def test_source_patterns_skip_rule(self) -> None:
+        class PatternRule(NoopRule):
+            SOURCE_PATTERNS = (b"def ",)
+
+        rule = PatternRule()
+        violations = self.runner.collect_violations([rule], Config())
+        assert list(violations) == []
+        assert not rule.called
+
+    def test_source_patterns_allow_valid_call_whitespace(self) -> None:
+        class PatternRule(NoopRule):
+            SOURCE_PATTERNS = (b"list(",)
+
+        rule = PatternRule()
+        runner = LintRunner(Path("fake.py"), b"value = list ((1, 2))\n")
+
+        violations = runner.collect_violations([rule], Config())
+
+        assert list(violations) == []
+        assert rule.called
+
+    def test_source_patterns_allow_valid_attribute_whitespace(self) -> None:
+        class PatternRule(NoopRule):
+            SOURCE_PATTERNS = (b".format",)
+
+        rule = PatternRule()
+        runner = LintRunner(Path("fake.py"), b'value = "{}" . format(1)\n')
+
+        violations = runner.collect_violations([rule], Config())
+
+        assert list(violations) == []
+        assert rule.called
+
     def test_timing(self) -> None:
         rule = NoopRule()
-        for _ in self.runner.collect_violations([rule], Config()):
+        for _ in self.runner.collect_violations([rule], Config(), metrics_hook=lambda _: None):
             pass  # exhaust the generator
         assert "Duration.NoopRule.visit_Module" in self.runner.metrics
         assert "Duration.NoopRule.leave_Module" in self.runner.metrics
-        assert self.runner.metrics["NoopRule.visit_Module"] >= 0
+        assert self.runner.metrics["Duration.NoopRule.visit_Module"] >= 0
         assert "Count.Noop" in self.runner.metrics
         assert "FixCount.Noop" in self.runner.metrics
         assert "Count.Total" in self.runner.metrics
@@ -183,7 +216,7 @@ class RuleTest(TestCase):
 
     def test_report_requires_message(self) -> None:
         with pytest.raises(TypeError):
-            self.rules[0].report(cst.Pass())
+            self.rules[0].report(cst.Pass())  # pyright: ignore[reportCallIssue]
 
     def test_ignore_lint(self) -> None:
         for idx, (code, message, position) in enumerate(
@@ -410,6 +443,7 @@ class RuleTest(TestCase):
                     (violation,) = violations
 
                     assert violation.message == message
+                    assert violation.range is not None
                     assert violation.range.start == CodePosition(*position)
 
                 else:
@@ -422,6 +456,7 @@ class RuleTest(TestCase):
                         + "\n".join(
                             f":{v.range.start.line}:{v.range.start.column} {v.rule_name}: {v.message}"
                             for v in violations
+                            if v.range is not None
                         )
                     )
 

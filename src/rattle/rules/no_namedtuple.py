@@ -8,7 +8,6 @@ from collections.abc import Sequence
 import libcst as cst
 from libcst import MaybeSentinel, ensure_type, parse_expression
 from libcst.metadata import (
-    PositionProvider,
     QualifiedName,
     QualifiedNameProvider,
     QualifiedNameSource,
@@ -195,14 +194,18 @@ class NoNamedTuple(LintRule):
             )
         )
         replacement = original_node.visit(
-            _NoNamedTupleTransformer(
+            NoNamedTupleTransformer(
                 namedtuple_classes=self.namedtuple_classes,
                 decorator=decorator,
             )
         )
         first_violation = next(iter(self.namedtuple_classes))
-        position = self.get_metadata(PositionProvider, first_violation, None)
-        self.report(original_node, self.MESSAGE, position=position, replacement=replacement)
+        self.report(
+            original_node,
+            self.MESSAGE,
+            position_node=first_violation,
+            replacement=replacement,
+        )
 
     def partition_bases(
         self, original_bases: Sequence[cst.Arg]
@@ -289,7 +292,7 @@ def _insert_dataclasses_import(module: cst.Module) -> cst.Module:
     return module.with_changes(body=body)
 
 
-class _NoNamedTupleTransformer(cst.CSTTransformer):
+class NoNamedTupleTransformer(cst.CSTTransformer):
     def __init__(
         self,
         *,
@@ -314,7 +317,7 @@ class _NoNamedTupleTransformer(cst.CSTTransformer):
             decorators=[*list(updated_node.decorators), self.decorator],
         )
 
-    def leave_SimpleStatementLine(
+    def _leave_simple_statement_line(
         self,
         _original_node: cst.SimpleStatementLine,
         updated_node: cst.SimpleStatementLine,
@@ -333,7 +336,24 @@ class _NoNamedTupleTransformer(cst.CSTTransformer):
             return cst.RemoveFromParent()
         return updated_node.with_changes(body=(rewritten_statement,))
 
-    def leave_Module(self, _original_node: cst.Module, updated_node: cst.Module) -> cst.Module:
+    def leave_SimpleStatementLine(
+        self,
+        original_node: cst.SimpleStatementLine,
+        updated_node: cst.SimpleStatementLine,
+    ) -> cst.BaseStatement | cst.RemovalSentinel:
+        return self._leave_simple_statement_line(original_node, updated_node)
+
+    def _leave_module(
+        self,
+        _original_node: cst.Module,
+        updated_node: cst.Module,
+    ) -> cst.Module:
         if self.has_dataclasses_import:
             return updated_node
         return _insert_dataclasses_import(updated_node)
+
+    def leave_Module(self, original_node: cst.Module, updated_node: cst.Module) -> cst.Module:
+        return self._leave_module(original_node, updated_node)
+
+
+__all__ = ("NoNamedTuple",)

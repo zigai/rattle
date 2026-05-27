@@ -78,3 +78,6 @@ class NoRedundantLambda(LintRule):
                 UNNECESSARY_LAMBDA.format(function=full_name),
                 replacement=call.func,
             )
+
+
+__all__ = ("NoRedundantLambda",)

@@ -151,3 +151,6 @@ class UseTypesFromTyping(LintRule):
                 ),
                 replacement=replacement,
             )
+
+
+__all__ = ("UseTypesFromTyping",)

@@ -12,6 +12,7 @@ from rattle import Invalid, LintRule, Valid
 
 class UseAssertIn(LintRule):
     CODE = "RAT020"
+    SOURCE_PATTERNS = (b"assertTrue", b"assertFalse")
     """
     Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``
     as it is deprecated (https://docs.python.org/3.8/library/unittest.html#deprecated-aliases).
@@ -154,3 +155,6 @@ class UseAssertIn(LintRule):
                     args=[arg1, arg2],
                 )
                 self.report(node, self.MESSAGE, replacement=new_call)
+
+
+__all__ = ("UseAssertIn",)

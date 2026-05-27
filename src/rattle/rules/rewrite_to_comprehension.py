@@ -21,6 +21,7 @@ UNNECESSARY_LIST_COMPREHENSION: str = (
 
 class RewriteToComprehension(LintRule):
     CODE = "RAT017"
+    SOURCE_PATTERNS = (b"list(", b"set(", b"dict(")
     """
     A derivative of flake8-comprehensions's C400-C402 and C403-C404.
     Comprehensions are more efficient than functions calls. This C400-C402
@@ -140,3 +141,6 @@ class RewriteToComprehension(LintRule):
                 )
 
             self.report(node, message_formatter.format(func=call_name), replacement=replacement)
+
+
+__all__ = ("RewriteToComprehension",)

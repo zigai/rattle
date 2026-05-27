@@ -314,3 +314,6 @@ class NoStringTypeAnnotation(LintRule):
                 self.report(node, self.MESSAGE, replacement=repl)
             except cst.ParserSyntaxError:
                 self.report(node, self.MESSAGE)
+
+
+__all__ = ("NoStringTypeAnnotation",)

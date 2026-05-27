@@ -170,3 +170,6 @@ class CollapseIsinstanceChecks(LintRule):
         # Re-evaluating arbitrary expressions can change semantics. Restrict collapsing
         # to plain names, where repeated evaluation is safe.
         return isinstance(target, cst.Name)
+
+
+__all__ = ("CollapseIsinstanceChecks",)

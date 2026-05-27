@@ -101,3 +101,6 @@ class AvoidOrInExcept(LintRule):
             m.Try(handlers=[m.ExceptHandler(type=m.BooleanOperation(operator=m.Or()))]),
         ):
             self.report(node, self.MESSAGE)
+
+
+__all__ = ("AvoidOrInExcept",)

@@ -13,6 +13,7 @@ from rattle import Invalid, LintRule, Valid
 
 class NoAssertTrueForComparisons(LintRule):
     CODE = "RAT007"
+    SOURCE_PATTERNS = (b"assertTrue",)
     """
     Finds incorrect use of ``assertTrue`` when the intention is to compare two values.
     These calls are replaced with ``assertEqual``.
@@ -116,3 +117,6 @@ class NoAssertTrueForComparisons(LintRule):
                 )
 
             self.report(node, self.MESSAGE, replacement=new_call)
+
+
+__all__ = ("NoAssertTrueForComparisons",)

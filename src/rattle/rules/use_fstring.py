@@ -51,8 +51,10 @@ class EscapeStringQuote(cst.CSTTransformer):
         self.quote = quote
         super().__init__()
 
-    def leave_SimpleString(
-        self, original_node: cst.SimpleString, _updated_node: cst.SimpleString
+    def _leave_simple_string(
+        self,
+        original_node: cst.SimpleString,
+        _updated_node: cst.SimpleString,
     ) -> cst.SimpleString:
         if self.quote == original_node.quote:
             for quo in ["'", '"', "'''", '"""']:
@@ -70,9 +72,17 @@ class EscapeStringQuote(cst.CSTTransformer):
             )
         return original_node
 
+    def leave_SimpleString(
+        self,
+        original_node: cst.SimpleString,
+        updated_node: cst.SimpleString,
+    ) -> cst.SimpleString:
+        return self._leave_simple_string(original_node, updated_node)
+
 
 class UseFstring(LintRule):
     CODE = "RAT024"
+    SOURCE_PATTERNS = (b".format", b"%")
     """
     Encourages the use of f-string instead of %-formatting or .format() for high code quality and efficiency.
 
@@ -233,3 +243,6 @@ class UseFstring(LintRule):
             node, m.BinaryOperation(left=m.SimpleString(), operator=m.Modulo())
         ) and isinstance(cst.ensure_type(node.left, cst.SimpleString).evaluated_value, str):
             self.report(node, self.MESSAGE)
+
+
+__all__ = ("UseFstring",)

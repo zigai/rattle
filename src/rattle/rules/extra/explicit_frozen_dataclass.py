@@ -261,3 +261,6 @@ class ExplicitFrozenDataclass(LintRule):
                     self.report(
                         d, self.MESSAGE, replacement=d.with_changes(decorator=new_decorator)
                     )
+
+
+__all__ = ("ExplicitFrozenDataclass",)

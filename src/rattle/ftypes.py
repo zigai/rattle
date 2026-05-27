@@ -5,6 +5,7 @@
 
 import platform
 import re
+import traceback
 from collections.abc import Callable, Collection, Container, Iterable, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -110,6 +111,7 @@ def is_rule_option_value(value: object) -> bool:
         return True
 
     if is_sequence(value):
+        assert isinstance(value, Sequence)
         return all(isinstance(item, RuleOptionTypes) for item in value)
 
     return False
@@ -279,11 +281,12 @@ class LintViolation:
     """An individual lint error, with an optional replacement and expected diff."""
 
     rule_name: str
-    range: CodeRange
+    range: CodeRange | None
     message: str
     node: CSTNode
     replacement: NodeReplacement[CSTNode] | None
     diff: str = ""
+    position_node: CSTNode | None = None
 
     @property
     def autofixable(self) -> bool:
@@ -299,3 +302,21 @@ class Result:
     violation: LintViolation | None
     error: tuple[Exception, str] | None = None
     source: FileContent | None = None
+    config: Config | None = None
+
+    @classmethod
+    def from_exception(
+        cls,
+        path: Path,
+        error: Exception,
+        *,
+        source: FileContent | None = None,
+        config: Config | None = None,
+    ) -> "Result":
+        return cls(
+            path,
+            violation=None,
+            error=(error, traceback.format_exc()),
+            source=source,
+            config=config,
+        )

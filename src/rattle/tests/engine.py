@@ -7,9 +7,13 @@ from pathlib import Path
 from textwrap import dedent
 from unittest import TestCase
 
+import pytest
 from libcst import (
     Call,
     Expr,
+    ImportFrom,
+    Module,
+    ParserSyntaxError,
     SimpleStatementLine,
     SimpleString,
     ensure_type,
@@ -17,8 +21,9 @@ from libcst import (
 )
 from libcst.metadata import CodePosition, CodeRange
 
-from rattle.engine import diff_violation
-from rattle.ftypes import LintViolation
+from rattle.engine import LintRunner, diff_violation
+from rattle.ftypes import Config, LintViolation
+from rattle.rule import LintRule
 
 
 class EngineTest(TestCase):
@@ -57,3 +62,70 @@ class EngineTest(TestCase):
         )
         result = diff_violation(path, module, violation)
         assert expected == result
+
+    def test_collect_violations_skips_rules_when_source_lacks_visited_syntax(self) -> None:
+        class ImportFromRule(LintRule):
+            visited_import = False
+
+            def visit_ImportFrom(self, node: ImportFrom) -> None:
+                type(self).visited_import = True
+
+        runner = LintRunner(Path("clean.py"), b"x = 1\n")
+
+        assert (
+            list(
+                runner.collect_violations(
+                    [ImportFromRule()],
+                    Config(path=Path("clean.py")),
+                )
+            )
+            == []
+        )
+        assert not ImportFromRule.visited_import
+
+    def test_collect_violations_still_parses_when_all_rules_are_source_filtered(self) -> None:
+        class PatternRule(LintRule):
+            SOURCE_PATTERNS = (b"def ",)
+
+            def visit_Module(self, node: Module) -> None:
+                pass
+
+        runner = LintRunner(Path("invalid.py"), b"(")
+
+        with pytest.raises(ParserSyntaxError):
+            list(
+                runner.collect_violations(
+                    [PatternRule()],
+                    Config(path=Path("invalid.py")),
+                )
+            )
+
+    def test_inferred_source_filters_allow_keyword_tabs(self) -> None:
+        class ClassRule(LintRule):
+            visited = False
+
+            def visit_ClassDef(self, node: object) -> None:
+                type(self).visited = True
+
+        class FunctionRule(LintRule):
+            visited = False
+
+            def visit_FunctionDef(self, node: object) -> None:
+                type(self).visited = True
+
+        runner = LintRunner(
+            Path("keyword_tabs.py"),
+            b"class\tC(object):\n    pass\n\ndef\tf():\n    pass\n",
+        )
+
+        assert (
+            list(
+                runner.collect_violations(
+                    [ClassRule(), FunctionRule()],
+                    Config(path=Path("keyword_tabs.py")),
+                )
+            )
+            == []
+        )
+        assert ClassRule.visited
+        assert FunctionRule.visited

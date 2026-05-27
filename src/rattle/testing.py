@@ -16,12 +16,12 @@ from .ftypes import Config, Invalid, Valid
 from .rule import LintRule
 
 
-class _Patch(Protocol):
+class Patch(Protocol):
     def apply(self, source: str) -> str: ...
 
 
-class _Report(Protocol):
-    patch: _Patch | None
+class Report(Protocol):
+    patch: Patch | None
 
 
 def _dedent(src: str) -> str:
@@ -35,7 +35,7 @@ def get_fixture_path(fixture_top_dir: Path, rule_module: str, rules_package: str
     return fixture_top_dir / fixture_subdir
 
 
-def validate_patch(report: _Report, test_case: Invalid) -> None:
+def validate_patch(report: Report, test_case: Invalid) -> None:
     patch = report.patch
     expected_replacement = test_case.expected_replacement
 
@@ -82,7 +82,7 @@ class LintRuleTestCase(unittest.TestCase):
         config = Config(path=path)
         source_code = _dedent(test_case.code)
         runner = LintRunner(path, source_code.encode())
-        reports = list(runner.collect_violations([rule], config))
+        reports = list(runner.collect_violations([rule], config, include_diff=True))
 
         if isinstance(test_case, Valid):
             assert len(reports) == 0, (
@@ -227,3 +227,17 @@ def add_lint_rule_tests_to_module(
         assert isinstance(test_module, str)
         for test_case_class in test_case_classes:
             test_case_class.__module__ = test_module
+
+
+__all__ = (
+    "LintRuleTestCase",
+    "Patch",
+    "Report",
+    "TestCasePrecursor",
+    "add_lint_rule_tests_to_module",
+    "gen_all_test_methods",
+    "gen_test_methods_for_rule",
+    "generate_lint_rule_test_cases",
+    "get_fixture_path",
+    "validate_patch",
+)

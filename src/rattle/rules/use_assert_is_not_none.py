@@ -14,6 +14,7 @@ from rattle import Invalid, LintRule, Valid
 
 class UseAssertIsNotNone(LintRule):
     CODE = "RAT021"
+    SOURCE_PATTERNS = (b"assertTrue", b"assertFalse")
     """
     Discourages use of ``assertTrue(x is not None)`` and ``assertFalse(x is not None)`` as it is deprecated (https://docs.python.org/3.8/library/unittest.html#deprecated-aliases).
     Use ``assertIsNotNone(x)`` and ``assertIsNone(x)``) instead.
@@ -154,3 +155,6 @@ class UseAssertIsNotNone(LintRule):
 
             if new_call is not node:
                 self.report(node, self.MESSAGE, replacement=new_call)
+
+
+__all__ = ("UseAssertIsNotNone",)

@@ -16,6 +16,7 @@ UNNECESSARY_LIST_COMPREHENSION: str = (
 
 class NoRedundantListComprehension(LintRule):
     CODE = "RAT013"
+    SOURCE_PATTERNS = (b"any(", b"all(")
     """A derivative of flake8-comprehensions's C407 rule."""
 
     VALID = [
@@ -58,3 +59,6 @@ class NoRedundantListComprehension(LintRule):
                     cst.GeneratorExp(elt=list_comp.elt, for_in=list_comp.for_in, lpar=[], rpar=[]),
                 ),
             )
+
+
+__all__ = ("NoRedundantListComprehension",)

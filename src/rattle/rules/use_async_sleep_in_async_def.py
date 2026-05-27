@@ -143,3 +143,6 @@ class UseAsyncSleepInAsyncDef(LintRule):
             return
 
         self.report(node, self.MESSAGE)
+
+
+__all__ = ("UseAsyncSleepInAsyncDef",)

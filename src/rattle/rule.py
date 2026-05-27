@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 import functools
+import re
 from collections.abc import Callable, Collection, Generator, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, replace
-from types import MappingProxyType
+from pathlib import Path
+from types import FunctionType, MappingProxyType
 from typing import (
     Any,
     ClassVar,
@@ -32,11 +34,11 @@ from libcst.metadata import (
     CodePosition,
     CodeRange,
     ParentNodeProvider,
-    PositionProvider,
     ProviderT,
 )
 
 from .ftypes import (
+    FileContent,
     Invalid,
     LintIgnoreRegex,
     LintViolation,
@@ -47,12 +49,40 @@ from .ftypes import (
 )
 
 
+def _source_pattern_matches(source: FileContent, pattern: bytes) -> bool:
+    whitespace = rb"[ \t\f\r\n]*"
+    if pattern in source:
+        return True
+
+    if pattern.endswith(b"("):
+        call_name = pattern[:-1]
+        if re.fullmatch(rb"[A-Za-z_][A-Za-z0-9_]*", call_name):
+            return re.search(re.escape(call_name) + whitespace + rb"\(", source) is not None
+
+    if pattern.startswith(b"."):
+        attr_name = pattern[1:]
+        if re.fullmatch(rb"[A-Za-z_][A-Za-z0-9_]*", attr_name):
+            return re.search(rb"\." + whitespace + re.escape(attr_name), source) is not None
+
+    if pattern.endswith(b" "):
+        keyword = pattern[:-1]
+        if re.fullmatch(rb"[A-Za-z_][A-Za-z0-9_]*", keyword):
+            return re.search(re.escape(keyword) + rb"[ \t\f]+", source) is not None
+
+    return False
+
+
 class RuleConfigurationError(ValueError):
     pass
 
 
 _RULE_SETTING_MISSING = object()
 _SCALAR_SETTING_TYPES = (str, int, float, bool)
+_VISITOR_NAMES_BY_RULE_TYPE: dict[type[LintRule], tuple[str, ...]] = {}
+
+
+def _is_no_op_visitor(member: FunctionType) -> bool:
+    return vars(member).get("_is_no_op") is True
 
 
 def _is_scalar_setting_type(value: object) -> bool:
@@ -110,6 +140,7 @@ class RuleSetting:
                 f"{rule_name}: unsupported type for setting {setting_name!r}: {expected_type!r}"
             )
 
+        assert isinstance(expected_type, type)
         if not _is_instance_for_type(value, expected_type):
             raise RuleConfigurationError(
                 f"{rule_name}: setting {setting_name!r} expected {expected_type!r}, got {type(value)!r}"
@@ -149,7 +180,7 @@ class LintRule(BatchableCSTVisitor):
     When a lint rule violation should be reported, use the :meth:`report` method.
     """
 
-    METADATA_DEPENDENCIES: ClassVar[Collection[ProviderT]] = (PositionProvider,)
+    METADATA_DEPENDENCIES: ClassVar[Collection[ProviderT]] = ()
     """
     Required LibCST metadata providers
     """
@@ -179,6 +210,8 @@ class LintRule(BatchableCSTVisitor):
     SETTINGS: ClassVar[dict[str, RuleSetting]] = {}
     "Optional typed configuration settings for this lint rule."
 
+    SOURCE_PATTERNS: ClassVar[tuple[bytes, ...]] = ()
+
     AUTOFIX = False  # set by __subclass_init__
     """
     Whether the lint rule contains an autofix.
@@ -194,14 +227,12 @@ class LintRule(BatchableCSTVisitor):
 
     def __init__(self) -> None:
         self._violations: list[LintViolation] = []
+        self._lint_ignore_enabled = True
         self.settings: Mapping[str, Any] = MappingProxyType({})
         self.name = self.__class__.__name__
         self.name = self.name.removesuffix("Rule")
 
     def __init_subclass__(cls) -> None:
-        if ParentNodeProvider not in cls.METADATA_DEPENDENCIES:
-            cls.METADATA_DEPENDENCIES = (*cls.METADATA_DEPENDENCIES, ParentNodeProvider)
-
         invalid: list[str | Invalid] = getattr(cls, "INVALID", [])
         for case in invalid:
             if isinstance(case, Invalid) and case.expected_replacement:
@@ -214,6 +245,11 @@ class LintRule(BatchableCSTVisitor):
     @classmethod
     def qualified_name(cls) -> str:
         return f"{cls.__module__}:{cls.__name__}"
+
+    def should_lint_file(self, source: FileContent, _path: Path) -> bool:
+        return not self.SOURCE_PATTERNS or any(
+            _source_pattern_matches(source, pattern) for pattern in self.SOURCE_PATTERNS
+        )
 
     def configure(self, raw_settings: Mapping[str, object]) -> None:
         unknown_settings = sorted(set(raw_settings) - set(self.SETTINGS))
@@ -334,6 +370,9 @@ class LintRule(BatchableCSTVisitor):
         Returns true if any ``# lint-ignore`` or ``# lint-fixme`` directives match the
         current rule by name, or if the directives have no rule names listed.
         """
+        if not self._lint_ignore_enabled:
+            return False
+
         rule_names = (self.name, self.name.lower())
         for comment in self.node_comments(node):
             if match := LintIgnoreRegex.search(comment):
@@ -357,6 +396,7 @@ class LintRule(BatchableCSTVisitor):
         message: str,
         *,
         position: CodePosition | CodeRange | None = None,
+        position_node: CSTNode | None = None,
         replacement: NodeReplacement[CSTNode] | None = None,
     ) -> None:
         """
@@ -374,11 +414,7 @@ class LintRule(BatchableCSTVisitor):
             # TODO: consider logging/reporting this somewhere?
             return
 
-        if position is None:
-            position = self.get_metadata(PositionProvider, node, None)
-            if position is None:
-                raise ValueError(f"Unable to determine violation position for {self.name}")
-        elif isinstance(position, CodePosition):
+        if isinstance(position, CodePosition):
             end = replace(position, line=position.line + 1, column=0)
             position = CodeRange(start=position, end=end)
 
@@ -389,21 +425,54 @@ class LintRule(BatchableCSTVisitor):
                 message=message,
                 node=node,
                 replacement=replacement,
+                position_node=position_node,
             )
         )
 
+    @classmethod
+    def _visitor_names(cls) -> tuple[str, ...]:
+        if cached := _VISITOR_NAMES_BY_RULE_TYPE.get(cls):
+            return cached
+
+        names: set[str] = set()
+        for rule_type in reversed(cls.__mro__):
+            if not issubclass(rule_type, BatchableCSTVisitor):
+                continue
+
+            for name, member in vars(rule_type).items():
+                if not isinstance(member, FunctionType):
+                    continue
+
+                method_name = member.__name__
+                if method_name.startswith(("visit_", "leave_")) and not _is_no_op_visitor(member):
+                    names.add(name)
+
+        result = tuple(sorted(names))
+        _VISITOR_NAMES_BY_RULE_TYPE[cls] = result
+        return result
+
     def get_visitors(self) -> Mapping[str, VisitorMethod]:
+        visitors = super().get_visitors()
+        visitor_names = self._visitor_names()
+        if self._visit_hook is None:
+            return {name: visitors[name] for name in visitor_names}
+
         def _wrap(name: str, func: VisitorMethod) -> VisitorMethod:
             @functools.wraps(func)
             def wrapper(node: CSTNode) -> None:
-                if self._visit_hook:
-                    with self._visit_hook(name):
-                        return func(node)
-                return func(node)
+                assert self._visit_hook is not None
+                with self._visit_hook(name):
+                    return func(node)
 
             return wrapper
 
         return {
-            name: _wrap(f"{type(self).__name__}.{name}", visitor)
-            for (name, visitor) in super().get_visitors().items()
+            name: _wrap(f"{type(self).__name__}.{name}", visitors[name]) for name in visitor_names
         }
+
+
+__all__ = (
+    "LintRule",
+    "RuleConfigurationError",
+    "RuleSetting",
+)

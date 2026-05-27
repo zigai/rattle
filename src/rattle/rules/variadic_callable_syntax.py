@@ -124,3 +124,6 @@ class VariadicCallableSyntax(LintRule):
                 self.__doc__,
                 replacement=node.deep_replace(node, new_node),
             )
+
+
+__all__ = ("VariadicCallableSyntax",)

@@ -148,3 +148,6 @@ class NoRedundantArgumentsSuper(LintRule):
                 matcher = m.Attribute(value=matcher, attr=m.Name(value=class_name))
 
         return matcher
+
+
+__all__ = ("NoRedundantArgumentsSuper",)
