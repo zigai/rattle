@@ -11,11 +11,18 @@ NOTE: be sure to update docs/guide/configuration.rst to include any new formatte
 
 import shutil
 import subprocess
+import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 from libcst import Module
 
 from .ftypes import Config, FileContent
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
 
 FORMAT_STYLES: dict[str | None, type["Formatter"]] = {}
 
@@ -96,6 +103,57 @@ class RuffFormatter(Formatter):
         return proc.stdout
 
 
+class AutoFormatter(Formatter):
+    STYLE = "auto"
+
+    def format(self, module: Module, path: Path) -> FileContent:
+        style = _detect_formatter_style(path)
+        if style is None:
+            return module.bytes
+
+        formatter = FORMAT_STYLES[style]()
+        return formatter.format(module, path)
+
+
+def _detect_formatter_style(path: Path) -> str | None:
+    for pyproject_path in _iter_pyproject_paths(path):
+        try:
+            data = tomllib.loads(pyproject_path.read_text())
+        except tomllib.TOMLDecodeError:
+            data = {}
+
+        tool_data = data.get("tool", {})
+        if not isinstance(tool_data, Mapping):
+            continue
+
+        ruff_data = tool_data.get("ruff", {})
+        if isinstance(ruff_data, Mapping) and isinstance(ruff_data.get("format"), Mapping):
+            return "ruff"
+
+        if isinstance(tool_data.get("ufmt"), Mapping) or isinstance(
+            tool_data.get("usort"), Mapping
+        ):
+            return "ufmt"
+
+        if isinstance(tool_data.get("black"), Mapping):
+            return "black"
+
+    return None
+
+
+def _iter_pyproject_paths(path: Path) -> list[Path]:
+    base = path if path.is_dir() else path.parent
+    base = base.resolve()
+    paths: list[Path] = []
+    while True:
+        pyproject_path = base / "pyproject.toml"
+        if pyproject_path.is_file():
+            paths.append(pyproject_path)
+        if base == base.parent:
+            return paths
+        base = base.parent
+
+
 def format_module(module: Module, path: Path, config: Config) -> FileContent:
     """
     Format the given source module, and return its final content in bytes.
@@ -111,6 +169,7 @@ FORMAT_STYLES[None] = Formatter
 
 __all__ = (
     "FORMAT_STYLES",
+    "AutoFormatter",
     "BlackFormatter",
     "Formatter",
     "RuffFormatter",
