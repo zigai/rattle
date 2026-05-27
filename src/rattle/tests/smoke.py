@@ -149,6 +149,48 @@ class SmokeTest(TestCase):
                 assert re.search(r" --> .*file\.py:5:13", result.output)
                 assert expected_ruff_format == path.read_text(), "unexpected file output"
 
+            with self.subTest("fixing with auto ruff formatting"):
+                (tdp / "pyproject.toml").write_text(
+                    dedent(
+                        """\
+                            [tool.rattle]
+                            formatter='auto'
+
+                            [tool.ruff.format]
+                            quote-style = "double"
+                        """
+                    )
+                )
+
+                path.write_text(ruff_content)
+                result = self.runner.invoke(
+                    main,
+                    ["fix", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.output != ""
+                assert result.exit_code == 0
+                assert "NoRedundantFString [*]" in result.output
+                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert expected_ruff_format == path.read_text(), "unexpected file output"
+
+            with self.subTest("fixing with auto and no formatter config"):
+                (tdp / "pyproject.toml").write_text("[tool.rattle]\nformatter='auto'\n")
+
+                path.write_text(content)
+                result = self.runner.invoke(
+                    main,
+                    ["fix", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.output != ""
+                assert result.exit_code == 0
+                assert "NoRedundantFString [*]" in result.output
+                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert expected_fix == path.read_text(), "unexpected file output"
+
             with self.subTest("linting via stdin"):
                 result = self.runner.invoke(
                     main,
