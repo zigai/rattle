@@ -671,6 +671,33 @@ class ConfigTest(TestCase):
             with pytest.raises(config.ConfigError, match="TOML scalar or array of scalars"):
                 config.generate_config(self.tdp / "foo.py")
 
+    def test_rule_registry_resolves_selectors(self) -> None:
+        class AlphaRule(LintRule):
+            CODE = "RAT900"
+
+        class BetaRule(LintRule):
+            CODE = "RAT901"
+
+        registry = config.RuleRegistry()
+        registry.register(BetaRule, builtin=True)
+        registry.register(AlphaRule, builtin=True)
+
+        alpha_resolution = registry.resolve(CodeSelector("RAT900"))
+        assert alpha_resolution.rules == (AlphaRule,)
+        assert alpha_resolution.concrete
+
+        prefix_resolution = registry.resolve(CodeSelector("RAT90"))
+        assert prefix_resolution.rules == (AlphaRule, BetaRule)
+        assert not prefix_resolution.concrete
+
+        alias_resolution = registry.resolve(AliasSelector("AlphaRule"))
+        assert alias_resolution.rules == (AlphaRule,)
+        assert alias_resolution.concrete
+
+        missing_selector = CodeSelector("RAT999")
+        with pytest.raises(config.CollectionError, match="could not find rule RAT999"):
+            registry.resolve(missing_selector)
+
     def test_collect_rules(self) -> None:
         from rattle.rules.avoid_or_in_except import AvoidOrInExcept
         from rattle.rules.cls_in_classmethod import UseClsInClassmethod
