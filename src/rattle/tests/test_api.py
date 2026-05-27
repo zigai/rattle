@@ -1,5 +1,4 @@
 import os
-import time
 from collections.abc import Callable, Collection, Generator
 from pathlib import Path
 from typing import cast
@@ -161,9 +160,7 @@ class TestApi:
         path.write_text("VALUE = 1\n")
         first = _path_stat_fingerprint(path)
 
-        path.write_text("VALUE = 2\n")
-        now = time.time_ns()
-        os.utime(path, ns=(now, now))
+        path.write_text("VALUE = 200\n")
 
         assert _path_stat_fingerprint(path) != first
 
@@ -181,9 +178,7 @@ class TestApi:
 
         assert _cached_rule_fingerprints_match(raw_fingerprints, None)
 
-        source.write_text("VALUE = 2\n")
-        now = time.time_ns()
-        os.utime(source, ns=(now, now))
+        source.write_text("VALUE = 200\n")
 
         assert not _cached_rule_fingerprints_match(raw_fingerprints, None)
 
@@ -199,9 +194,7 @@ class TestApi:
         with patch("rattle.cache.inspect.getsourcefile", return_value=rule_module.as_posix()):
             first = rule_cache_fingerprint(PackageRule())
 
-            helper_module.write_text("VALUE = 2\n")
-            now = time.time_ns()
-            os.utime(helper_module, ns=(now, now))
+            helper_module.write_text("VALUE = 200\n")
 
             assert rule_cache_fingerprint(PackageRule()) != first
 
@@ -286,8 +279,6 @@ class TestApi:
         new_entry = cache_root / "new.json"
         old_entry.write_bytes(b"x" * 7)
         new_entry.write_bytes(b"x" * 7)
-        os.utime(old_entry, ns=(1, 1))
-        os.utime(new_entry, ns=(2, 2))
 
         _prune_cache(cache_root, max_bytes=10, target_bytes=7)
 
