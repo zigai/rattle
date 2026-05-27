@@ -132,6 +132,72 @@ class RuleRegistry:
                 selector_kind="alias",
             )
 
+    def resolve(self, selector: RuleSelector) -> RuleResolution:
+        if isinstance(selector, QualifiedRule):
+            if error := self.import_errors.get(selector):
+                raise error
+            rules = self.imported_rules.get(selector, ())
+            if selector.name is not None and not rules:
+                raise CollectionError(f"could not find rule {selector}", selector)
+            return RuleResolution(selector, rules, concrete=selector.name is not None)
+
+        if isinstance(selector, CodeSelector):
+            if rule_type := self.rules_by_code.get(selector.value):
+                return RuleResolution(selector, (rule_type,), concrete=True)
+
+            rules = tuple(
+                sorted(
+                    {
+                        rule_type
+                        for code, rule_type in self.rules_by_code.items()
+                        if code.startswith(selector.value)
+                    },
+                    key=_rule_key_for_type,
+                )
+            )
+            if not rules:
+                raise CollectionError(f"could not find rule {selector}", selector)
+            return RuleResolution(selector, rules, concrete=False)
+
+        if rule_type := self.rules_by_alias.get(selector.value):
+            return RuleResolution(selector, (rule_type,), concrete=True)
+
+        raise CollectionError(f"could not find rule {selector}", selector)
+
+    def resolve_or_log(
+        self,
+        selector: RuleSelector,
+        *,
+        root: Path,
+        enable_root_import: bool | Path,
+    ) -> RuleResolution | None:
+        try:
+            return self.resolve(selector)
+        except Exception as error:  # noqa: BLE001 - import boundary
+            _log_rule_load_failure_once(
+                selector,
+                error,
+                root=root,
+                enable_root_import=enable_root_import,
+            )
+            return None
+
+    def iter_resolved(
+        self,
+        selectors: Iterable[RuleSelector],
+        *,
+        root: Path,
+        enable_root_import: bool | Path,
+    ) -> Iterator[RuleResolution]:
+        for selector in selectors:
+            resolution = self.resolve_or_log(
+                selector,
+                root=root,
+                enable_root_import=enable_root_import,
+            )
+            if resolution is not None:
+                yield resolution
+
     def _register_unique_selector(
         self,
         mapping: dict[str, type[LintRule]],
@@ -393,76 +459,6 @@ def _build_rule_registry(
     return registry
 
 
-def _resolve_selector(selector: RuleSelector, registry: RuleRegistry) -> RuleResolution:
-    if isinstance(selector, QualifiedRule):
-        if error := registry.import_errors.get(selector):
-            raise error
-        rules = registry.imported_rules.get(selector, ())
-        if selector.name is not None and not rules:
-            raise CollectionError(f"could not find rule {selector}", selector)
-        return RuleResolution(selector, rules, concrete=selector.name is not None)
-
-    if isinstance(selector, CodeSelector):
-        if rule_type := registry.rules_by_code.get(selector.value):
-            return RuleResolution(selector, (rule_type,), concrete=True)
-
-        rules = tuple(
-            sorted(
-                {
-                    rule_type
-                    for code, rule_type in registry.rules_by_code.items()
-                    if code.startswith(selector.value)
-                },
-                key=_rule_key_for_type,
-            )
-        )
-        if not rules:
-            raise CollectionError(f"could not find rule {selector}", selector)
-        return RuleResolution(selector, rules, concrete=False)
-
-    if rule_type := registry.rules_by_alias.get(selector.value):
-        return RuleResolution(selector, (rule_type,), concrete=True)
-
-    raise CollectionError(f"could not find rule {selector}", selector)
-
-
-def _resolve_selector_or_log(
-    selector: RuleSelector,
-    registry: RuleRegistry,
-    *,
-    root: Path,
-    enable_root_import: bool | Path,
-) -> RuleResolution | None:
-    try:
-        return _resolve_selector(selector, registry)
-    except Exception as error:  # noqa: BLE001 - import boundary
-        _log_rule_load_failure_once(
-            selector,
-            error,
-            root=root,
-            enable_root_import=enable_root_import,
-        )
-        return None
-
-
-def _iter_resolved_selectors(
-    selectors: Iterable[RuleSelector],
-    registry: RuleRegistry,
-    *,
-    root: Path,
-    enable_root_import: bool | Path,
-) -> Iterator[RuleResolution]:
-    for selector in selectors:
-        resolution = _resolve_selector_or_log(
-            selector,
-            registry,
-            root=root,
-            enable_root_import=enable_root_import,
-        )
-        if resolution is not None:
-            yield resolution
-
-
 def collect_rule_types(
     config: Config,
     *,
@@ -481,9 +477,8 @@ def collect_rule_types(
         strict=False,
     )
 
-    for resolution in _iter_resolved_selectors(
+    for resolution in registry.iter_resolved(
         config.enable,
-        registry,
         root=config.root,
         enable_root_import=config.enable_root_import,
     ):
@@ -491,9 +486,8 @@ def collect_rule_types(
             named_enables |= set(resolution.rules)
         all_rules |= set(resolution.rules)
 
-    for resolution in _iter_resolved_selectors(
+    for resolution in registry.iter_resolved(
         config.disable,
-        registry,
         root=config.root,
         enable_root_import=config.enable_root_import,
     ):
@@ -1118,183 +1112,229 @@ def generate_config(
     return config
 
 
-def validate_config(path: Path) -> list[str]:  # noqa: C901 - config validation orchestration
-    """
-    Validate the config provided. The provided path is expected to be a valid toml
-    config file. Any exception found while parsing or importing will be added to a list
-    of exceptions that are returned.
-    """
-    exceptions: list[str] = []
-    try:
-        root = path.parent
-        configs = read_configs([path])[0]
-        data = configs.data
-        selectors_to_validate: list[tuple[str, RuleSelector, str]] = []
-        option_targets_to_validate: list[tuple[str, RuleSelector, Mapping[str, object], str]] = []
+@dataclass
+class ConfigValidator:
+    path: Path
+    exceptions: list[str] = field(default_factory=list)
+    selectors_to_validate: list[tuple[str, RuleSelector, str]] = field(default_factory=list)
+    option_targets_to_validate: list[tuple[str, RuleSelector, Mapping[str, object], str]] = field(
+        default_factory=list
+    )
+    root: Path = field(init=False)
+    config: RawConfig = field(init=False)
+    data: dict[str, Any] = field(init=False)
+    enable_root_import: bool | Path = field(init=False)
 
-        raw_enable_root_import = data.get("enable-root-import", False)
-        enable_root_import: bool | Path = False
-        if raw_enable_root_import:
-            enable_root_import = (
-                Path(raw_enable_root_import) if isinstance(raw_enable_root_import, str) else True
-            )
-
-        def collect_rule_selectors(rules: Sequence[str], context: str) -> None:
-            for rule in rules:
-                try:
-                    selector = parse_rule(rule, root, configs)
-                except Exception as error:  # noqa: BLE001 - validation boundary
-                    exceptions.append(
-                        f"Failed to parse rule `{rule}` for {context}: {error.__class__.__name__}: {error}"
-                    )
-                    continue
-                selectors_to_validate.append((rule, selector, context))
-
-        def collect_rule_option_targets(rule_options: RuleOptionsTable, context: str) -> None:
-            for rule_name, settings in rule_options.items():
-                try:
-                    selector = parse_exact_rule_target(rule_name, root, configs)
-                except Exception as error:  # noqa: BLE001 - validation boundary
-                    exceptions.append(
-                        f"Failed to validate options for `{rule_name}` in {context}: {error.__class__.__name__}: {error}"
-                    )
-                    continue
-                option_targets_to_validate.append((rule_name, selector, settings, context))
-
-        def collect_rule_patterns(rule_patterns: Mapping[str, Sequence[str]], context: str) -> None:
-            for pattern, rules in rule_patterns.items():
-                collect_rule_selectors(rules, f"{context}: `{pattern}`")
-
-        collect_rule_selectors(data.get("enable", []), "global enable")
-        collect_rule_selectors(data.get("disable", []), "global disable")
-
+    def validate(self) -> list[str]:
         try:
-            global_options = get_options(configs, "options")
+            self.root = self.path.parent
+            self.config = read_configs([self.path])[0]
+            self.data = self.config.data
+            self.enable_root_import = self._enable_root_import()
+
+            self._collect_global_rules()
+            self._collect_global_options()
+            self._collect_per_file_rules()
+            self._validate_inherited_ruff_files()
+            self._collect_overrides()
+            self._resolve_collected_rules()
         except Exception as error:  # noqa: BLE001 - validation boundary
-            exceptions.append(
+            self.exceptions.append(f"Invalid config: {error.__class__.__name__}: {error}")
+
+        return self.exceptions
+
+    def _enable_root_import(self) -> bool | Path:
+        raw_enable_root_import = self.data.get("enable-root-import", False)
+        if not raw_enable_root_import:
+            return False
+        return Path(raw_enable_root_import) if isinstance(raw_enable_root_import, str) else True
+
+    def _collect_global_rules(self) -> None:
+        self._collect_rule_selectors(self.data.get("enable", []), "global enable")
+        self._collect_rule_selectors(self.data.get("disable", []), "global disable")
+
+    def _collect_global_options(self) -> None:
+        try:
+            global_options = get_options(self.config, "options")
+        except Exception as error:  # noqa: BLE001 - validation boundary
+            self.exceptions.append(
                 f"Failed to parse options for global options: {error.__class__.__name__}: {error}"
             )
         else:
-            collect_rule_option_targets(global_options, "global options")
+            self._collect_rule_option_targets(global_options, "global options")
 
+    def _collect_per_file_rules(self) -> None:
         try:
-            per_file_enable = get_rule_pattern_table(configs, "per-file-enable")
+            per_file_enable = get_rule_pattern_table(self.config, "per-file-enable")
         except Exception as error:  # noqa: BLE001 - validation boundary
-            exceptions.append(
+            self.exceptions.append(
                 f"Failed to parse per-file-enable: {error.__class__.__name__}: {error}"
             )
         else:
-            collect_rule_patterns(per_file_enable, "per-file-enable")
+            self._collect_rule_patterns(per_file_enable, "per-file-enable")
 
         try:
-            per_file_disable = get_rule_pattern_table(configs, "per-file-disable")
+            per_file_disable = get_rule_pattern_table(self.config, "per-file-disable")
         except Exception as error:  # noqa: BLE001 - validation boundary
-            exceptions.append(
+            self.exceptions.append(
                 f"Failed to parse per-file-disable: {error.__class__.__name__}: {error}"
             )
         else:
-            collect_rule_patterns(per_file_disable, "per-file-disable")
+            self._collect_rule_patterns(per_file_disable, "per-file-disable")
 
-        inherit_ruff_files = data.get("inherit-ruff-files", False)
+    def _validate_inherited_ruff_files(self) -> None:
+        inherit_ruff_files = self.data.get("inherit-ruff-files", False)
         if inherit_ruff_files and not isinstance(inherit_ruff_files, bool):
-            exceptions.append(
+            self.exceptions.append(
                 "Failed to parse inherit-ruff-files: ConfigError: 'inherit-ruff-files' must be a boolean"
             )
         elif inherit_ruff_files:
             try:
-                _read_ruff_file_selection(configs)
+                _read_ruff_file_selection(self.config)
             except Exception as error:  # noqa: BLE001 - validation boundary
-                exceptions.append(
+                self.exceptions.append(
                     f"Failed to parse inherited Ruff file settings: {error.__class__.__name__}: {error}"
                 )
 
-        for override in data.get("overrides", []):
+    def _collect_overrides(self) -> None:
+        for override in self.data.get("overrides", []):
             if not isinstance(override, dict):
-                exceptions.append(
+                self.exceptions.append(
                     "Failed to parse overrides: ConfigError: 'overrides' requires array of tables"
                 )
                 continue
 
-            override_path = Path(override.get("path", path))
-            collect_rule_selectors(
+            override_path = Path(override.get("path", self.path))
+            self._collect_rule_selectors(
                 override.get("enable", []),
                 f"override enable: `{override_path}`",
             )
-            collect_rule_selectors(
+            self._collect_rule_selectors(
                 override.get("disable", []),
                 f"override disable: `{override_path}`",
             )
 
             try:
-                override_options = get_options(configs, "options", data=override)
+                override_options = get_options(self.config, "options", data=override)
             except Exception as error:  # noqa: BLE001 - validation boundary
-                exceptions.append(
+                self.exceptions.append(
                     f"Failed to parse options for override options: `{override_path}`: {error.__class__.__name__}: {error}"
                 )
             else:
-                collect_rule_option_targets(
+                self._collect_rule_option_targets(
                     override_options, f"override options: `{override_path}`"
                 )
 
+    def _collect_rule_selectors(self, rules: Sequence[str], context: str) -> None:
+        for rule in rules:
+            try:
+                selector = parse_rule(rule, self.root, self.config)
+            except Exception as error:  # noqa: BLE001 - validation boundary
+                self.exceptions.append(
+                    f"Failed to parse rule `{rule}` for {context}: {error.__class__.__name__}: {error}"
+                )
+                continue
+            self.selectors_to_validate.append((rule, selector, context))
+
+    def _collect_rule_option_targets(
+        self,
+        rule_options: RuleOptionsTable,
+        context: str,
+    ) -> None:
+        for rule_name, settings in rule_options.items():
+            try:
+                selector = parse_exact_rule_target(rule_name, self.root, self.config)
+            except Exception as error:  # noqa: BLE001 - validation boundary
+                self.exceptions.append(
+                    f"Failed to validate options for `{rule_name}` in {context}: {error.__class__.__name__}: {error}"
+                )
+                continue
+            self.option_targets_to_validate.append((rule_name, selector, settings, context))
+
+    def _collect_rule_patterns(
+        self,
+        rule_patterns: Mapping[str, Sequence[str]],
+        context: str,
+    ) -> None:
+        for pattern, rules in rule_patterns.items():
+            self._collect_rule_selectors(rules, f"{context}: `{pattern}`")
+
+    def _resolve_collected_rules(self) -> None:
         registry = _build_rule_registry(
             [
-                *[selector for _raw, selector, _context in selectors_to_validate],
+                *[selector for _raw, selector, _context in self.selectors_to_validate],
                 *[
                     selector
-                    for _raw_rule_name, selector, _settings, _context in option_targets_to_validate
+                    for _raw_rule_name, selector, _settings, _context in self.option_targets_to_validate
                 ],
             ],
-            root=root,
-            enable_root_import=enable_root_import,
+            root=self.root,
+            enable_root_import=self.enable_root_import,
             strict=False,
             log_failures=False,
         )
 
-        def resolve_rule_validation_error(
-            raw_rule: str,
-            selector: RuleSelector,
-            context: str,
-        ) -> str | None:
-            try:
-                _resolve_selector(selector, registry)
-            except Exception as error:  # noqa: BLE001 - validation boundary
-                return (
-                    f"Failed to import rule `{raw_rule}` for {context}: "
-                    f"{error.__class__.__name__}: {error}"
-                )
-            return None
+        for raw_rule, selector, context in self.selectors_to_validate:
+            if error := self._resolve_rule_validation_error(registry, raw_rule, selector, context):
+                self.exceptions.append(error)
 
-        for raw_rule, selector, context in selectors_to_validate:
-            if error := resolve_rule_validation_error(raw_rule, selector, context):
-                exceptions.append(error)
+        for raw_rule_name, selector, settings, context in self.option_targets_to_validate:
+            self._validate_rule_options(registry, raw_rule_name, selector, settings, context)
 
-        for raw_rule_name, selector, settings, context in option_targets_to_validate:
-            try:
-                resolution = _resolve_selector(selector, registry)
-            except Exception as error:  # noqa: BLE001 - validation boundary
-                exceptions.append(
-                    f"Failed to validate options for `{raw_rule_name}` in {context}: {error.__class__.__name__}: {error}"
-                )
-                continue
+    def _resolve_rule_validation_error(
+        self,
+        registry: RuleRegistry,
+        raw_rule: str,
+        selector: RuleSelector,
+        context: str,
+    ) -> str | None:
+        try:
+            registry.resolve(selector)
+        except Exception as error:  # noqa: BLE001 - validation boundary
+            return (
+                f"Failed to import rule `{raw_rule}` for {context}: "
+                f"{error.__class__.__name__}: {error}"
+            )
+        return None
 
-            if len(resolution.rules) != 1:
-                exceptions.append(
-                    f"Failed to validate options for `{raw_rule_name}` in {context}: ConfigError: rule target must resolve to exactly one rule class"
-                )
-                continue
+    def _validate_rule_options(
+        self,
+        registry: RuleRegistry,
+        raw_rule_name: str,
+        selector: RuleSelector,
+        settings: Mapping[str, object],
+        context: str,
+    ) -> None:
+        try:
+            resolution = registry.resolve(selector)
+        except Exception as error:  # noqa: BLE001 - validation boundary
+            self.exceptions.append(
+                f"Failed to validate options for `{raw_rule_name}` in {context}: {error.__class__.__name__}: {error}"
+            )
+            return
 
-            try:
-                rule = resolution.rules[0]()
-                rule.configure(settings)
-            except Exception as error:  # noqa: BLE001 - validation boundary
-                exceptions.append(
-                    f"Failed to validate options for `{raw_rule_name}` in {context}: {error.__class__.__name__}: {error}"
-                )
+        if len(resolution.rules) != 1:
+            self.exceptions.append(
+                f"Failed to validate options for `{raw_rule_name}` in {context}: ConfigError: rule target must resolve to exactly one rule class"
+            )
+            return
 
-    except Exception as error:  # noqa: BLE001 - validation boundary
-        exceptions.append(f"Invalid config: {error.__class__.__name__}: {error}")
+        try:
+            rule = resolution.rules[0]()
+            rule.configure(settings)
+        except Exception as error:  # noqa: BLE001 - validation boundary
+            self.exceptions.append(
+                f"Failed to validate options for `{raw_rule_name}` in {context}: {error.__class__.__name__}: {error}"
+            )
 
-    return exceptions
+
+def validate_config(path: Path) -> list[str]:
+    """
+    Validate the config provided. The provided path is expected to be a valid toml
+    config file. Any exception found while parsing or importing will be added to a list
+    of exceptions that are returned.
+    """
+    return ConfigValidator(path).validate()
 
 
 __all__ = (
