@@ -20,7 +20,6 @@ QUALIFIED_BUILTINS_TO_REPLACE: set[str] = {f"builtins.{s}" for s in BUILTINS_TO_
 
 
 class UseTypesFromTyping(LintRule):
-    CODE = "RAT025"
     """
     Enforces the use of types from the ``typing`` module in type annotations in place
     of ``builtins.{builtin_type}`` since the type system doesn't recognize the latter

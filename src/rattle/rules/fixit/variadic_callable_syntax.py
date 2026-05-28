@@ -11,7 +11,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class VariadicCallableSyntax(LintRule):
-    CODE = "RAT026"
     """Callable types with arbitrary parameters should be written as `Callable[..., T]`."""
 
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)

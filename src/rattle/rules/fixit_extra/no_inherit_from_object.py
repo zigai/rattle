@@ -10,7 +10,6 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
 
 class NoInheritFromObject(LintRule):
-    CODE = "RAT008"
     """
     In Python 3, a class is inherited from ``object`` by default.
     Explicitly inheriting from ``object`` is redundant, so removing it keeps the code simpler.

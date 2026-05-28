@@ -12,7 +12,6 @@ LineType = cst.BaseSmallStatement | cst.BaseStatement
 
 
 class SortedAttributes(LintRule):
-    CODE = "RAT019"
     """
     Ever wanted to sort a bunch of class attributes alphabetically?
     Well now it's easy! Just add "@sorted-attributes" in the doc string of

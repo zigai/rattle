@@ -11,7 +11,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class NoStaticIfCondition(LintRule):
-    CODE = "RAT014"
     """Discourages ``if`` conditions which evaluate to a static value (e.g. ``or True``, ``and False``, etc)."""
 
     MESSAGE: str = (

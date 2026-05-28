@@ -19,7 +19,6 @@ _REMOVE_IMPORT = object()
 
 
 class NoNamedTuple(LintRule):
-    CODE = "RAT009"
     """
     Enforce the use of ``dataclasses.dataclass`` decorator instead of ``NamedTuple`` for cleaner customization and
     inheritance. It supports default value, combining fields for inheritance, and omitting optional fields at

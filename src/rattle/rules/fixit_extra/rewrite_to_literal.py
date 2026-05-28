@@ -22,7 +22,6 @@ UNNCESSARY_CALL: str = (
 
 
 class RewriteToLiteral(LintRule):
-    CODE = "RAT018"
     SOURCE_PATTERNS = ("tuple(", "list(", "set(", "dict(")
     """
     A derivative of flake8-comprehensions' C405-C406 and C409-C410. It's

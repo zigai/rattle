@@ -9,7 +9,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class ComparePrimitivesByEqual(LintRule):
-    CODE = "RAT003"
     """
     Enforces the use of ``==`` and ``!=`` in comparisons to primitives rather than ``is`` and ``is not``.
     The ``==`` operator checks equality (https://docs.python.org/3/reference/datamodel.html#object.__eq__),

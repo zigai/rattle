@@ -11,7 +11,6 @@ from rattle import FileContent, Invalid, LintRule, Valid
 
 
 class UseAsyncSleepInAsyncDef(LintRule):
-    CODE = "RAT022"
     """Detect if asyncio.sleep is used in an async function."""
 
     MESSAGE: str = "Use asyncio.sleep in async function"

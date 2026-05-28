@@ -13,7 +13,6 @@ from rattle import FileContent, Invalid, LintRule, Valid
 
 
 class ReplaceUnionWithOptional(LintRule):
-    CODE = "RAT016"
     """
     Enforces the use of ``Optional[T]`` over ``Union[T, None]`` and ``Union[None, T]``.
     See https://docs.python.org/3/library/typing.html#typing.Optional to learn more about Optionals.

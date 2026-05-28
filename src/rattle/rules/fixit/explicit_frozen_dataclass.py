@@ -11,7 +11,6 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
 
 class ExplicitFrozenDataclass(LintRule):
-    CODE = "RAT027"
     """
     Encourages the use of frozen dataclass objects by telling users to specify the
     kwarg.

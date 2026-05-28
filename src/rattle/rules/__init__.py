@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""
-These rules are all part of the :mod:`rattle.rules` package, and are enabled by default
-unless explicitly listed in the :attr:`disable` configuration option.
-"""
+"""Built-in rules are organized into the ``fixit`` and ``fixit_extra`` packs."""
+
+__rattle_collect__ = False

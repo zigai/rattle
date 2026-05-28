@@ -12,7 +12,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class NoAssertTrueForComparisons(LintRule):
-    CODE = "RAT007"
     SOURCE_PATTERNS = ("assertTrue",)
     """
     Finds incorrect use of ``assertTrue`` when the intention is to compare two values.

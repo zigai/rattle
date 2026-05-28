@@ -11,7 +11,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class UseAssertIn(LintRule):
-    CODE = "RAT020"
     SOURCE_PATTERNS = ("assertTrue", "assertFalse")
     """
     Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``

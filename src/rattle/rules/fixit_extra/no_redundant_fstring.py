@@ -10,7 +10,6 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
 
 class NoRedundantFString(LintRule):
-    CODE = "RAT011"
     SOURCE_PATTERNS = (
         "f'",
         'f"',

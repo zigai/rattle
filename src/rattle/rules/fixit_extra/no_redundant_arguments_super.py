@@ -11,7 +11,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class NoRedundantArgumentsSuper(LintRule):
-    CODE = "RAT010"
     """Remove redundant arguments when using super for readability."""
 
     MESSAGE: str = (

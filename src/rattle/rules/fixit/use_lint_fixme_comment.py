@@ -9,7 +9,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class UseLintFixmeComment(LintRule):
-    CODE = "RAT028"
     """
     To silence a lint warning, use ``lint-fixme`` (when plans to fix the issue later) or ``lint-ignore``
     (when the lint warning is not valid) comments.

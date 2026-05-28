@@ -10,7 +10,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class DeprecatedUnittestAsserts(LintRule):
-    CODE = "RAT006"
     SOURCE_PATTERNS = (
         "assertEquals",
         "assertNotEquals",

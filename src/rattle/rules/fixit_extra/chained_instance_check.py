@@ -15,7 +15,6 @@ _ISINSTANCE = QualifiedName(name="builtins.isinstance", source=QualifiedNameSour
 
 
 class CollapseIsinstanceChecks(LintRule):
-    CODE = "RAT002"
     """
     The built-in ``isinstance`` function, instead of a single type,
     can take a tuple of types and check whether given target suits

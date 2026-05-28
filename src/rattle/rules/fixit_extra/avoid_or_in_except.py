@@ -10,7 +10,6 @@ from rattle import Invalid, LintRule, Valid
 
 
 class AvoidOrInExcept(LintRule):
-    CODE = "RAT001"
     """
     Discourages use of ``or`` in except clauses. If an except clause needs to catch multiple exceptions,
     they must be expressed as a parenthesized tuple, for example:

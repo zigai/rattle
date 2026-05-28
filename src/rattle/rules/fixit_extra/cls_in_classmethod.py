@@ -36,7 +36,6 @@ class RenameTransformer(cst.CSTTransformer):
 
 
 class UseClsInClassmethod(LintRule):
-    CODE = "RAT023"
     """Enforces using ``cls`` as the first argument in a ``@classmethod``."""
 
     METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider)

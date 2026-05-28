@@ -15,7 +15,6 @@ UNNECESSARY_LAMBDA: str = (
 
 
 class NoRedundantLambda(LintRule):
-    CODE = "RAT012"
     """
     A lambda function which has a single objective of
     passing all it is arguments to another callable can
