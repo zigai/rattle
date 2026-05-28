@@ -147,26 +147,29 @@ Serve LSP over WebSocket on `PORT`.
 
 Delay in seconds for server-side debounce. Default: `0.5`.
 
-## `test`
+## `rules`
 
-Test one or more lint rules using their {attr}`~rattle.LintRule.VALID` and
-{attr}`~rattle.LintRule.INVALID` test cases.
-
-The command accepts rule selectors with the same forms as
-{attr}`enable <rattle.Config.enable>` and
-{attr}`disable <rattle.Config.disable>`.
-
-Built-in rules may be referenced by import selector, exact code, exact alias,
-or code prefix:
+Display the lint rules enabled for the current configuration. Pass paths to see
+the rules resolved for those files or directories.
 
 ```console
-$ rattle test [RULES ...]
+$ rattle rules [PATH ...]
 ```
+
+### `--test`
+
+Test enabled lint rules using their {attr}`~rattle.LintRule.VALID` and
+{attr}`~rattle.LintRule.INVALID` test cases. Use `--rules` to select the rules
+to test.
+
+Rule selectors use the same forms as
+{attr}`enable <rattle.Config.enable>` and
+{attr}`disable <rattle.Config.disable>`.
 
 Example:
 
 ```console
-$ rattle test .examples.teambread.rules
+$ rattle rules --test -r .examples.teambread.rules
 test_INVALID_0 (rattle.testing.HollywoodNameRule) ... ok
 test_INVALID_1 (rattle.testing.HollywoodNameRule) ... ok
 test_VALID_0 (rattle.testing.HollywoodNameRule) ... ok
@@ -179,17 +182,17 @@ OK
 ```
 
 ```console
-$ rattle test RAT024
-$ rattle test UseFstring
-$ rattle test RAT
+$ rattle rules --test -r RAT024
+$ rattle rules --test -r UseFstring
+$ rattle rules --test -r RAT
 ```
 
-## `debug`
+## `validate`
 
-Debug options for validating Rattle configuration.
-This prints resolved config data, enabled and disabled rules, and resolved rule
-settings.
+Validate config. When no path is provided, Rattle validates `pyproject.toml`
+from the current directory.
 
 ```console
-$ rattle debug [PATH ...]
+$ rattle validate
+$ rattle validate pyproject.toml
 ```

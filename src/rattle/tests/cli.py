@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
@@ -24,17 +25,85 @@ class CliTest(TestCase):
         assert result.exit_code == 2
         assert "invalid choice: 'upgrade'" in result.stderr
 
-    def test_test_command_accepts_code_selector(self) -> None:
-        result = self.runner.invoke(main, ["test", "RAT024"], catch_exceptions=False)
-        assert result.exit_code == 0
-
-    def test_test_command_returns_nonzero_for_missing_rule(self) -> None:
+    def test_rules_test_accepts_code_selector(self) -> None:
         result = self.runner.invoke(
             main,
-            ["test", "DefinitelyMissingRule"],
+            ["rules", "--test", "-r", "RAT024"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0
+
+    def test_rules_test_returns_nonzero_for_missing_rule(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["rules", "--test", "-r", "DefinitelyMissingRule"],
             catch_exceptions=False,
         )
         assert result.exit_code == 1
+
+    def test_test_command_removed(self) -> None:
+        result = self.runner.invoke(main, ["test", "RAT024"], catch_exceptions=False)
+
+        assert result.exit_code == 2
+        assert "invalid choice: 'test'" in result.stderr
+
+    def test_rules_command_displays_enabled_rules(self) -> None:
+        result = self.runner.invoke(main, ["rules", "-r", "RAT024"], catch_exceptions=False)
+
+        assert result.exit_code == 0
+        assert "Rules for " in result.stdout
+        assert "1 enabled" in result.stdout
+        assert "RAT024 UseFstring - Do not use printf style formatting" in result.stdout
+        assert "[fix]" not in result.stdout
+        assert "rattle.rules.use_fstring:UseFstring" not in result.stdout
+        assert "Options(" not in result.stdout
+        assert "Config(" not in result.stdout
+
+    def test_debug_command_removed(self) -> None:
+        result = self.runner.invoke(main, ["debug"], catch_exceptions=False)
+
+        assert result.exit_code == 2
+        assert "invalid choice: 'debug'" in result.stderr
+
+    def test_validate_config_command_removed(self) -> None:
+        result = self.runner.invoke(main, ["validate-config"], catch_exceptions=False)
+
+        assert result.exit_code == 2
+        assert "invalid choice: 'validate-config'" in result.stderr
+
+    def test_validate_command_accepts_config_file(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "pyproject.toml"
+            path.write_text("[tool.rattle]\nroot = true\n")
+
+            result = self.runner.invoke(main, ["validate", path.as_posix()], catch_exceptions=False)
+
+        assert result.exit_code == 0
+
+    def test_validate_command_defaults_to_pyproject_toml(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "pyproject.toml").write_text("[tool.rattle]\nroot = true\n")
+            original_cwd = Path.cwd()
+            os.chdir(root)
+            try:
+                result = self.runner.invoke(main, ["validate"], catch_exceptions=False)
+            finally:
+                os.chdir(original_cwd)
+
+        assert result.exit_code == 0
+
+    def test_validate_command_reports_missing_default_pyproject_toml(self) -> None:
+        with TemporaryDirectory() as td:
+            original_cwd = Path.cwd()
+            os.chdir(td)
+            try:
+                result = self.runner.invoke(main, ["validate"], catch_exceptions=False)
+            finally:
+                os.chdir(original_cwd)
+
+        assert result.exit_code == 2
+        assert "path must be an existing file: pyproject.toml" in result.stderr
 
     def test_lint_returns_usage_error_for_missing_path(self) -> None:
         result = self.runner.invoke(

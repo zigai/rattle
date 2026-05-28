@@ -516,22 +516,10 @@ def lsp(
     ).start()
 
 
-def test(*rules: str) -> None:
-    """Test lint rules and their VALID/INVALID cases.
-
-    Args:
-        rules: Rule selectors to test.
-    """
-    if not rules:
-        usage_error("missing required argument: rules")
-
-    qual_rules = [parse_rule(rule, Path.cwd().resolve()) for rule in rules]
-    lint_rules = collect_rules(Config(enable=qual_rules, disable=[], python_version=None))
-    test_cases = generate_lint_rule_test_cases(lint_rules)
-
+def _run_rule_tests(lint_rules: list[LintRule] | tuple[LintRule, ...]) -> None:
     test_suite = unittest.TestSuite()
     loader = unittest.TestLoader()
-    for test_case in test_cases:
+    for test_case in generate_lint_rule_test_cases(lint_rules):
         test_suite.addTest(loader.loadTestsFromTestCase(test_case))
 
     test_count = test_suite.countTestCases()
@@ -541,32 +529,55 @@ def test(*rules: str) -> None:
         raise SystemExit(1)
 
 
-def debug(
+def _rule_line(rule: LintRule) -> str:
+    code = rule.CODE or "-----"
+    labels: list[str] = []
+    if rule.TAGS:
+        labels.append(",".join(sorted(rule.TAGS)))
+    labels_text = ", ".join(labels)
+    suffix = f" {colored(f'[{labels_text}]', color='gray')}" if labels_text else ""
+    description = _rule_description(rule)
+    description_text = f" - {colored(description, color='gray')}" if description else ""
+    return (
+        f"  {colored(code, color='light_cyan', style='bold')} "
+        f"{colored(rule.name, style='bold')}{suffix}{description_text}"
+    )
+
+
+def _rule_description(rule: LintRule) -> str:
+    message = getattr(rule, "MESSAGE", "")
+    if not isinstance(message, str):
+        return ""
+
+    description = " ".join(message.split())
+    description = description.split(" Learn more:", maxsplit=1)[0]
+    description = description.split(" See ", maxsplit=1)[0]
+    return description
+
+
+def rules_command(
     *paths: Path,
     rules: str | None = None,
     tags: str | None = None,
     config_file: Path | None = None,
+    test: bool = False,
     debug: bool = False,
     quiet: bool = False,
 ) -> None:
-    """Print materialized configuration for paths.
+    """Display or test currently enabled lint rules.
 
     Args:
-        paths: Files or directories whose configuration should be shown.
+        paths: Files or directories whose rules should be shown.
         debug: Increase logging verbosity.
         quiet: Decrease logging verbosity.
         config_file: Override default config file search behavior.
         tags: Select or filter rules by comma-separated tags.
         rules: Override configured rules with comma-separated selectors.
+        test: Test lint rules and their VALID/INVALID cases.
     """
     resolved_paths = tuple(require_existing_path(path, argument="path") for path in paths) or (
         Path.cwd(),
     )
-
-    try:
-        from rich import print as pprint
-    except ImportError:
-        from pprint import pprint
 
     runtime_options = build_options(
         debug=debug,
@@ -575,45 +586,71 @@ def debug(
         tags=tags,
         rules=rules,
     )
-    pprint(runtime_options)
 
-    for path in resolved_paths:
+    if test:
+        lint_rules_by_name: dict[str, LintRule] = {}
+        for path in resolved_paths:
+            config = generate_config(path.resolve(), options=runtime_options)
+            for rule in collect_rules(config):
+                lint_rules_by_name[rule.qualified_name()] = rule
+        _run_rule_tests(
+            [
+                rule
+                for _name, rule in sorted(
+                    lint_rules_by_name.items(),
+                    key=lambda item: (item[1].CODE or "", item[1].name),
+                )
+            ]
+        )
+        return
+
+    for index, path in enumerate(resolved_paths):
         path = path.resolve()
         config = generate_config(path, options=runtime_options)
         disabled: dict[type[LintRule], str] = {}
         enabled = collect_rules(config, debug_reasons=disabled)
-        resolved_settings = {}
-        for rule in sorted(enabled, key=str):
-            settings = dict(rule.settings)
-            if settings:
-                resolved_settings[str(rule)] = settings
+        if index:
+            echo()
 
-        print(">>> ", path)
-        pprint(config)
-        print("enabled:", sorted(str(rule) for rule in enabled))
-        print("settings:", resolved_settings)
-        print(
-            "disabled:",
-            sorted(f"{rule()} ({reason})" for rule, reason in disabled.items()),
-        )
+        echo(colored(f"Rules for {path}", style="bold"))
+        echo(f"{len(enabled)} enabled" + (f", {len(disabled)} disabled" if disabled else ""))
+        for rule in sorted(enabled, key=lambda candidate: (candidate.CODE or "", candidate.name)):
+            echo(_rule_line(rule))
+            if rule.settings:
+                settings = ", ".join(
+                    f"{key}={value!r}" for key, value in sorted(rule.settings.items())
+                )
+                echo(f"      {colored(settings, color='gray')}")
+
+        if disabled:
+            echo()
+            echo(colored("Disabled", style="bold"))
+            for rule_type, reason in sorted(
+                disabled.items(),
+                key=lambda item: (item[0].CODE or "", item[0].__name__),
+            ):
+                code = rule_type.CODE or "-----"
+                echo(
+                    f"  {colored(code, color='gray')} "
+                    f"{rule_type.__name__} "
+                    f"{colored(f'({reason})', color='gray')}"
+                )
 
 
-def validate_config_command(path: Path) -> None:
-    """Validate the config provided.
+def validate_command(*paths: Path) -> None:
+    """Validate config.
 
     Args:
-        path: Config file to validate.
+        paths: Config file to validate. Defaults to pyproject.toml.
     """
-    exceptions = validate_config(require_existing_file(path, option="path"))
-
-    try:
-        from rich import print as pprint
-    except ImportError:
-        from pprint import pprint
+    if len(paths) > 1:
+        usage_error("validate accepts at most one path")
+    config_path = paths[0] if paths else Path("pyproject.toml")
+    exceptions = validate_config(require_existing_file(config_path, option="path"))
 
     if exceptions:
         for e in exceptions:
-            pprint(e)
+            echo(e, err=True)
         raise SystemExit(255)
 
 
@@ -632,9 +669,8 @@ def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
     app.add_command(lint)
     app.add_command(fix)
     app.add_command(lsp)
-    app.add_command(test)
-    app.add_command(debug)
-    app.add_command(validate_config_command, name="validate-config")
+    app.add_command(rules_command, name="rules")
+    app.add_command(validate_command, name="validate")
     return app
 
 
@@ -643,15 +679,14 @@ def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> obj
     return build_app(sys_exit_enabled=sys_exit_enabled).run(args=args)
 
 
-__all__ = (
+__all__ = [
     "FixState",
     "build_app",
-    "debug",
     "fix",
     "lint",
     "lsp",
     "main",
+    "rules_command",
     "splash",
-    "test",
-    "validate_config_command",
-)
+    "validate_command",
+]
