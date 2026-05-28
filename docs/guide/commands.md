@@ -3,21 +3,22 @@
 # Commands
 
 ```console
-$ rattle [OPTIONS] COMMAND ...
+$ rattle COMMAND [OPTIONS] ...
 ```
 
-The following options are available for all commands.
+The following runtime options are available on commands that lint code,
+autofix code, or materialize lint configuration.
 
-## `--debug / --quiet`
+## `--debug`, `--quiet / -q`
 
 Raise or lower the level of output and logging.
 
-## `--config-file PATH`
+## `--config-file / -c PATH`
 
 Override the normal hierarchical configuration and use the configuration from
 the specified path, ignoring all other configuration files entirely.
 
-## `--tags TAGS`
+## `--tags / -t TAGS`
 
 Select or filter the set of lint rules to apply based on their tags.
 
@@ -31,14 +32,14 @@ list and no tags in the exclude list.
 For example:
 
 ```console
-$ rattle --tags "hello,world,^cats" ...
+$ rattle lint --tags "hello,world,^cats" ...
 ```
 
 The command above filters the enabled lint rules to ones that have either the
 `hello` or `world` tag, and excludes any rules with the `cats` tag, even if
 they would otherwise have been selected.
 
-## `--rules RULES`
+## `--rules / -r RULES`
 
 Override the configured set of lint rules entirely.
 
@@ -54,8 +55,8 @@ forms as {attr}`enable <rattle.Config.enable>` and
 For example:
 
 ```console
-$ rattle --rules "RAT024" lint path/to/file.py
-$ rattle --rules "RAT014,RAT024" lint path/to/file.py
+$ rattle lint --rules "RAT024" path/to/file.py
+$ rattle lint --rules "RAT014,RAT024" path/to/file.py
 ```
 
 ## `--output-format / -o FORMAT_TYPE`
@@ -75,10 +76,10 @@ first path, then the second path is used for configuration lookup and error
 messages, and the input is read from standard input.
 
 ```console
-$ rattle lint [--brief] [--diff] [PATH ...]
+$ rattle lint [OPTIONS] [--brief] [--diff] [PATH ...]
 ```
 
-### `--brief`
+### `--brief / -b`
 
 Print each diagnostic on one line, without source snippets or help text.
 
@@ -94,7 +95,7 @@ from standard input, and the fixed output is printed to standard output,
 ignoring `--interactive`.
 
 ```console
-$ rattle fix [--interactive | --automatic] [--brief] [--diff] [PATH ...]
+$ rattle fix [OPTIONS] [--interactive | --automatic] [--brief] [--diff] [PATH ...]
 ```
 
 ### `--interactive / -i`
@@ -108,7 +109,7 @@ remaining fixes unapplied.
 Automatically apply suggested fixes for all lint errors when available.
 This is the default behavior.
 
-### `--brief`
+### `--brief / -b`
 
 Print each diagnostic on one line, without source snippets or help text.
 
@@ -127,22 +128,22 @@ for example `pip install "rattle-lint[lsp]"`. See {ref}`ide_integrations` for mo
 details.
 
 ```console
-$ rattle lsp [--stdio | --tcp PORT | --ws PORT]
+$ rattle lsp [--no-stdio] [--tcp PORT | --ws PORT]
 ```
 
-### `--stdio`
+### `--no-stdio / -n`
 
-Serve LSP over stdio. This is the default.
+Disable the default stdio transport when serving over TCP or WebSocket.
 
 ### `--tcp`
 
 Serve LSP over TCP on `PORT`.
 
-### `--ws`
+### `--ws / -w`
 
 Serve LSP over WebSocket on `PORT`.
 
-### `--debounce-interval`
+### `--debounce-interval / -d`
 
 Delay in seconds for server-side debounce. Default: `0.5`.
 

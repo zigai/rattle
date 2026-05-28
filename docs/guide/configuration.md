@@ -318,6 +318,17 @@ layer.
 "fixtures/**/*.py" = ["RAT"]
 ```
 
+## `exclude`
+
+Use `exclude` to skip files or directories when Rattle discovers files from a
+directory argument. Patterns are matched relative to the config file, using the
+same matching rules as `per-file-enable` and `per-file-disable`.
+
+```toml
+[tool.rattle]
+exclude = ["build", "generated/*.py"]
+```
+
 ## `inherit-ruff-files`
 
 Set `inherit-ruff-files = true` to reuse Ruff's file-selection settings from
