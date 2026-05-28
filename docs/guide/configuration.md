@@ -150,16 +150,16 @@ Set it to an empty string, `""`, to disable target version checking.
 Type: `str`
 
 Optional post-fix formatting style to apply after Rattle rewrites a file.
-Leave this unset if formatting should remain fully owned by the repository's
-existing tooling.
+By default, Rattle detects and uses the formatter already configured in
+`pyproject.toml`.
 
 Supported code styles:
 
-- `(unset)`: no style is applied
-- `"auto"`: detect the formatter configured in `pyproject.toml`; this uses Ruff
+- omitted, or `"auto"`: detect the formatter configured in `pyproject.toml`; this uses Ruff
   when `[tool.ruff.format]` is present, µfmt when `[tool.ufmt]` or
   `[tool.usort]` is present, Black when `[tool.black]` is present, and applies no
   style when none are found
+- `"none"`: no style is applied
 - `"black"`: [Black](https://black.readthedocs.io/) code formatter
 - `"ruff"`: [Ruff format](https://docs.astral.sh/ruff/formatter/) code formatter
 - `"ufmt"`: [µfmt](https://ufmt.omnilib.dev/) code style, combining

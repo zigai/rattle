@@ -185,6 +185,7 @@ def format_paths(paths: Collection[Path], config: Config) -> None:
 
 
 FORMAT_STYLES[None] = Formatter
+FORMAT_STYLES["none"] = Formatter
 
 
 @cache

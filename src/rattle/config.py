@@ -981,7 +981,7 @@ class ConfigMerger:
     target_python_version: Version | None = field(
         default_factory=lambda: Version(platform.python_version())
     )
-    target_formatter: str | None = None
+    target_formatter: str | None = Config.formatter
     output_format: OutputFormat = OutputFormat.rattle
     output_template: str = ""
     excluded: bool = False

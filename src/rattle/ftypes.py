@@ -257,7 +257,7 @@ class Config:
     tags: Tags = field(default_factory=Tags)
 
     # post-run processing
-    formatter: str | None = None
+    formatter: str | None = "auto"
 
     # output formatting options
     output_format: OutputFormat = OutputFormat.rattle
