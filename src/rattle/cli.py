@@ -6,6 +6,7 @@
 import logging
 import sys
 import unittest
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,6 +118,25 @@ def _output_config_for_path(path: Path, options: Options) -> Config:
     return generate_config(path, options=options)
 
 
+def _stats_path(path: Path) -> str:
+    directory = path.resolve().parent
+    try:
+        directory = directory.relative_to(Path.cwd())
+    except ValueError:
+        pass
+    return directory.as_posix() or "."
+
+
+def _print_stats(console: AsyncConsole, stats: Counter[str]) -> None:
+    if not stats:
+        return
+
+    console.submit("Violation stats by directory:", err=True)
+    width = max(len(path) for path in stats)
+    for path, count in sorted(stats.items()):
+        console.submit(f"  {path:<{width}}  {count}", err=True)
+
+
 @dataclass
 class FixState:
     exit_code: int = 0
@@ -218,6 +238,8 @@ def build_options(
     tags: str | None = None,
     jobs: int | None = None,
     config_file: Path | None = None,
+    exclude: list[str] | None = None,
+    extend_exclude: list[str] | None = None,
     output_format: OutputFormat | None = None,
     output_template: str | None = None,
     print_metrics: bool = False,
@@ -241,6 +263,8 @@ def build_options(
         config_file=(
             require_existing_file(config_file, option="--config-file") if config_file else None
         ),
+        exclude=tuple(exclude or ()),
+        extend_exclude=tuple(extend_exclude or ()),
         jobs=jobs,
         tags=Tags.parse(tags),
         rules=parse_rules(rules),
@@ -257,10 +281,13 @@ def lint(
     tags: str | None = None,
     jobs: int | None = None,
     config_file: Path | None = None,
+    exclude: list[str] | None = None,
+    extend_exclude: list[str] | None = None,
     output_format: OutputFormat | None = None,
     output_template: str | None = None,
     diff: bool = False,
     brief: bool = False,
+    stats: bool = False,
     quiet: bool = False,
     print_metrics: bool = False,
     debug: bool = False,
@@ -273,6 +300,8 @@ def lint(
         debug: Increase logging verbosity.
         quiet: Decrease logging verbosity.
         config_file: Override default config file search behavior.
+        exclude: Override configured file excludes with glob patterns.
+        extend_exclude: Add glob patterns to configured file excludes.
         jobs: Number of worker processes to use when linting multiple files.
         tags: Select or filter rules by comma-separated tags.
         rules: Override configured rules with comma-separated selectors.
@@ -281,6 +310,7 @@ def lint(
         print_metrics: Print metrics for this run.
         brief: Print each diagnostic on one line.
         diff: Show diffs for suggested changes.
+        stats: Print violation counts by directory.
 
     pass "- <FILENAME>" for STDIN representing <FILENAME>
     """
@@ -290,6 +320,8 @@ def lint(
         debug=debug,
         quiet=quiet,
         config_file=config_file,
+        exclude=exclude,
+        extend_exclude=extend_exclude,
         jobs=jobs,
         tags=tags,
         rules=rules,
@@ -303,6 +335,7 @@ def lint(
     error_files: set[Path] = set()
     violations = 0
     autofixes = 0
+    violation_stats: Counter[str] = Counter()
     console = AsyncConsole()
     try:
         for result in rattle_paths(
@@ -327,6 +360,8 @@ def lint(
                 if result.violation:
                     violation_files.add(result.path)
                     violations += 1
+                    if stats:
+                        violation_stats[_stats_path(result.path)] += 1
                     exit_code |= 1
                     if result.violation.autofixable:
                         autofixes += 1
@@ -337,6 +372,8 @@ def lint(
         console.submit(
             splash(visited, violation_files, error_files, violations, autofixes), err=True
         )
+        if stats:
+            _print_stats(console, violation_stats)
     finally:
         console.close()
     if exit_code:
@@ -352,6 +389,8 @@ def fix(
     output_format: OutputFormat | None = None,
     output_template: str | None = None,
     config_file: Path | None = None,
+    exclude: list[str] | None = None,
+    extend_exclude: list[str] | None = None,
     diff: bool = False,
     automatic: bool = False,
     interactive: bool = False,
@@ -368,6 +407,8 @@ def fix(
         debug: Increase logging verbosity.
         quiet: Decrease logging verbosity.
         config_file: Override default config file search behavior.
+        exclude: Override configured file excludes with glob patterns.
+        extend_exclude: Add glob patterns to configured file excludes.
         jobs: Number of worker processes to use when linting multiple files.
         tags: Select or filter rules by comma-separated tags.
         rules: Override configured rules with comma-separated selectors.
@@ -392,6 +433,8 @@ def fix(
         debug=debug,
         quiet=quiet,
         config_file=config_file,
+        exclude=exclude,
+        extend_exclude=extend_exclude,
         jobs=jobs,
         tags=tags,
         rules=rules,
@@ -473,6 +516,8 @@ def lsp(
     *,
     rules: str | None = None,
     config_file: Path | None = None,
+    exclude: list[str] | None = None,
+    extend_exclude: list[str] | None = None,
     tags: str | None = None,
     ws: int | None = None,
     tcp: int | None = None,
@@ -489,6 +534,8 @@ def lsp(
         debug: Increase logging verbosity.
         quiet: Decrease logging verbosity.
         config_file: Override default config file search behavior.
+        exclude: Override configured file excludes with glob patterns.
+        extend_exclude: Add glob patterns to configured file excludes.
         tags: Select or filter rules by comma-separated tags.
         rules: Override configured rules with comma-separated selectors.
         no_stdio: Disable stdio transport when using TCP or WebSocket.
@@ -509,6 +556,8 @@ def lsp(
             debug=debug,
             quiet=quiet,
             config_file=config_file,
+            exclude=exclude,
+            extend_exclude=extend_exclude,
             tags=tags,
             rules=rules,
         ),
@@ -556,6 +605,8 @@ def rules_command(
     rules: str | None = None,
     tags: str | None = None,
     config_file: Path | None = None,
+    exclude: list[str] | None = None,
+    extend_exclude: list[str] | None = None,
     test: bool = False,
     debug: bool = False,
     quiet: bool = False,
@@ -567,6 +618,8 @@ def rules_command(
         debug: Increase logging verbosity.
         quiet: Decrease logging verbosity.
         config_file: Override default config file search behavior.
+        exclude: Override configured file excludes with glob patterns.
+        extend_exclude: Add glob patterns to configured file excludes.
         tags: Select or filter rules by comma-separated tags.
         rules: Override configured rules with comma-separated selectors.
         test: Test lint rules and their VALID/INVALID cases.
@@ -579,6 +632,8 @@ def rules_command(
         debug=debug,
         quiet=quiet,
         config_file=config_file,
+        exclude=exclude,
+        extend_exclude=extend_exclude,
         tags=tags,
         rules=rules,
     )
@@ -665,9 +720,42 @@ def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
     return app
 
 
+def _coalesce_repeated_list_options(args: list[str] | None) -> list[str] | None:
+    if args is None:
+        return None
+
+    repeated_options = {"--exclude", "-e", "--extend-exclude"}
+    output: list[str] = []
+    pending: dict[str, int] = {}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg not in repeated_options:
+            output.append(arg)
+            index += 1
+            continue
+
+        option = "--exclude" if arg in {"--exclude", "-e"} else arg
+        if option not in pending:
+            pending[option] = len(output)
+            output.append(arg)
+
+        index += 1
+        while index < len(args) and not args[index].startswith("-"):
+            output.insert(pending[option] + 1, args[index])
+            for pending_option, pending_index in pending.items():
+                if pending_option == option or pending_index > pending[option]:
+                    pending[pending_option] = pending_index + 1
+            index += 1
+
+    return output
+
+
 def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> object:
     """Run the rattle CLI."""
-    return build_app(sys_exit_enabled=sys_exit_enabled).run(args=args)
+    return build_app(sys_exit_enabled=sys_exit_enabled).run(
+        args=_coalesce_repeated_list_options(args)
+    )
 
 
 __all__ = [

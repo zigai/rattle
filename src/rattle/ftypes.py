@@ -200,6 +200,8 @@ class Options:
 
     debug: bool | None = None
     config_file: Path | None = None
+    exclude: Sequence[str] = ()
+    extend_exclude: Sequence[str] = ()
     jobs: int | None = None
     tags: Tags | None = None
     rules: Sequence[RuleSelector] = ()

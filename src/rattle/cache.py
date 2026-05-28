@@ -483,6 +483,8 @@ def _option_selectors_for_cache(options: Options | None) -> tuple[object, ...]:
         return ()
     return (
         options.config_file.resolve().as_posix() if options.config_file else None,
+        tuple(options.exclude),
+        tuple(options.extend_exclude),
         str(options.tags) if options.tags else None,
         tuple(str(rule) for rule in options.rules),
         options.output_format.value if options.output_format else None,

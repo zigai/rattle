@@ -808,6 +808,22 @@ def _path_matches_glob(relative_path: str, pattern: str) -> bool:
     return PurePosixPath(relative_path).match(pattern)
 
 
+def _path_matches_current_dir_glob(path: Path, pattern: str) -> bool:
+    relative_path = _relative_path_str(path, Path.cwd())
+    if relative_path is None:
+        relative_path = path.as_posix()
+    return _path_matches_glob(relative_path, pattern)
+
+
+def _excluded_by_options_without_configs(path: Path, options: Options, explicit_path: bool) -> bool:
+    patterns = options.exclude or options.extend_exclude
+    return bool(
+        patterns
+        and any(_path_matches_current_dir_glob(path, pattern) for pattern in patterns)
+        and (options.exclude or not explicit_path)
+    )
+
+
 def get_sequence(
     config: RawConfig, key: str, *, data: dict[str, Any] | None = None
 ) -> Sequence[str]:
@@ -922,6 +938,7 @@ class ConfigMerger:
     path: Path
     raw_configs: list[RawConfig]
     root: Path | None = None
+    options: Options | None = None
     explicit_path: bool = False
     enable_root_import: bool | Path = Config.enable_root_import
     enable_rules: set[RuleSelector] = field(default_factory=set)
@@ -1146,20 +1163,41 @@ class ConfigMerger:
             self.excluded = True
 
     def _process_ruff_file_selection(self, config_dir: Path, *, inherited: bool) -> None:
-        if not inherited:
+        has_cli_file_selection = bool(
+            self.options and (self.options.exclude or self.options.extend_exclude)
+        )
+        if not inherited and not has_cli_file_selection:
             return
 
         relative_path = _relative_path_str(self.path, config_dir)
         if relative_path is None:
             return
 
-        includes, excludes, force_exclude = _read_ruff_file_selection(self.config)
-        if includes and not any(_path_matches_glob(relative_path, pattern) for pattern in includes):
+        if inherited:
+            includes, excludes, force_exclude = _read_ruff_file_selection(self.config)
+        else:
+            includes, excludes, force_exclude = [], [], False
+
+        if self.options and self.options.exclude:
+            excludes = list(self.options.exclude)
+            force_exclude = True
+        elif self.options and self.options.extend_exclude:
+            excludes.extend(self.options.extend_exclude)
+
+        current_dir_relative_path = _relative_path_str(self.path, Path.cwd())
+
+        def path_matches(pattern: str) -> bool:
+            return _path_matches_glob(relative_path, pattern) or (
+                current_dir_relative_path is not None
+                and _path_matches_glob(current_dir_relative_path, pattern)
+            )
+
+        if includes and not any(path_matches(pattern) for pattern in includes):
             self.excluded = True
 
         if (
             excludes
-            and any(_path_matches_glob(relative_path, pattern) for pattern in excludes)
+            and any(path_matches(pattern) for pattern in excludes)
             and (force_exclude or not self.explicit_path)
         ):
             self.excluded = True
@@ -1188,10 +1226,14 @@ def generate_config(
         path=path,
         raw_configs=raw_configs,
         root=root,
+        options=options,
         explicit_path=explicit_path,
     ).merge()
 
     if options:
+        if not raw_configs and _excluded_by_options_without_configs(path, options, explicit_path):
+            config.excluded = True
+
         if options.tags:
             config.tags = options.tags
 
