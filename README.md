@@ -35,6 +35,13 @@ pip install "rattle-lint[lsp]"
 
 ## Basic Usage
 
+Rattle runs with no enabled rules until a project enables them in
+`pyproject.toml`:
+
+```toml
+[tool.rattle]
+enable = ["fixit"]
+```
 
 ```bash
 rattle lint
@@ -52,21 +59,22 @@ rattle fix
 ```toml
 [tool.rattle]
 root = true
+enable = ["fixit"]
 python-version = "3.10"
 output-format = "rattle"
 disable = [
     "NoStaticIfCondition",
-    "UseAssertIn",
+    "UseLintFixmeComment",
 ]
-per-file-disable = {"tests/generated.py" = ["UseFstring"]}
+per-file-disable = {"tests/generated.py" = ["NoNamedTuple"]}
 
-[tool.rattle.options.UseFstring]
-simple_expression_max_length = 40
+[[tool.rattle.overrides]]
+path = "legacy"
+enable = ["fixit_extra"]
 
 [[tool.rattle.overrides]]
 path = "tests"
-enable = ["UseAssertIn"]
-options = { UseFstring = { simple_expression_max_length = 60 } }
+enable = ["NoNamedTuple"]
 ```
 
 ## License
