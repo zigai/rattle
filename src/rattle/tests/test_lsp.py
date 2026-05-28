@@ -6,6 +6,8 @@
 import time
 from pathlib import Path
 
+from lsprotocol.types import PublishDiagnosticsParams
+
 from rattle.ftypes import LSPOptions, Options, QualifiedRule
 from rattle.lsp import LSP
 
@@ -64,9 +66,13 @@ exclude = ["ignored.py"]
 
 def test_lsp_validate_clears_diagnostics_when_file_is_excluded() -> None:
     lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
-    published = []
+    published: list[PublishDiagnosticsParams] = []
     lsp.diagnostic_generator = lambda _uri: None  # type: ignore[method-assign]
-    lsp.lsp.text_document_publish_diagnostics = published.append
+
+    def publish(params: PublishDiagnosticsParams) -> None:
+        published.append(params)
+
+    lsp.lsp.text_document_publish_diagnostics = publish
 
     lsp._validate("file:///tmp/example.py", 7)
 
