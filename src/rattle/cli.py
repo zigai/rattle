@@ -530,7 +530,6 @@ def _run_rule_tests(lint_rules: list[LintRule] | tuple[LintRule, ...]) -> None:
 
 
 def _rule_line(rule: LintRule) -> str:
-    code = rule.CODE or "-----"
     labels: list[str] = []
     if rule.TAGS:
         labels.append(",".join(sorted(rule.TAGS)))
@@ -538,10 +537,7 @@ def _rule_line(rule: LintRule) -> str:
     suffix = f" {colored(f'[{labels_text}]', color='gray')}" if labels_text else ""
     description = _rule_description(rule)
     description_text = f" - {colored(description, color='gray')}" if description else ""
-    return (
-        f"  {colored(code, color='light_cyan', style='bold')} "
-        f"{colored(rule.name, style='bold')}{suffix}{description_text}"
-    )
+    return f"  {colored(rule.name, color='light_cyan', style='bold')}{suffix}{description_text}"
 
 
 def _rule_description(rule: LintRule) -> str:
@@ -598,7 +594,7 @@ def rules_command(
                 rule
                 for _name, rule in sorted(
                     lint_rules_by_name.items(),
-                    key=lambda item: (item[1].CODE or "", item[1].name),
+                    key=lambda item: item[1].name,
                 )
             ]
         )
@@ -614,7 +610,7 @@ def rules_command(
 
         echo(colored(f"Rules for {path}", style="bold"))
         echo(f"{len(enabled)} enabled" + (f", {len(disabled)} disabled" if disabled else ""))
-        for rule in sorted(enabled, key=lambda candidate: (candidate.CODE or "", candidate.name)):
+        for rule in sorted(enabled, key=lambda candidate: candidate.name):
             echo(_rule_line(rule))
             if rule.settings:
                 settings = ", ".join(
@@ -627,14 +623,9 @@ def rules_command(
             echo(colored("Disabled", style="bold"))
             for rule_type, reason in sorted(
                 disabled.items(),
-                key=lambda item: (item[0].CODE or "", item[0].__name__),
+                key=lambda item: item[0].__name__,
             ):
-                code = rule_type.CODE or "-----"
-                echo(
-                    f"  {colored(code, color='gray')} "
-                    f"{rule_type.__name__} "
-                    f"{colored(f'({reason})', color='gray')}"
-                )
+                echo(f"  {rule_type.__name__} {colored(f'({reason})', color='gray')}")
 
 
 def validate_command(*paths: Path) -> None:

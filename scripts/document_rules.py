@@ -46,20 +46,6 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 {{ redent(rule_doc(rule), "") }}
 
-{% if rule.CODE %}
-#### CODE
-
-`{{ rule.CODE }}`
-
-{% endif %}
-{% if rule.ALIASES %}
-#### ALIASES
-
-{% for alias in rule.ALIASES %}
-- `{{ alias }}`
-{% endfor %}
-
-{% endif %}
 {% if rule.MESSAGE %}
 #### MESSAGE
 

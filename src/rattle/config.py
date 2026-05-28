@@ -27,16 +27,14 @@ from packaging.version import InvalidVersion, Version
 
 from .format import FORMAT_STYLES
 from .ftypes import (
-    AliasSelector,
-    AliasSelectorRegex,
-    CodeSelector,
-    CodeSelectorRegex,
     Config,
     Options,
     OutputFormat,
     QualifiedRule,
     QualifiedRuleRegex,
     RawConfig,
+    RuleNameSelector,
+    RuleNameSelectorRegex,
     RuleOptionsTable,
     RuleSelector,
     T,
@@ -53,7 +51,11 @@ else:
 
 RATTLE_CONFIG_FILENAMES = ("pyproject.toml",)
 RATTLE_LOCAL_MODULE = "rattle.local"
-BUILTIN_RULE_MODULES = ("rattle.rules", "rattle.rules.extra")
+BUILTIN_RULE_PACKS = {
+    "fixit": "rattle.rules.fixit",
+    "fixit_extra": "rattle.rules.fixit_extra",
+}
+BUILTIN_RULE_MODULES = tuple(BUILTIN_RULE_PACKS.values())
 
 
 log = logging.getLogger(__name__)
@@ -95,8 +97,7 @@ class RuleRegistry:
     imported_rules: dict[QualifiedRule, tuple[type[LintRule], ...]] = field(default_factory=dict)
     import_errors: dict[QualifiedRule, Exception] = field(default_factory=dict)
     rules_by_key: dict[str, type[LintRule]] = field(default_factory=dict)
-    rules_by_code: dict[str, type[LintRule]] = field(default_factory=dict)
-    rules_by_alias: dict[str, type[LintRule]] = field(default_factory=dict)
+    rules_by_name: dict[str, type[LintRule]] = field(default_factory=dict)
 
     def register(self, rule_type: type[LintRule], *, builtin: bool) -> None:
         key = _rule_key_for_type(rule_type)
@@ -109,36 +110,12 @@ class RuleRegistry:
                 QualifiedRule(rule_type.__module__, rule_type.__name__),
             )
 
-        code = rule_type.CODE
-        if code is not None:
-            if not CodeSelectorRegex.fullmatch(code):
-                raise CollectionError(
-                    f"{key} declares invalid CODE {code!r}",
-                    QualifiedRule(rule_type.__module__, rule_type.__name__),
-                )
+        if builtin:
             self._register_unique_selector(
-                self.rules_by_code,
-                code,
+                self.rules_by_name,
+                rule_type.__name__,
                 rule_type,
-                selector_kind="CODE",
-            )
-
-        for alias in _selector_aliases_for_rule_type(rule_type, builtin=builtin):
-            if CodeSelectorRegex.fullmatch(alias):
-                raise CollectionError(
-                    f"{key} declares alias {alias!r} that collides with code syntax",
-                    QualifiedRule(rule_type.__module__, rule_type.__name__),
-                )
-            if not AliasSelectorRegex.fullmatch(alias):
-                raise CollectionError(
-                    f"{key} declares invalid alias {alias!r}",
-                    QualifiedRule(rule_type.__module__, rule_type.__name__),
-                )
-            self._register_unique_selector(
-                self.rules_by_alias,
-                alias,
-                rule_type,
-                selector_kind="alias",
+                selector_kind="rule name",
             )
 
     def resolve(self, selector: RuleSelector) -> RuleResolution:
@@ -150,25 +127,7 @@ class RuleRegistry:
                 raise CollectionError(f"could not find rule {selector}", selector)
             return RuleResolution(selector, rules, concrete=selector.name is not None)
 
-        if isinstance(selector, CodeSelector):
-            if rule_type := self.rules_by_code.get(selector.value):
-                return RuleResolution(selector, (rule_type,), concrete=True)
-
-            rules = tuple(
-                sorted(
-                    {
-                        rule_type
-                        for code, rule_type in self.rules_by_code.items()
-                        if code.startswith(selector.value)
-                    },
-                    key=_rule_key_for_type,
-                )
-            )
-            if not rules:
-                raise CollectionError(f"could not find rule {selector}", selector)
-            return RuleResolution(selector, rules, concrete=False)
-
-        if rule_type := self.rules_by_alias.get(selector.value):
+        if rule_type := self.rules_by_name.get(selector.value):
             return RuleResolution(selector, (rule_type,), concrete=True)
 
         raise CollectionError(f"could not find rule {selector}", selector)
@@ -332,6 +291,9 @@ def walk_module(module: ModuleType) -> dict[str, type[LintRule]]:
     """
     rules: dict[str, type[LintRule]] = {}
 
+    if getattr(module, "__rattle_collect__", True) is False:
+        return rules
+
     members = inspect.getmembers(module, is_rule)
     rules.update(members)
 
@@ -356,13 +318,6 @@ def _builtin_rule_types() -> tuple[type[LintRule], ...]:
     return tuple(builtin_rules)
 
 
-def _selector_aliases_for_rule_type(rule_type: type[LintRule], *, builtin: bool) -> set[str]:
-    aliases = set(rule_type.ALIASES)
-    if builtin:
-        aliases.add(rule_type.__name__)
-    return aliases
-
-
 def _option_key_aliases_for_rule_type(rule_type: type[LintRule]) -> set[str]:
     module_parts = rule_type.__module__.split(".")
     aliases: set[str] = set()
@@ -378,12 +333,11 @@ def _option_key_aliases_for_rule_type(rule_type: type[LintRule]) -> set[str]:
             module_name = ".".join(local_parts[:idx])
             aliases.add(f".{module_name}:{rule_type.__name__}")
 
-    builtin_rule_types = set(_builtin_rule_types())
-    aliases.update(
-        _selector_aliases_for_rule_type(rule_type, builtin=rule_type in builtin_rule_types)
-    )
-    if rule_type.CODE is not None:
-        aliases.add(rule_type.CODE)
+    if rule_type in set(_builtin_rule_types()):
+        aliases.add(rule_type.__name__)
+        for module_name in BUILTIN_RULE_MODULES:
+            if rule_type in set(find_rules(QualifiedRule(module_name))):
+                aliases.add(f"{module_name}:{rule_type.__name__}")
 
     return aliases
 
@@ -925,11 +879,11 @@ def get_options(  # noqa: C901 - option parsing and normalization
 
 def parse_rule(rule: str, root: Path, config: RawConfig | None = None) -> RuleSelector:
     """Given a raw rule string, parse and return a rule selector object."""
-    if CodeSelectorRegex.fullmatch(rule):
-        return CodeSelector(rule)
+    if module := BUILTIN_RULE_PACKS.get(rule):
+        return QualifiedRule(module)
 
-    if "." not in rule and ":" not in rule and AliasSelectorRegex.fullmatch(rule):
-        return AliasSelector(rule)
+    if "." not in rule and ":" not in rule and RuleNameSelectorRegex.fullmatch(rule):
+        return RuleNameSelector(rule)
 
     if not (match := QualifiedRuleRegex.match(rule)):
         raise ConfigError(f"invalid rule name {rule!r}", config=config)
@@ -959,12 +913,6 @@ def parse_exact_rule_target(
             )
         return selector
 
-    if isinstance(selector, CodeSelector) and not any(char.isdigit() for char in selector.value):
-        raise ConfigError(
-            f"rule target {rule!r} must reference one concrete rule (exact code or alias)",
-            config=config,
-        )
-
     return selector
 
 
@@ -975,7 +923,7 @@ class ConfigMerger:
     root: Path | None = None
     explicit_path: bool = False
     enable_root_import: bool | Path = Config.enable_root_import
-    enable_rules: set[RuleSelector] = field(default_factory=lambda: {QualifiedRule("rattle.rules")})
+    enable_rules: set[RuleSelector] = field(default_factory=set)
     disable_rules: set[RuleSelector] = field(default_factory=set)
     rule_options: RuleOptionsTable = field(default_factory=dict)
     target_python_version: Version | None = field(
@@ -1496,6 +1444,7 @@ def validate_config(path: Path) -> list[str]:
 
 __all__ = [
     "BUILTIN_RULE_MODULES",
+    "BUILTIN_RULE_PACKS",
     "GLOB_META_CHARS",
     "RATTLE_CONFIG_FILENAMES",
     "RATTLE_LOCAL_MODULE",
