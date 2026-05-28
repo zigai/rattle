@@ -9,6 +9,7 @@ from libcst import Name, Pass
 
 from rattle.api import (
     ConfiguredPathBatch,
+    ConfiguredPathBatchResult,
     _default_worker_count,
     rattle_bytes,
     rattle_configured_file,
@@ -130,6 +131,44 @@ class TestApi:
         assert results == [path.name for path in paths]
         assert [call[0] for call in RecordingTrailrunner.calls] == [2]
         default_worker_count.assert_not_called()
+
+    def test_rattle_paths_reports_parallel_metrics_in_parent(self) -> None:
+        paths: list[Path] = [Path(f"{index}.py") for index in range(10)]
+        seen_metrics: list[object] = []
+        seen_collect_metrics: list[bool] = []
+
+        def batch_wrapper(
+            batch: ConfiguredPathBatch, **kwargs: object
+        ) -> ConfiguredPathBatchResult:
+            seen_collect_metrics.append(kwargs["collect_metrics"] is True)
+            return ConfiguredPathBatchResult(
+                [Result(batch[0][0], violation=None)],
+                [],
+                [{"Count.Total": len(batch)}],
+            )
+
+        with (
+            patch(
+                "rattle.api._expand_paths",
+                return_value=([(path, True) for path in paths], False, Path("stdin")),
+            ),
+            patch(
+                "rattle.api.generate_config",
+                side_effect=lambda path, *args, **kwargs: Config(path=path),
+            ),
+            patch(
+                "rattle.api._rattle_configured_file_batch_wrapper",
+                side_effect=batch_wrapper,
+            ),
+            patch("rattle.api._default_worker_count", return_value=4),
+            patch("rattle.api._preload_rules_for_fork"),
+            patch("rattle.api.trailrunner.Trailrunner", RecordingTrailrunner),
+        ):
+            list(rattle_paths([Path("target")], metrics_hook=seen_metrics.append))
+
+        assert seen_collect_metrics
+        assert all(seen_collect_metrics)
+        assert seen_metrics == [{"Count.Total": 1} for _ in range(10)]
 
     def test_rattle_paths_falls_back_to_serial_when_parallel_cap_is_one(self) -> None:
         paths: list[Path] = [Path("a.py"), Path("b.py")]

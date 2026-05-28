@@ -8,7 +8,7 @@ import multiprocessing
 import os
 import sys
 from collections.abc import Collection, Generator, Iterable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from functools import partial
 from multiprocessing.context import BaseContext
 from pathlib import Path
@@ -26,6 +26,7 @@ from .ftypes import (
     Config,
     FileContent,
     LintViolation,
+    Metrics,
     MetricsHook,
     Options,
     OutputFormat,
@@ -43,6 +44,7 @@ ConfiguredPathBatch = list[ConfiguredPath]
 class ConfiguredPathBatchResult:
     results: list[Result]
     deferred_format_paths: list[Path]
+    metrics: list[Metrics] = field(default_factory=list)
 
 
 def _available_cpu_count() -> int:
@@ -655,10 +657,12 @@ def _rattle_configured_file_batch_wrapper(
     include_diff: bool = False,
     allow_cached_dirty_results: bool = False,
     options: Options | None = None,
-    metrics_hook: MetricsHook | None = None,
+    collect_metrics: bool = False,
 ) -> ConfiguredPathBatchResult:
     results: list[Result] = []
     deferred_format_paths: list[Path] = []
+    metrics: list[Metrics] = []
+    metrics_hook = (lambda value: metrics.append(dict(value))) if collect_metrics else None
     for item in batch:
         results.extend(
             _rattle_configured_file_wrapper(
@@ -671,7 +675,7 @@ def _rattle_configured_file_batch_wrapper(
                 metrics_hook=metrics_hook,
             )
         )
-    return ConfiguredPathBatchResult(results, deferred_format_paths)
+    return ConfiguredPathBatchResult(results, deferred_format_paths, metrics)
 
 
 def _preload_rules_for_fork(group: Collection[ConfiguredPath]) -> None:
@@ -750,7 +754,7 @@ def _rattle_paths_group(
         include_diff=include_diff,
         allow_cached_dirty_results=allow_cached_dirty_results,
         options=options,
-        metrics_hook=metrics_hook,
+        collect_metrics=metrics_hook is not None,
     )
     context = _process_context()
     if context is not None:
@@ -760,6 +764,9 @@ def _rattle_paths_group(
     for _, batch_result in runner.run_iter(batches, fn):  # type: ignore[arg-type]
         if isinstance(batch_result, ConfiguredPathBatchResult):
             deferred_format_paths.extend(batch_result.deferred_format_paths)
+            if metrics_hook is not None:
+                for metrics in batch_result.metrics:
+                    metrics_hook(metrics)
             yield from batch_result.results
         else:
             yield from batch_result
