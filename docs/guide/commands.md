@@ -18,6 +18,26 @@ Raise or lower the level of output and logging.
 Override the normal hierarchical configuration and use the configuration from
 the specified path, ignoring all other configuration files entirely.
 
+## `--exclude PATTERN`
+
+Override configured file exclusions with a glob pattern. This option may be
+passed more than once. Like Ruff's `--exclude`, direct path arguments are also
+excluded when they match the pattern.
+
+```console
+$ rattle lint . --exclude "generated/**"
+```
+
+## `--extend-exclude PATTERN`
+
+Add a glob pattern to the configured file exclusions. This option may be passed
+more than once. Direct path arguments are still checked unless they are excluded
+by configuration with `force-exclude`.
+
+```console
+$ rattle lint . --extend-exclude "docs/_build/**"
+```
+
 ## `--tags / -t TAGS`
 
 Select or filter the set of lint rules to apply based on their tags.
@@ -75,7 +95,7 @@ first path, then the second path is used for configuration lookup and error
 messages, and the input is read from standard input.
 
 ```console
-$ rattle lint [OPTIONS] [--brief] [--diff] [PATH ...]
+$ rattle lint [OPTIONS] [--brief] [--diff] [--stats] [PATH ...]
 ```
 
 ### `--brief / -b`
@@ -85,6 +105,10 @@ Print each diagnostic on one line, without source snippets or help text.
 ### `--diff / -d`
 
 Show suggested fixes, in unified diff format, when available.
+
+### `--stats`
+
+Print violation counts grouped by containing directory.
 
 ## `fix`
 
