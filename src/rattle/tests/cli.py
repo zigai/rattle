@@ -25,10 +25,10 @@ class CliTest(TestCase):
         assert result.exit_code == 2
         assert "invalid choice: 'upgrade'" in result.stderr
 
-    def test_rules_test_accepts_code_selector(self) -> None:
+    def test_rules_test_accepts_rule_name_selector(self) -> None:
         result = self.runner.invoke(
             main,
-            ["rules", "--test", "-r", "RAT024"],
+            ["rules", "--test", "-r", "UseFstring"],
             catch_exceptions=False,
         )
         assert result.exit_code == 0
@@ -42,20 +42,20 @@ class CliTest(TestCase):
         assert result.exit_code == 1
 
     def test_test_command_removed(self) -> None:
-        result = self.runner.invoke(main, ["test", "RAT024"], catch_exceptions=False)
+        result = self.runner.invoke(main, ["test", "UseFstring"], catch_exceptions=False)
 
         assert result.exit_code == 2
         assert "invalid choice: 'test'" in result.stderr
 
     def test_rules_command_displays_enabled_rules(self) -> None:
-        result = self.runner.invoke(main, ["rules", "-r", "RAT024"], catch_exceptions=False)
+        result = self.runner.invoke(main, ["rules", "-r", "UseFstring"], catch_exceptions=False)
 
         assert result.exit_code == 0
         assert "Rules for " in result.stdout
         assert "1 enabled" in result.stdout
-        assert "RAT024 UseFstring - Do not use printf style formatting" in result.stdout
+        assert "UseFstring - Do not use printf style formatting" in result.stdout
         assert "[fix]" not in result.stdout
-        assert "rattle.rules.use_fstring:UseFstring" not in result.stdout
+        assert "rattle.rules.fixit_extra.use_fstring:UseFstring" not in result.stdout
         assert "Options(" not in result.stdout
         assert "Config(" not in result.stdout
 
@@ -130,7 +130,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", path.as_posix()],
+                ["fix", "-r", "UseAsyncSleepInAsyncDef", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -143,7 +143,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", path.as_posix()],
+                ["fix", "-r", "NoRedundantFString", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -154,7 +154,11 @@ class CliTest(TestCase):
             path = Path(td) / "fstring.py"
             path.write_text('value = f"hello"\n')
 
-            result = self.runner.invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
+            result = self.runner.invoke(
+                main,
+                ["fix", "-r", "NoRedundantFString", path.as_posix()],
+                catch_exceptions=False,
+            )
 
             assert result.exit_code == 0
             assert path.read_text() == 'value = "hello"\n'
@@ -168,7 +172,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-n", path.as_posix()],
+                ["fix", "-r", "NoRedundantFString", "-n", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -182,7 +186,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-b", path.as_posix()],
+                ["lint", "-r", "NoRedundantFString", "-b", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -242,7 +246,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "--brief", path.as_posix()],
+                ["fix", "-r", "NoRedundantFString", "--brief", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -289,7 +293,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "--interactive", path.as_posix()],
+                ["fix", "-r", "NoRedundantFString", "--interactive", path.as_posix()],
                 input="q",
                 catch_exceptions=False,
             )
@@ -304,7 +308,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "--interactive", path.as_posix()],
+                ["fix", "-r", "NoRedundantFString", "--interactive", path.as_posix()],
                 input="y",
                 catch_exceptions=False,
             )

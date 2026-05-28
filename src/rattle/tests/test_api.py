@@ -33,6 +33,7 @@ from rattle.ftypes import (
     FileContent,
     LintViolation,
     Options,
+    QualifiedRule,
     Result,
 )
 from rattle.rule import LintRule
@@ -202,7 +203,7 @@ class TestApi:
         path = root / "clean.py"
         path.write_bytes(b"pass\n")
         cache_dir = root / "cache"
-        config = Config(path=path, root=root)
+        config = Config(path=path, root=root, enable=[QualifiedRule("rattle.rules.fixit")])
 
         with patch.dict(os.environ, {"RATTLE_CACHE_DIR": cache_dir.as_posix()}):
             first_results = list(rattle_configured_file(path, config=config))
@@ -225,6 +226,7 @@ class TestApi:
             path.write_bytes(f"value = {index}\n".encode())
             paths.append(path)
         cache_dir = root / "cache"
+        (root / "pyproject.toml").write_text("[tool.rattle]\nroot = true\nenable = ['fixit']\n")
 
         with patch.dict(os.environ, {"RATTLE_CACHE_DIR": cache_dir.as_posix()}):
             list(rattle_paths(paths, parallel=False))

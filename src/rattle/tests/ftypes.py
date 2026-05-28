@@ -90,14 +90,11 @@ class TypesTest(TestCase):
             ftypes.QualifiedRule(".foo.bar", "Baz", local="."),
         } == valid
 
-    def test_short_selector_types(self) -> None:
-        code = ftypes.CodeSelector("RAT024")
-        alias = ftypes.AliasSelector("UseFstring")
+    def test_rule_name_selector_type(self) -> None:
+        selector = ftypes.RuleNameSelector("UseFstring")
 
-        assert str(code) == "RAT024"
-        assert str(alias) == "UseFstring"
-        assert ftypes.CodeSelectorRegex.fullmatch(code.value)
-        assert ftypes.AliasSelectorRegex.fullmatch(alias.value)
+        assert str(selector) == "UseFstring"
+        assert ftypes.RuleNameSelectorRegex.fullmatch(selector.value)
 
     def test_tags_parser(self) -> None:
         Tags = ftypes.Tags

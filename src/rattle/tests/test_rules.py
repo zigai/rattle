@@ -11,7 +11,7 @@ for generated_case in generate_lint_rule_test_cases(
     collect_rules(
         Config(
             enable=[
-                QualifiedRule("rattle.rules"),
+                QualifiedRule("rattle.rules.fixit"),
             ],
             python_version=None,
         )

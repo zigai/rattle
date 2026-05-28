@@ -19,7 +19,7 @@ add_lint_rule_tests_to_module(
     collect_rules(
         Config(
             enable=[
-                QualifiedRule("rattle.rules"),
+                QualifiedRule("rattle.rules.fixit"),
             ],
             python_version=None,
         )

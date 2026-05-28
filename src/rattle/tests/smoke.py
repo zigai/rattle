@@ -60,7 +60,11 @@ class SmokeTest(TestCase):
 
             with self.subTest("linting"):
                 path.write_text(content)
-                result = self.runner.invoke(main, ["lint", path.as_posix()], catch_exceptions=False)
+                result = self.runner.invoke(
+                    main,
+                    ["lint", "-r", "NoRedundantFString", path.as_posix()],
+                    catch_exceptions=False,
+                )
 
                 assert result.output != ""
                 assert result.exit_code != 0
@@ -74,7 +78,7 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["lint", "--diff", path.as_posix()],
+                    ["lint", "-r", "NoRedundantFString", "--diff", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -88,7 +92,7 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", path.as_posix()],
+                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -104,7 +108,7 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", path.as_posix()],
+                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -139,7 +143,7 @@ class SmokeTest(TestCase):
                 path.write_text(ruff_content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", path.as_posix()],
+                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -165,7 +169,7 @@ class SmokeTest(TestCase):
                 path.write_text(ruff_content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", path.as_posix()],
+                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -181,7 +185,7 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", path.as_posix()],
+                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -194,7 +198,7 @@ class SmokeTest(TestCase):
             with self.subTest("linting via stdin"):
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-", path.as_posix()],
+                    ["lint", "-r", "NoRedundantFString", "-", path.as_posix()],
                     input=content,
                     catch_exceptions=False,
                 )
@@ -210,7 +214,7 @@ class SmokeTest(TestCase):
 
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-", path.as_posix()],
+                    ["fix", "-r", "NoRedundantFString", "-", path.as_posix()],
                     input=content,
                     catch_exceptions=False,
                 )
@@ -237,7 +241,7 @@ class SmokeTest(TestCase):
             (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
-            result = self.runner.invoke(main, ["lint", td])
+            result = self.runner.invoke(main, ["lint", "-r", "UseFstring", td])
             assert "UseFstring [*] Do not use printf style formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert result.exit_code == 1
@@ -249,15 +253,13 @@ class SmokeTest(TestCase):
             dirty = tdp / "dirty.py"
             dirty.write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
-            for selector in ("RAT024", "UseFstring", "RAT"):
-                with self.subTest(selector):
-                    result = self.runner.invoke(
-                        main,
-                        ["lint", "-r", selector, dirty.as_posix()],
-                        catch_exceptions=False,
-                    )
-                    assert "UseFstring [*] Do not use printf style formatting" in result.output
-                    assert result.exit_code == 1
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "UseFstring", dirty.as_posix()],
+                catch_exceptions=False,
+            )
+            assert "UseFstring [*] Do not use printf style formatting" in result.output
+            assert result.exit_code == 1
 
     def test_directory_respects_inherited_ruff_file_excludes(self) -> None:
         with TemporaryDirectory() as td:
@@ -277,7 +279,11 @@ class SmokeTest(TestCase):
             (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
             (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
-            result = self.runner.invoke(main, ["lint", td], catch_exceptions=False)
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "UseFstring", td],
+                catch_exceptions=False,
+            )
 
             assert "included.py" in result.output
             assert "ignored.py" not in result.output
@@ -299,7 +305,11 @@ class SmokeTest(TestCase):
             (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
             (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
-            result = self.runner.invoke(main, ["lint", td], catch_exceptions=False)
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "UseFstring", td],
+                catch_exceptions=False,
+            )
 
             assert "included.py" in result.output
             assert "ignored.py" not in result.output
@@ -312,7 +322,7 @@ class SmokeTest(TestCase):
             (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
             (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(main, ["lint", td])
+            result = self.runner.invoke(main, ["lint", "-r", "UseFstring", td])
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
             assert result.exit_code == 2
@@ -325,7 +335,7 @@ class SmokeTest(TestCase):
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
             (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(main, ["lint", td])
+            result = self.runner.invoke(main, ["lint", "-r", "UseFstring", td])
             assert "UseFstring [*] Do not use printf style formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
@@ -381,7 +391,7 @@ class SmokeTest(TestCase):
 
             expected = clean.read_text()
 
-            result = self.runner.invoke(main, ["fix", td])
+            result = self.runner.invoke(main, ["fix", "-r", "fixit_extra", td])
             errors = defaultdict(list)
             pattern = re.compile(
                 r"(?m)^(?P<header>[^\n]+)\n --> (?P<path>.+):(?P<line>\d+):(?P<col>\d+)$"
@@ -428,7 +438,7 @@ class SmokeTest(TestCase):
             tdp = Path(td).resolve()
             path = tdp / "file.py"
 
-            (tdp / "pyproject.toml").write_text("[tool.rattle]\ndisable=['rattle.rules']\n")
+            (tdp / "pyproject.toml").write_text("[tool.rattle]\ndisable=['fixit']\n")
 
             path.write_text(content)
             result = self.runner.invoke(
@@ -444,7 +454,7 @@ class SmokeTest(TestCase):
             tdp = Path(td).resolve()
             path = tdp / "file.py"
 
-            (tdp / "pyproject.toml").write_text("[tool.rattle]\ndisable=['rattle.rules']\n")
+            (tdp / "pyproject.toml").write_text("[tool.rattle]\ndisable=['fixit']\n")
 
             path.write_text(content)
             result = self.runner.invoke(

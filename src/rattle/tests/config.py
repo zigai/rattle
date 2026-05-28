@@ -16,13 +16,12 @@ import pytest
 from rattle import config
 from rattle.cli import main
 from rattle.ftypes import (
-    AliasSelector,
-    CodeSelector,
     Config,
     Options,
     OutputFormat,
     QualifiedRule,
     RawConfig,
+    RuleNameSelector,
     Tags,
     Version,
 )
@@ -58,7 +57,7 @@ class ConfigTest(TestCase):
                 [[tool.rattle.overrides]]
                 path = "other"
                 enable = ["other.stuff", ".globalrules"]
-                disable = ["rattle.rules"]
+                disable = ["fixit"]
                 options = {"other.stuff:Whatever"={key="value"}}
                 python-version = "3.10"
                 """
@@ -69,7 +68,7 @@ class ConfigTest(TestCase):
                 """
                 [tool.rattle]
                 enable = [".localrules"]
-                disable = ["rattle.rules"]
+                disable = ["fixit"]
                 """
             )
         )
@@ -180,7 +179,7 @@ class ConfigTest(TestCase):
                 "inner partial",
                 [noise, outer, top],
                 [
-                    RawConfig(outer, {"enable": [".localrules"], "disable": ["rattle.rules"]}),
+                    RawConfig(outer, {"enable": [".localrules"], "disable": ["fixit"]}),
                     RawConfig(
                         top,
                         {
@@ -193,7 +192,7 @@ class ConfigTest(TestCase):
                                 {
                                     "path": "other",
                                     "enable": ["other.stuff", ".globalrules"],
-                                    "disable": ["rattle.rules"],
+                                    "disable": ["fixit"],
                                     "options": {"other.stuff:Whatever": {"key": "value"}},
                                     "python-version": "3.10",
                                 },
@@ -206,7 +205,7 @@ class ConfigTest(TestCase):
                 "outer",
                 [outer, top],
                 [
-                    RawConfig(outer, {"enable": [".localrules"], "disable": ["rattle.rules"]}),
+                    RawConfig(outer, {"enable": [".localrules"], "disable": ["fixit"]}),
                     RawConfig(
                         top,
                         {
@@ -219,7 +218,7 @@ class ConfigTest(TestCase):
                                 {
                                     "path": "other",
                                     "enable": ["other.stuff", ".globalrules"],
-                                    "disable": ["rattle.rules"],
+                                    "disable": ["fixit"],
                                     "options": {"other.stuff:Whatever": {"key": "value"}},
                                     "python-version": "3.10",
                                 },
@@ -244,7 +243,7 @@ class ConfigTest(TestCase):
                                 {
                                     "path": "other",
                                     "enable": ["other.stuff", ".globalrules"],
-                                    "disable": ["rattle.rules"],
+                                    "disable": ["fixit"],
                                     "options": {"other.stuff:Whatever": {"key": "value"}},
                                     "python-version": "3.10",
                                 },
@@ -269,7 +268,6 @@ class ConfigTest(TestCase):
                 Config(
                     path=target,
                     root=Path(target.anchor),
-                    enable=[QualifiedRule("rattle.rules")],
                 ),
             ),
             (
@@ -286,7 +284,7 @@ class ConfigTest(TestCase):
                 Config(
                     path=target,
                     root=root,
-                    enable=[QualifiedRule("foo"), QualifiedRule("rattle.rules")],
+                    enable=[QualifiedRule("foo")],
                     disable=[QualifiedRule("bar")],
                 ),
             ),
@@ -312,7 +310,6 @@ class ConfigTest(TestCase):
                     enable=[
                         QualifiedRule("bar"),
                         QualifiedRule("foo"),
-                        QualifiedRule("rattle.rules"),
                     ],
                     python_version=Version("3.10"),
                 ),
@@ -336,7 +333,7 @@ class ConfigTest(TestCase):
                 Config(
                     path=target,
                     root=(root / "a/b/c"),
-                    enable=[QualifiedRule("foo"), QualifiedRule("rattle.rules")],
+                    enable=[QualifiedRule("foo")],
                 ),
             ),
             (
@@ -346,7 +343,9 @@ class ConfigTest(TestCase):
                         (root / "a/b/c/pyproject.toml"),
                         {
                             "options": {
-                                "rattle.rules:UseFstring": {"allowed_prefixes": ["TODO", "FIXME"]}
+                                "rattle.rules.fixit_extra:UseFstring": {
+                                    "allowed_prefixes": ["TODO", "FIXME"]
+                                }
                             }
                         },
                     ),
@@ -354,7 +353,9 @@ class ConfigTest(TestCase):
                         (root / "a/b/pyproject.toml"),
                         {
                             "options": {
-                                "rattle.rules:UseFstring": {"simple_expression_max_length": 60}
+                                "rattle.rules.fixit_extra:UseFstring": {
+                                    "simple_expression_max_length": 60
+                                }
                             }
                         },
                     ),
@@ -362,7 +363,7 @@ class ConfigTest(TestCase):
                         (root / "a/pyproject.toml"),
                         {
                             "options": {
-                                "rattle.rules:UseFstring": {
+                                "rattle.rules.fixit_extra:UseFstring": {
                                     "simple_expression_max_length": 30,
                                     "allow_dot_format": False,
                                 }
@@ -374,7 +375,7 @@ class ConfigTest(TestCase):
                     path=target,
                     root=(root / "a"),
                     options={
-                        "rattle.rules:UseFstring": {
+                        "rattle.rules.fixit_extra:UseFstring": {
                             "simple_expression_max_length": 60,
                             "allow_dot_format": False,
                             "allowed_prefixes": ["TODO", "FIXME"],
@@ -407,17 +408,17 @@ class ConfigTest(TestCase):
             assert actual == Config(
                 path=target,
                 root=root,
-                enable=[QualifiedRule("foo"), QualifiedRule("rattle.rules")],
+                enable=[QualifiedRule("foo")],
                 disable=[QualifiedRule("bar")],
             )
 
-        with self.subTest("short selectors"):
+        with self.subTest("rule name selectors"):
             raw_configs = [
                 RawConfig(
                     (root / "pyproject.toml"),
                     {
                         "enable": ["UseFstring"],
-                        "disable": ["RAT"],
+                        "disable": ["NoStaticIfCondition"],
                     },
                 )
             ]
@@ -427,8 +428,8 @@ class ConfigTest(TestCase):
             assert actual == Config(
                 path=target,
                 root=root,
-                enable=[AliasSelector("UseFstring"), QualifiedRule("rattle.rules")],
-                disable=[CodeSelector("RAT")],
+                enable=[RuleNameSelector("UseFstring")],
+                disable=[RuleNameSelector("NoStaticIfCondition")],
             )
 
     def test_generate_config(self) -> None:
@@ -444,7 +445,6 @@ class ConfigTest(TestCase):
                     enable=[
                         QualifiedRule("fake8"),
                         QualifiedRule("make8"),
-                        QualifiedRule("rattle.rules"),
                     ],
                     disable=[QualifiedRule("foo.bar")],
                 ),
@@ -463,8 +463,8 @@ class ConfigTest(TestCase):
                         QualifiedRule("more.rules"),
                     ],
                     disable=[
-                        QualifiedRule("rattle.rules"),
                         QualifiedRule("rattle.rules.SomethingSpecific"),
+                        QualifiedRule("rattle.rules.fixit"),
                     ],
                     python_version=Version("3.8"),
                 ),
@@ -478,7 +478,7 @@ class ConfigTest(TestCase):
                     path=self.outer / "foo.py",
                     root=self.outer,
                     enable=[QualifiedRule(".localrules", local=".", root=self.outer)],
-                    disable=[QualifiedRule("rattle.rules")],
+                    disable=[QualifiedRule("rattle.rules.fixit")],
                 ),
             ),
             (
@@ -496,8 +496,8 @@ class ConfigTest(TestCase):
                         QualifiedRule("other.stuff"),
                     ],
                     disable=[
-                        QualifiedRule("rattle.rules"),
                         QualifiedRule("rattle.rules.SomethingSpecific"),
+                        QualifiedRule("rattle.rules.fixit"),
                     ],
                     options={"other.stuff:Whatever": {"key": "value"}},
                     python_version=Version("3.10"),
@@ -512,7 +512,7 @@ class ConfigTest(TestCase):
                     path=self.tdp / "foo.py",
                     root=self.tdp,
                     enable_root_import=True,
-                    enable=[QualifiedRule("more.rules"), QualifiedRule("rattle.rules")],
+                    enable=[QualifiedRule("more.rules")],
                     disable=[QualifiedRule("rattle.rules.SomethingSpecific")],
                     python_version=Version("3.8"),
                 ),
@@ -526,7 +526,7 @@ class ConfigTest(TestCase):
                     path=self.tdp / "foo.py",
                     root=self.tdp,
                     enable_root_import=True,
-                    enable=[QualifiedRule("more.rules"), QualifiedRule("rattle.rules")],
+                    enable=[QualifiedRule("more.rules")],
                     disable=[QualifiedRule("rattle.rules.SomethingSpecific")],
                     python_version=Version("3.8"),
                     output_format=OutputFormat.custom,
@@ -561,13 +561,13 @@ class ConfigTest(TestCase):
                 Config(
                     path=path,
                     root=self.tdp,
-                    enable=[QualifiedRule("bar"), QualifiedRule("rattle.rules")],
+                    enable=[QualifiedRule("bar")],
                     disable=[QualifiedRule("foo")],
                 )
             ) == asdict(actual)
 
-        with self.subTest("short selectors and exact option targets"):
-            path = self.tdp / "short_selectors.py"
+        with self.subTest("rule name selectors and exact option targets"):
+            path = self.tdp / "rule_name_selectors.py"
             path.write_text("pass\n")
             (self.tdp / "pyproject.toml").write_text(
                 dedent(
@@ -575,10 +575,10 @@ class ConfigTest(TestCase):
                     [tool.rattle]
                     root = true
                     enable = ["UseFstring"]
-                    disable = ["RAT"]
+                    disable = ["NoStaticIfCondition"]
 
                     [tool.rattle.options]
-                    "RAT024" = {simple_expression_max_length = 42}
+                    "UseFstring" = {simple_expression_max_length = 42}
                     """
                 )
             )
@@ -589,9 +589,9 @@ class ConfigTest(TestCase):
                 Config(
                     path=path,
                     root=self.tdp,
-                    enable=[AliasSelector("UseFstring"), QualifiedRule("rattle.rules")],
-                    disable=[CodeSelector("RAT")],
-                    options={"RAT024": {"simple_expression_max_length": 42}},
+                    enable=[RuleNameSelector("UseFstring")],
+                    disable=[RuleNameSelector("NoStaticIfCondition")],
+                    options={"UseFstring": {"simple_expression_max_length": 42}},
                 )
             ) == asdict(actual)
 
@@ -682,7 +682,7 @@ class ConfigTest(TestCase):
                     root = true
 
                     [tool.rattle.options]
-                    "rattle.rules:UseFstring" = { simple_expression_max_length = { nested = true } }
+                    "rattle.rules.fixit_extra:UseFstring" = { simple_expression_max_length = { nested = true } }
                     """
                 )
             )
@@ -692,38 +692,32 @@ class ConfigTest(TestCase):
 
     def test_rule_registry_resolves_selectors(self) -> None:
         class AlphaRule(LintRule):
-            CODE = "RAT900"
+            pass
 
         class BetaRule(LintRule):
-            CODE = "RAT901"
+            pass
 
         registry = config.RuleRegistry()
         registry.register(BetaRule, builtin=True)
         registry.register(AlphaRule, builtin=True)
 
-        alpha_resolution = registry.resolve(CodeSelector("RAT900"))
+        alpha_resolution = registry.resolve(RuleNameSelector("AlphaRule"))
         assert alpha_resolution.rules == (AlphaRule,)
         assert alpha_resolution.concrete
 
-        prefix_resolution = registry.resolve(CodeSelector("RAT90"))
-        assert prefix_resolution.rules == (AlphaRule, BetaRule)
-        assert not prefix_resolution.concrete
-
-        alias_resolution = registry.resolve(AliasSelector("AlphaRule"))
-        assert alias_resolution.rules == (AlphaRule,)
-        assert alias_resolution.concrete
-
-        missing_selector = CodeSelector("RAT999")
-        with pytest.raises(config.CollectionError, match="could not find rule RAT999"):
+        missing_selector = RuleNameSelector("DefinitelyMissingRule")
+        with pytest.raises(
+            config.CollectionError, match="could not find rule DefinitelyMissingRule"
+        ):
             registry.resolve(missing_selector)
 
     def test_collect_rules(self) -> None:
-        from rattle.rules.avoid_or_in_except import AvoidOrInExcept
-        from rattle.rules.cls_in_classmethod import UseClsInClassmethod
-        from rattle.rules.extra.explicit_frozen_dataclass import ExplicitFrozenDataclass
-        from rattle.rules.no_namedtuple import NoNamedTuple
-        from rattle.rules.use_fstring import UseFstring
-        from rattle.rules.use_types_from_typing import UseTypesFromTyping
+        from rattle.rules.fixit.explicit_frozen_dataclass import ExplicitFrozenDataclass
+        from rattle.rules.fixit.no_namedtuple import NoNamedTuple
+        from rattle.rules.fixit.use_types_from_typing import UseTypesFromTyping
+        from rattle.rules.fixit_extra.avoid_or_in_except import AvoidOrInExcept
+        from rattle.rules.fixit_extra.cls_in_classmethod import UseClsInClassmethod
+        from rattle.rules.fixit_extra.use_fstring import UseFstring
 
         AvoidOrInExcept.TAGS = {"exceptions"}
         UseTypesFromTyping.TAGS = {"typing"}
@@ -732,89 +726,90 @@ class ConfigTest(TestCase):
         def collect_types(cfg: Config) -> List[Type[LintRule]]:
             return sorted([type(rule) for rule in config.collect_rules(cfg)], key=str)
 
-        with self.subTest("everything"):
+        with self.subTest("empty config enables no rules"):
             rules = collect_types(
                 Config(
-                    python_version=None,
-                )
-            )
-            assert UseClsInClassmethod in rules
-            assert UseTypesFromTyping in rules
-
-        with self.subTest("opt-out"):
-            rules = collect_types(
-                Config(
-                    disable=[QualifiedRule("rattle.rules", "UseClsInClassmethod")],
-                    python_version=None,
-                )
-            )
-            assert UseClsInClassmethod not in rules
-            assert UseTypesFromTyping in rules
-
-        with self.subTest("opt-in"):
-            rules = collect_types(
-                Config(
-                    enable=[QualifiedRule("rattle.rules", "UseClsInClassmethod")],
-                    python_version=None,
-                )
-            )
-            assert [UseClsInClassmethod] == rules
-
-        with self.subTest("opt-in by code"):
-            rules = collect_types(
-                Config(
-                    enable=[CodeSelector("RAT024")],
-                    disable=[],
-                    python_version=None,
-                )
-            )
-            assert [UseFstring] == rules
-
-        with self.subTest("opt-in by alias"):
-            rules = collect_types(
-                Config(
-                    enable=[AliasSelector("UseFstring")],
-                    disable=[],
-                    python_version=None,
-                )
-            )
-            assert [UseFstring] == rules
-
-        with self.subTest("prefix enable includes builtins family"):
-            rules = collect_types(
-                Config(
-                    enable=[CodeSelector("RAT")],
-                    disable=[],
-                    python_version=None,
-                )
-            )
-            assert UseFstring in rules
-            assert ExplicitFrozenDataclass in rules
-
-        with self.subTest("disable builtins"):
-            rules = collect_types(
-                Config(
-                    disable=[QualifiedRule("rattle.rules")],
                     python_version=None,
                 )
             )
             assert [] == rules
 
-        with self.subTest("override broad disable with exact code"):
+        with self.subTest("fixit pack"):
             rules = collect_types(
                 Config(
-                    disable=[CodeSelector("RAT")],
-                    enable=[CodeSelector("RAT024")],
+                    enable=[QualifiedRule("rattle.rules.fixit")],
+                    python_version=None,
+                )
+            )
+            assert NoNamedTuple in rules
+            assert UseTypesFromTyping in rules
+
+        with self.subTest("opt-out"):
+            rules = collect_types(
+                Config(
+                    enable=[QualifiedRule("rattle.rules.fixit")],
+                    disable=[QualifiedRule("rattle.rules.fixit", "NoNamedTuple")],
+                    python_version=None,
+                )
+            )
+            assert NoNamedTuple not in rules
+            assert UseTypesFromTyping in rules
+
+        with self.subTest("opt-in"):
+            rules = collect_types(
+                Config(
+                    enable=[QualifiedRule("rattle.rules.fixit_extra", "UseClsInClassmethod")],
+                    python_version=None,
+                )
+            )
+            assert [UseClsInClassmethod] == rules
+
+        with self.subTest("opt-in by rule name"):
+            rules = collect_types(
+                Config(
+                    enable=[RuleNameSelector("UseFstring")],
+                    disable=[],
                     python_version=None,
                 )
             )
             assert [UseFstring] == rules
 
-        with self.subTest("override broad disable with alias"):
+        with self.subTest("module enable includes module rules"):
             rules = collect_types(
                 Config(
-                    disable=[QualifiedRule("rattle.rules")],
-                    enable=[AliasSelector("UseFstring")],
+                    enable=[QualifiedRule("rattle.rules.fixit")],
+                    disable=[],
+                    python_version=None,
+                )
+            )
+            assert NoNamedTuple in rules
+            assert UseFstring not in rules
+
+        with self.subTest("fixit_extra module enable includes Ruff-covered rules"):
+            rules = collect_types(
+                Config(
+                    enable=[QualifiedRule("rattle.rules.fixit_extra")],
+                    disable=[],
+                    python_version=None,
+                )
+            )
+            assert UseFstring in rules
+            assert ExplicitFrozenDataclass not in rules
+
+        with self.subTest("disable builtins"):
+            rules = collect_types(
+                Config(
+                    disable=[QualifiedRule("rattle.rules.fixit")],
+                    python_version=None,
+                )
+            )
+            assert [] == rules
+
+        with self.subTest("override broad disable with rule name"):
+            rules = collect_types(
+                Config(
+                    disable=[QualifiedRule("rattle.rules.fixit")],
+                    enable=[RuleNameSelector("UseFstring")],
                     python_version=None,
                 )
             )
@@ -823,8 +818,8 @@ class ConfigTest(TestCase):
         with self.subTest("override broad opt-out"):
             rules = collect_types(
                 Config(
-                    disable=[QualifiedRule("rattle.rules")],
-                    enable=[QualifiedRule("rattle.rules", "UseClsInClassmethod")],
+                    disable=[QualifiedRule("rattle.rules.fixit")],
+                    enable=[QualifiedRule("rattle.rules.fixit_extra", "UseClsInClassmethod")],
                 )
             )
             assert [UseClsInClassmethod] == rules
@@ -832,6 +827,7 @@ class ConfigTest(TestCase):
         with self.subTest("version match"):
             rules = collect_types(
                 Config(
+                    enable=[QualifiedRule("rattle.rules.fixit")],
                     python_version=Version("3.7.10"),
                 )
             )
@@ -840,6 +836,7 @@ class ConfigTest(TestCase):
         with self.subTest("version match alpha"):
             rules = collect_types(
                 Config(
+                    enable=[QualifiedRule("rattle.rules.fixit")],
                     python_version=Version("3.7.10a3"),
                 )
             )
@@ -848,6 +845,7 @@ class ConfigTest(TestCase):
         with self.subTest("version mismatch"):
             rules = collect_types(
                 Config(
+                    enable=[QualifiedRule("rattle.rules.fixit")],
                     python_version=Version("3.10.5"),
                 )
             )
@@ -856,6 +854,7 @@ class ConfigTest(TestCase):
         with self.subTest("version mismatch alpha"):
             rules = collect_types(
                 Config(
+                    enable=[QualifiedRule("rattle.rules.fixit")],
                     python_version=Version("3.10.5a4"),
                 )
             )
@@ -864,6 +863,7 @@ class ConfigTest(TestCase):
         with self.subTest("tag select"):
             rules = collect_types(
                 Config(
+                    enable=[QualifiedRule("rattle.rules.fixit")],
                     python_version=None,
                     tags=Tags.parse("typing"),
                 )
@@ -876,6 +876,7 @@ class ConfigTest(TestCase):
         with self.subTest("tag filter"):
             rules = collect_types(
                 Config(
+                    enable=[QualifiedRule("rattle.rules.fixit_extra")],
                     python_version=None,
                     tags=Tags.parse("^exceptions"),
                 )
@@ -885,6 +886,7 @@ class ConfigTest(TestCase):
         with self.subTest("tag select and filter"):
             rules = collect_types(
                 Config(
+                    enable=[QualifiedRule("rattle.rules.fixit")],
                     python_version=None,
                     tags=Tags.parse("typing,^tuples"),
                 )
@@ -894,21 +896,23 @@ class ConfigTest(TestCase):
         with self.subTest("rule settings apply"):
             (rule,) = config.collect_rules(
                 Config(
-                    enable=[CodeSelector("RAT024")],
+                    enable=[RuleNameSelector("UseFstring")],
                     disable=[],
-                    options={"RAT024": {"simple_expression_max_length": 80}},
+                    options={"UseFstring": {"simple_expression_max_length": 80}},
                     python_version=None,
                 )
             )
             assert isinstance(rule, UseFstring)
             assert rule.settings["simple_expression_max_length"] == 80
 
-        with self.subTest("rule settings apply by alias"):
+        with self.subTest("rule settings apply by qualified name"):
             (rule,) = config.collect_rules(
                 Config(
-                    enable=[AliasSelector("UseFstring")],
+                    enable=[RuleNameSelector("UseFstring")],
                     disable=[],
-                    options={"UseFstring": {"simple_expression_max_length": 70}},
+                    options={
+                        "rattle.rules.fixit_extra:UseFstring": {"simple_expression_max_length": 70}
+                    },
                     python_version=None,
                 )
             )
@@ -917,7 +921,7 @@ class ConfigTest(TestCase):
 
         with self.subTest("cached rule plan materializes fresh rule instances"):
             cfg = Config(
-                enable=[AliasSelector("UseFstring")],
+                enable=[RuleNameSelector("UseFstring")],
                 disable=[],
                 options={"UseFstring": {"simple_expression_max_length": 60}},
                 python_version=None,
@@ -934,9 +938,9 @@ class ConfigTest(TestCase):
         ):
             config.collect_rules(
                 Config(
-                    enable=[QualifiedRule("rattle.rules", "UseFstring")],
+                    enable=[QualifiedRule("rattle.rules.fixit_extra", "UseFstring")],
                     disable=[],
-                    options={"rattle.rules:UseFstring": {"not_a_setting": 80}},
+                    options={"rattle.rules.fixit_extra:UseFstring": {"not_a_setting": 80}},
                     python_version=None,
                 )
             )
@@ -947,6 +951,7 @@ class ConfigTest(TestCase):
                 dedent(
                     """
                     [tool.rattle]
+                    enable = ["UseFstring"]
                     output-format = "vscode"
                     """
                 )
@@ -972,6 +977,7 @@ class ConfigTest(TestCase):
                 dedent(
                     f"""
                     [tool.rattle]
+                    enable = ["UseFstring"]
                     output-format = 'custom'
                     output-template = '{custom_output_format}'
                     """
@@ -1014,6 +1020,7 @@ class ConfigTest(TestCase):
                     dedent(
                         """
                         [tool.rattle]
+                        enable = ["UseFstring"]
                         output-format = "vscode"
                         """
                     )
@@ -1022,6 +1029,7 @@ class ConfigTest(TestCase):
                     dedent(
                         """
                         [tool.rattle]
+                        enable = ["UseFstring"]
                         output-format = "custom"
                         output-template = "CUSTOM {rule_name} {path}"
                         """
@@ -1042,7 +1050,7 @@ class ConfigTest(TestCase):
             path.write_text(
                 """
                     [tool.rattle]
-                    disable = ["rattle.rules"]
+                    disable = ["fixit"]
                     root = true
                     """
             )
@@ -1060,7 +1068,7 @@ class ConfigTest(TestCase):
                     root = true
 
                     [tool.rattle.options]
-                    "rattle.rules.use_fstring:UseFstring" = {simple_expression_max_length = 42}
+                    "rattle.rules.fixit_extra.use_fstring:UseFstring" = {simple_expression_max_length = 42}
                     """
             )
 
@@ -1068,7 +1076,7 @@ class ConfigTest(TestCase):
 
             assert results == []
 
-        with self.subTest("validate-config valid with short selectors"), TemporaryDirectory() as td:
+        with self.subTest("validate-config valid with rule names"), TemporaryDirectory() as td:
             tdp = Path(td).resolve()
             path = tdp / "pyproject.toml"
             path.write_text(
@@ -1076,11 +1084,10 @@ class ConfigTest(TestCase):
                 [tool.rattle]
                 root = true
                 enable = ["UseFstring"]
-                disable = ["RAT014"]
-                per-file-enable = {"tests/**/*.py" = ["RAT024"]}
+                disable = ["NoStaticIfCondition"]
+                per-file-enable = {"tests/**/*.py" = ["UseFstring"]}
 
                 [tool.rattle.options]
-                "RAT024" = {simple_expression_max_length = 42}
                 "UseFstring" = {simple_expression_max_length = 64}
                 """
             )
@@ -1107,7 +1114,7 @@ class ConfigTest(TestCase):
             assert any("Failed to parse options for global options" in result for result in results)
 
         with (
-            self.subTest("validate-config invalid options prefix code"),
+            self.subTest("validate-config invalid options unknown rule name"),
             TemporaryDirectory() as td,
         ):
             tdp = Path(td).resolve()
@@ -1118,13 +1125,13 @@ class ConfigTest(TestCase):
                 root = true
 
                 [tool.rattle.options]
-                "RAT" = {simple_expression_max_length = 42}
+                "DefinitelyMissingRule" = {simple_expression_max_length = 42}
                 """
             )
 
             results = config.validate_config(path)
 
-            assert any("exact code or alias" in result for result in results)
+            assert any("could not find rule DefinitelyMissingRule" in result for result in results)
 
         with self.subTest("validate-config invalid options value"), TemporaryDirectory() as td:
             tdp = Path(td).resolve()
@@ -1135,32 +1142,33 @@ class ConfigTest(TestCase):
                 root = true
 
                 [tool.rattle.options]
-                "rattle.rules.use_fstring:UseFstring" = {simple_expression_max_length = "long"}
+                "rattle.rules.fixit_extra.use_fstring:UseFstring" = {simple_expression_max_length = "long"}
                 """
             )
 
             results = config.validate_config(path)
 
             assert any(
-                "Failed to validate options for `rattle.rules.use_fstring:UseFstring`" in result
+                "Failed to validate options for `rattle.rules.fixit_extra.use_fstring:UseFstring`"
+                in result
                 for result in results
             )
 
-        with self.subTest("validate-config invalid unknown code"), TemporaryDirectory() as td:
+        with self.subTest("validate-config invalid unknown rule name"), TemporaryDirectory() as td:
             tdp = Path(td).resolve()
             path = tdp / "pyproject.toml"
             path.write_text(
                 """
                 [tool.rattle]
                 root = true
-                enable = ["RAT999"]
+                enable = ["DefinitelyMissingRule"]
                 """
             )
 
             results = config.validate_config(path)
 
             assert results == [
-                "Failed to import rule `RAT999` for global enable: CollectionError: could not find rule RAT999"
+                "Failed to import rule `DefinitelyMissingRule` for global enable: CollectionError: could not find rule DefinitelyMissingRule"
             ]
 
         with self.subTest("validate-config valid with per-file tables"), TemporaryDirectory() as td:
@@ -1170,8 +1178,8 @@ class ConfigTest(TestCase):
                 """
                 [tool.rattle]
                 root = true
-                per-file-enable = {"tests/**/*.py" = ["rattle.rules:UseFstring"]}
-                per-file-disable = {"tests/generated.py" = ["rattle.rules:UseFstring"]}
+                per-file-enable = {"tests/**/*.py" = ["rattle.rules.fixit_extra:UseFstring"]}
+                per-file-disable = {"tests/generated.py" = ["rattle.rules.fixit_extra:UseFstring"]}
                 """
             )
 
@@ -1186,7 +1194,7 @@ class ConfigTest(TestCase):
                 """
                 [tool.rattle]
                 root = true
-                per-file-enable = {"tests/**/*.py" = "rattle.rules:UseFstring"}
+                per-file-enable = {"tests/**/*.py" = "rattle.rules.fixit_extra:UseFstring"}
                 """
             )
 
@@ -1241,7 +1249,7 @@ class ConfigTest(TestCase):
             path.write_text(
                 """
                 [tool.rattle]
-                disable = ["rattle.rules"]
+                disable = ["fixit"]
                 root = true
 
                 [[tool.rattle.overrides]]
@@ -1269,7 +1277,7 @@ class ConfigTest(TestCase):
                 [[tool.rattle.overrides]]
                 path = "SUPER_REAL_PATH"
 
-                [tool.rattle.overrides.options."rattle.rules.use_fstring:UseFstring"]
+                [tool.rattle.overrides.options."rattle.rules.fixit_extra.use_fstring:UseFstring"]
                 simple_expression_max_length = 52
                 """
             )
@@ -1293,7 +1301,7 @@ class ConfigTest(TestCase):
                 path = "SUPER_REAL_PATH"
 
                 [[tool.rattle.overrides.options]]
-                "rattle.rules.use_fstring:UseFstring" = {simple_expression_max_length = 52}
+                "rattle.rules.fixit_extra.use_fstring:UseFstring" = {simple_expression_max_length = 52}
                 """
             )
 
@@ -1308,7 +1316,7 @@ class ConfigTest(TestCase):
                 """
                 [tool.rattle]
                 enable = ["rattle/rules:DeprecatedABCImport"]
-                disable = ["rattle.rules"]
+                disable = ["fixit"]
                 root = true
                 """
             )
@@ -1326,12 +1334,12 @@ class ConfigTest(TestCase):
                 """
                 [tool.rattle]
                 enable = ["rattle/rules:DeprecatedABCImport"]
-                disable = ["rattle.rules"]
+                disable = ["fixit"]
                 root = true
 
                 [[tool.rattle.overrides]]
                 path = "SUPER_REAL_PATH"
-                enable = ["rattle.rules:DeprecatedABCImport_SUPER_REAL"]
+                enable = ["rattle.rules.fixit_extra:DeprecatedABCImport_SUPER_REAL"]
                 """
             )
 
@@ -1342,5 +1350,5 @@ class ConfigTest(TestCase):
 
             assert results == [
                 "Failed to parse rule `rattle/rules:DeprecatedABCImport` for global enable: ConfigError: invalid rule name 'rattle/rules:DeprecatedABCImport'",
-                "Failed to import rule `rattle.rules:DeprecatedABCImport_SUPER_REAL` for override enable: `SUPER_REAL_PATH`: CollectionError: could not find rule rattle.rules:DeprecatedABCImport_SUPER_REAL",
+                "Failed to import rule `rattle.rules.fixit_extra:DeprecatedABCImport_SUPER_REAL` for override enable: `SUPER_REAL_PATH`: CollectionError: could not find rule rattle.rules.fixit_extra:DeprecatedABCImport_SUPER_REAL",
             ]

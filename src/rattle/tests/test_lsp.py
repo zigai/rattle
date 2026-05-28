@@ -19,14 +19,14 @@ def test_lsp_config_cache_invalidation(tmp_path: Path) -> None:
         """
 [tool.rattle]
 root = true
-disable = ["rattle.rules"]
+disable = ["fixit"]
 """
     )
 
     lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
 
     first = lsp.load_config(target_path)
-    assert QualifiedRule("rattle.rules") in first.disable
+    assert QualifiedRule("rattle.rules.fixit") in first.disable
 
     time.sleep(0.01)
     config_path.write_text(
