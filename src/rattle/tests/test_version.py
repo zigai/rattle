@@ -3,10 +3,12 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 
+import pytest
+
 version_module = importlib.import_module("rattle.__version__")
 
 
-def test_version_prefers_rattle_lint_distribution(monkeypatch) -> None:
+def test_version_prefers_rattle_lint_distribution(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
 
     def fake_version(name: str) -> str:
@@ -26,7 +28,7 @@ def test_version_prefers_rattle_lint_distribution(monkeypatch) -> None:
 
 
 def test_version_returns_unknown_when_distribution_is_not_installed(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
 
