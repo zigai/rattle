@@ -119,7 +119,8 @@ class NoRedundantArgumentsSuper(LintRule):
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         self.current_classes.append(node.name.value)
 
-    def leave_ClassDef(self, _original_node: cst.ClassDef) -> None:
+    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
+        del original_node
         self.current_classes.pop()
 
     def leave_Call(self, original_node: cst.Call) -> None:
@@ -137,8 +138,8 @@ class NoRedundantArgumentsSuper(LintRule):
                 original_node, self.MESSAGE, replacement=original_node.with_changes(args=())
             )
 
-    def _build_arg_class_matcher(self) -> m.Attribute | m.Name:
-        matcher: m.Name | m.Attribute = m.Name(value=self.current_classes[0])
+    def _build_arg_class_matcher(self) -> m.BaseExpressionMatchType:
+        matcher: m.BaseExpressionMatchType = m.Name(value=self.current_classes[0])
 
         # For nested classes, we need to match attributes, so we can target
         # `super(Foo.InnerFoo, self)` for example.
