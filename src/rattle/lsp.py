@@ -116,6 +116,8 @@ class LSP:
             violation = result.violation
             if not violation:
                 continue
+            if violation.range is None:
+                continue
             diagnostic = Diagnostic(
                 Range(
                     Position(  # LSP is 0-indexed; Rattle line numbers are 1-indexed
