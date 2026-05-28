@@ -20,4 +20,5 @@ for generated_case in generate_lint_rule_test_cases(
 ):
     globals()[f"Test{generated_case.__name__}"] = generated_case
 
-del generated_case
+if "generated_case" in globals():
+    del globals()["generated_case"]
