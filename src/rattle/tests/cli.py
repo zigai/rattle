@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
@@ -11,7 +12,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from rattle.cli import main
-from rattle.ftypes import Options
+from rattle.ftypes import Metrics, Options
 
 from .helpers import make_cli_runner
 
@@ -231,7 +232,8 @@ class CliTest(TestCase):
 
     def test_lint_print_metrics_uses_cli_output_path(self) -> None:
         def rattle_paths_stub(*_args: object, **kwargs: object) -> object:
-            kwargs["metrics_hook"]({"Count.Total": 1})
+            metrics_hook = cast(Callable[[Metrics], None], kwargs["metrics_hook"])
+            metrics_hook({"Count.Total": 1})
             return iter(())
 
         with (
