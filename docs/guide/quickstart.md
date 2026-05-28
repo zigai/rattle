@@ -10,8 +10,13 @@ Install Rattle from PyPI:
 $ pip install rattle-lint
 ```
 
-By default, Rattle enables the lint rules that ship with Rattle, all of which
-are part of `rattle.rules`.
+By default, Rattle runs with no enabled lint rules. Enable rule packs in
+`pyproject.toml`:
+
+```toml
+[tool.rattle]
+enable = ["fixit"]
+```
 
 If you want to customize the enabled rules, add new rules, or disable specific
 ones, see the {ref}`configuration` guide.
@@ -45,65 +50,54 @@ Given the following code:
 ```python
 # custom_object.py
 
-class Foo(object):
-    def bar(self, value: str) -> str:
-        return "value is {}".format(value)
+from typing import NamedTuple
+
+
+class Foo(NamedTuple):
+    value: str
 ```
 
-Running Rattle shows two separate lint errors:
+With `fixit` enabled, running Rattle shows the rule violation:
 
 ```console
 $ rattle lint custom_object.py
-NoInheritFromObject [*] Inheriting from object is a no-op.  'class Foo:' is just fine =)
- --> custom_object.py:1:1
+NoNamedTuple [*] Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
+ --> custom_object.py:4:1
   |
-1 | class Foo(object):
-  | ^^^^^^^^^^^^^^^^^^
-2 |     def bar(self, value: str) -> str:
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-3 |         return "value is {}".format(value)
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 |
+4 | class Foo(NamedTuple):
+  | ^^^^^^^^^^^^^^^^^^^^^^
+5 |     value: str
+  | ^^^^^^^^^^^^^^
   |
 help: Apply the available autofix
-
-UseFstring Do not use printf style formatting or .format(). Use f-string instead to be more readable and efficient. See https://www.python.org/dev/peps/pep-0498/
- --> custom_object.py:3:16
-  |
-2 |     def bar(self, value: str) -> str:
-3 |         return "value is {}".format(value)
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |
 ```
 
 You can also see suggested changes by passing `--diff`:
 
 ```console
 $ rattle lint --diff custom_object.py
-NoInheritFromObject [*] Inheriting from object is a no-op.  'class Foo:' is just fine =)
- --> custom_object.py:1:1
+NoNamedTuple [*] Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
+ --> custom_object.py:4:1
   |
-1 | class Foo(object):
-  | ^^^^^^^^^^^^^^^^^^
-2 |     def bar(self, value: str) -> str:
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-3 |         return "value is {}".format(value)
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 |
+4 | class Foo(NamedTuple):
+  | ^^^^^^^^^^^^^^^^^^^^^^
+5 |     value: str
+  | ^^^^^^^^^^^^^^
   |
 help: Apply the available autofix
 --- a/custom_object.py
 +++ b/custom_object.py
-@@ -1,2 +1,2 @@
--class Foo(object):
-+class Foo:
-     def bar(self, value: str) -> str:
+@@ -1,5 +1,6 @@
+-from typing import NamedTuple
++import dataclasses
 
-UseFstring Do not use printf style formatting or .format(). Use f-string instead to be more readable and efficient. See https://www.python.org/dev/peps/pep-0498/
- --> custom_object.py:3:16
-  |
-2 |     def bar(self, value: str) -> str:
-3 |         return "value is {}".format(value)
-  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |
+
+-class Foo(NamedTuple):
++@dataclasses.dataclass(frozen=True)
++class Foo:
+     value: str
 ```
 
 (suppressions)=
@@ -116,11 +110,11 @@ trailing inline comment or as a dedicated comment line above the code, will
 silence the matching violation:
 
 ```python
-class Foo(object):  # lint-fixme: NoInheritFromObject
+class Foo(NamedTuple):  # lint-fixme: NoNamedTuple
     ...
 
-# lint-ignore: NoInheritFromObject
-class Bar(object):
+# lint-ignore: NoNamedTuple
+class Bar(NamedTuple):
     ...
 ```
 

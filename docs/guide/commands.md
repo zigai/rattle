@@ -47,16 +47,15 @@ This takes a comma-separated list of rule selectors, with the same accepted
 forms as {attr}`enable <rattle.Config.enable>` and
 {attr}`disable <rattle.Config.disable>`:
 
-- import selectors such as `rattle.rules` or `rattle.rules:UseFstring`
-- exact codes such as `RAT024`
-- exact aliases such as `UseFstring`
-- code prefixes such as `RAT`
+- import selectors such as `rattle.rules.fixit_extra:UseFstring`
+- built-in rule packs such as `fixit` or `fixit_extra`
+- exact built-in rule class names such as `UseFstring`
 
 For example:
 
 ```console
-$ rattle lint --rules "RAT024" path/to/file.py
-$ rattle lint --rules "RAT014,RAT024" path/to/file.py
+$ rattle lint --rules "UseFstring" path/to/file.py
+$ rattle lint --rules "fixit,fixit_extra" path/to/file.py
 ```
 
 ## `--output-format / -o FORMAT_TYPE`
@@ -182,9 +181,7 @@ OK
 ```
 
 ```console
-$ rattle rules --test -r RAT024
 $ rattle rules --test -r UseFstring
-$ rattle rules --test -r RAT
 ```
 
 ## `validate`

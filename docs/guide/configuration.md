@@ -34,32 +34,34 @@ Type: `list[str]`
 Default: `[]`
 
 List of selectors to enable when linting files covered by this configuration.
+Rules from parent configs are inherited and this list adds to them.
 
 Rattle accepts three selector forms:
 
+- built-in rule packs, currently `fixit` and `fixit_extra`
 - import selectors, using Python module syntax, for packages, modules, or one
   concrete rule (`module:ClassName`)
-- exact built-in or opted-in rule codes such as `RAT024`
-- exact aliases such as `UseFstring`
-
-Code selectors also support Ruff-style family prefixes. For example, `RAT`
-targets every rule whose code starts with `RAT`.
-
-For bundled rules, the rule class name is accepted as an alias. Other rules may
-opt in to short-name selection by declaring {attr}`~rattle.LintRule.CODE` and,
-optionally, {attr}`~rattle.LintRule.ALIASES`.
+- exact built-in rule class names such as `UseFstring`
 
 Rules bundled with Rattle, or available in the environment's `site-packages`,
-can be referenced as a group by their fully-qualified package name,
-individually by adding a colon and the rule name, or by a short code or alias:
+can be referenced as a rule pack, as a group by their fully-qualified package
+name, individually by adding a colon and the rule name, or by the built-in class
+name:
 
 ```toml
 enable = [
-    "rattle.rules",
-    "rattle.rules:UseFstring",
-    "RAT024",
+    "fixit",
+]
+```
+
+Multiple packs and individual rules can be combined:
+
+```toml
+enable = [
+    "fixit",
+    "fixit_extra",
+    "rattle.rules.fixit_extra:UseFstring",
     "UseFstring",
-    "RAT",
 ]
 ```
 
@@ -76,15 +78,18 @@ enable = [
 ]
 ```
 
-Built-in codes and aliases are always available. For local or third-party
-rules, short selectors only work once the rule is discoverable through an
-import selector, and only if the rule class declares a unique
-{attr}`~rattle.LintRule.CODE` or {attr}`~rattle.LintRule.ALIASES`.
+Built-in rule packs and rule class names are always available. Local and
+third-party rules should be referenced by import selector.
 
-`enable` overrides disabled rules from any configuration further up the
-hierarchy.
+An exact rule in `enable` can re-enable that rule after a broader inherited
+`disable`.
 
-Rattle enables the built-in `rattle.rules` lint rules by default.
+Rattle enables no rules by default. Most projects should start with:
+
+```toml
+[tool.rattle]
+enable = ["fixit"]
+```
 
 ## `disable`
 
@@ -92,10 +97,11 @@ Type: `list[str]`
 Default: `[]`
 
 List of rule selectors to disable when linting files covered by this
-configuration.
+configuration. Rules from parent configs are inherited and this list adds to
+them.
 
-This overrides enabled rules from the same file and from any configuration
-further up the hierarchy.
+A broader `disable` can remove a whole pack; a later exact `enable` can add one
+rule back.
 
 See {attr}`enable <rattle.Config.enable>` for selector details.
 
@@ -216,20 +222,15 @@ one concrete rule target to a dictionary of key-value pairs.
 Valid keys are:
 
 - a concrete import selector (`module:ClassName`)
-- an exact code such as `RAT024`
-- an exact alias such as `UseFstring`
+- an exact built-in rule class name such as `UseFstring`
 
 ```toml
 [tool.rattle.options.UseFstring]
 simple_expression_max_length = 42
 ```
 
-Option keys must point to one concrete lint rule class, not a package, module,
-or code prefix. Keys should be quoted when using `:` or a leading `.`.
-
-As with {attr}`enable <rattle.Config.enable>`, built-in codes and aliases are
-always available. Exact codes or aliases for local and third-party rules only
-work when the rule is otherwise discoverable for the active configuration.
+Option keys must point to one concrete lint rule class, not a package or
+module. Keys should be quoted when using `:` or a leading `.`.
 
 Option values may be TOML scalars or arrays of scalars.
 
@@ -237,7 +238,7 @@ For rules with a larger number of options, the rule name may instead be part of
 the table name:
 
 ```toml
-[tool.rattle.options."rattle.rules:ExampleRule"]
+[tool.rattle.options."rattle.rules.fixit_extra:ExampleRule"]
 greeting = "hello world"
 answer = 42
 ```
@@ -261,8 +262,8 @@ defining the subpath it applies to along with any values from the main table.
 ```toml
 [[tool.rattle.overrides]]
 path = "foo/bar"
-disable = ["rattle.rules:ExampleRule"]
-options = {"rattle.rules:Story" = {closing = "goodnight moon"}}
+disable = ["rattle.rules.fixit_extra:ExampleRule"]
+options = {"rattle.rules.fixit_extra:Story" = {closing = "goodnight moon"}}
 
 [[tool.rattle.overrides]]
 path = "fizz/buzz"
@@ -304,18 +305,18 @@ Patterns containing path separators are matched relative to the config file.
 Patterns without a separator match by filename or directory name.
 
 These tables are applied after the base config and any matching
-{ref}`overrides`, with `per-file-disable` acting as the final suppression
-layer.
+{ref}`overrides`. For a matched file, `per-file-enable` adds rules and
+`per-file-disable` removes rules last.
 
 ```toml
 [tool.rattle.per-file-enable]
-"tests/**/*.py" = ["rattle.rules:UseFstring"]
-"scripts/**/*.py" = ["RAT014"]
+"tests/**/*.py" = ["rattle.rules.fixit_extra:UseFstring"]
+"scripts/**/*.py" = ["NoStaticIfCondition"]
 
 [tool.rattle.per-file-disable]
-"tests/generated.py" = ["rattle.rules:UseFstring"]
-"scripts/*.py" = ["rattle.rules"]
-"fixtures/**/*.py" = ["RAT"]
+"tests/generated.py" = ["rattle.rules.fixit_extra:UseFstring"]
+"scripts/*.py" = ["fixit"]
+"fixtures/**/*.py" = ["UseFstring"]
 ```
 
 ## `exclude`

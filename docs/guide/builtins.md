@@ -8,13 +8,358 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # Built-in Rules
 
-- `rattle.rules`
-- `rattle.rules.extra`
+- `rattle.rules.fixit`
+- `rattle.rules.fixit_extra`
 
 
-## `rattle.rules`
+## `rattle.rules.fixit`
 
-```{automodule} rattle.rules
+```{automodule} rattle.rules.fixit
+```
+
+- `ExplicitFrozenDataclass`
+- `NoNamedTuple`
+- `NoStaticIfCondition`
+- `SortedAttributes`
+- `UseLintFixmeComment`
+- `UseTypesFromTyping`
+- `VariadicCallableSyntax`
+
+### ExplicitFrozenDataclass
+
+Encourages the use of frozen dataclass objects by telling users to specify the
+kwarg.
+
+Without this lint rule, most users of dataclass won't know to use the kwarg, and
+may unintentionally end up with mutable objects.
+
+#### MESSAGE
+
+When using dataclasses, explicitly specify a frozen keyword argument. Example: `@dataclass(frozen=True)` or `@dataclass(frozen=False)`. Docs: https://docs.python.org/3/library/dataclasses.html
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+@some_other_decorator
+class Cls: pass
+```
+```python
+from dataclasses import dataclass
+@dataclass(frozen=False)
+class Cls: pass
+```
+
+#### INVALID
+
+```python
+from dataclasses import dataclass
+@some_unrelated_decorator
+@dataclass  # not called as a function
+@another_unrelated_decorator
+class Cls: pass
+
+# suggested fix
+from dataclasses import dataclass
+@some_unrelated_decorator
+@dataclass(frozen=True)  # not called as a function
+@another_unrelated_decorator
+class Cls: pass
+
+```
+```python
+from dataclasses import dataclass
+@dataclass()  # called as a function, no kwargs
+class Cls: pass
+
+# suggested fix
+from dataclasses import dataclass
+@dataclass(frozen=True)  # called as a function, no kwargs
+class Cls: pass
+
+```
+### NoNamedTuple
+
+Enforce the use of ``dataclasses.dataclass`` decorator instead of ``NamedTuple`` for cleaner customization and
+inheritance. It supports default value, combining fields for inheritance, and omitting optional fields at
+instantiation. See `PEP 557 <https://www.python.org/dev/peps/pep-0557>`_.
+``@dataclass`` is faster at reading an object's nested properties and executing its methods. (`benchmark <https://medium.com/@jacktator/dataclass-vs-namedtuple-vs-object-for-performance-optimization-in-python-691e234253b9>`_).
+
+#### MESSAGE
+
+Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+@dataclass(frozen=True)
+class Foo:
+    pass
+```
+```python
+@dataclass(frozen=False)
+class Foo:
+    pass
+```
+
+#### INVALID
+
+```python
+from typing import NamedTuple
+
+class Foo(NamedTuple):
+    pass
+
+# suggested fix
+import dataclasses
+
+@dataclasses.dataclass(frozen=True)
+class Foo:
+    pass
+
+```
+```python
+from typing import NamedTuple as NT
+
+class Foo(NT):
+    pass
+
+# suggested fix
+import dataclasses
+
+@dataclasses.dataclass(frozen=True)
+class Foo:
+    pass
+
+```
+### NoStaticIfCondition
+
+Discourages ``if`` conditions which evaluate to a static value (e.g. ``or True``, ``and False``, etc).
+
+#### MESSAGE
+
+Your if condition appears to evaluate to a static value (e.g. `or True`, `and False`). Please double check this logic and if it is actually temporary debug code.
+
+
+#### VALID
+
+```python
+if my_func() or not else_func():
+    pass
+```
+```python
+if function_call(True):
+    pass
+```
+
+#### INVALID
+
+```python
+if True:
+    do_something()
+```
+```python
+if crazy_expression or True:
+    do_something()
+```
+### SortedAttributes
+
+Ever wanted to sort a bunch of class attributes alphabetically?
+Well now it's easy! Just add "@sorted-attributes" in the doc string of
+a class definition and lint will automatically sort all attributes alphabetically.
+
+Feel free to add other methods and such -- it should only affect class attributes.
+
+#### MESSAGE
+
+It appears you are using the @sorted-attributes directive and the class variables are unsorted. See the lint autofix suggestion.
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+class MyConstants:
+    """
+    @sorted-attributes
+    """
+    A = 'zzz123'
+    B = 'aaa234'
+
+class MyUnsortedConstants:
+    B = 'aaa234'
+    A = 'zzz123'
+```
+
+#### INVALID
+
+```python
+class MyUnsortedConstants:
+    """
+    @sorted-attributes
+    """
+    z = "hehehe"
+    B = 'aaa234'
+    A = 'zzz123'
+    cab = "foo bar"
+    Daaa = "banana"
+
+    @classmethod
+    def get_foo(cls) -> str:
+        return "some random thing"
+
+# suggested fix
+class MyUnsortedConstants:
+    """
+    @sorted-attributes
+    """
+    A = 'zzz123'
+    B = 'aaa234'
+    Daaa = "banana"
+    cab = "foo bar"
+    z = "hehehe"
+
+    @classmethod
+    def get_foo(cls) -> str:
+        return "some random thing"
+
+```
+### UseLintFixmeComment
+
+To silence a lint warning, use ``lint-fixme`` (when plans to fix the issue later) or ``lint-ignore``
+(when the lint warning is not valid) comments.
+The comment requires to be in a standalone comment line and follows the format ``lint-fixme: RULE_NAMES EXTRA_COMMENTS``.
+It suppresses the lint warning with the RULE_NAMES in the next line.
+RULE_NAMES can be one or more lint rule names separated by comma.
+``noqa`` is deprecated and not supported because explicitly providing lint rule names to be suppressed
+in lint-fixme comment is preferred over implicit noqa comments. Implicit noqa suppression comments
+sometimes accidentally silence warnings unexpectedly.
+
+#### MESSAGE
+
+noqa is deprecated. Use `lint-fixme` or `lint-ignore` instead.
+
+
+#### VALID
+
+```python
+# lint-fixme: UseFstringRule
+"%s" % "hi"
+```
+```python
+# lint-ignore: UsePlusForStringConcatRule
+'ab' 'cd'
+```
+
+#### INVALID
+
+```python
+fn() # noqa
+```
+```python
+(
+ 1,
+ 2,  # noqa
+)
+```
+### UseTypesFromTyping
+
+Enforces the use of types from the ``typing`` module in type annotations in place
+of ``builtins.{builtin_type}`` since the type system doesn't recognize the latter
+as a valid type before Python ``3.10``.
+
+#### AUTOFIX
+
+Yes
+
+#### PYTHON_VERSION
+
+`'< 3.10'`
+
+#### VALID
+
+```python
+def function(list: List[str]) -> None:
+    pass
+```
+```python
+def function() -> None:
+    thing: Dict[str, str] = {}
+```
+
+#### INVALID
+
+```python
+from typing import List
+def whatever(list: list[str]) -> None:
+    pass
+
+# suggested fix
+from typing import List
+def whatever(list: List[str]) -> None:
+    pass
+
+```
+```python
+def function(list: list[str]) -> None:
+    pass
+```
+### VariadicCallableSyntax
+
+Callable types with arbitrary parameters should be written as `Callable[..., T]`.
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+from typing import Callable
+x: Callable[[int], int]
+```
+```python
+from typing import Callable
+x: Callable[[int, int, ...], int]
+```
+
+#### INVALID
+
+```python
+from typing import Callable
+x: Callable[[...], int] = ...
+
+# suggested fix
+from typing import Callable
+x: Callable[..., int] = ...
+
+```
+```python
+import typing as t
+x: t.Callable[[...], int] = ...
+
+# suggested fix
+import typing as t
+x: t.Callable[..., int] = ...
+
+```
+
+## `rattle.rules.fixit_extra`
+
+```{automodule} rattle.rules.fixit_extra
 ```
 
 - `AvoidOrInExcept`
@@ -25,24 +370,19 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 - `DeprecatedUnittestAsserts`
 - `NoAssertTrueForComparisons`
 - `NoInheritFromObject`
-- `NoNamedTuple`
 - `NoRedundantArgumentsSuper`
 - `NoRedundantFString`
 - `NoRedundantLambda`
 - `NoRedundantListComprehension`
-- `NoStaticIfCondition`
 - `NoStringTypeAnnotation`
 - `ReplaceUnionWithOptional`
 - `RewriteToComprehension`
 - `RewriteToLiteral`
-- `SortedAttributes`
 - `UseAssertIn`
 - `UseAssertIsNotNone`
 - `UseAsyncSleepInAsyncDef`
 - `UseClsInClassmethod`
 - `UseFstring`
-- `UseTypesFromTyping`
-- `VariadicCallableSyntax`
 
 ### AvoidOrInExcept
 
@@ -101,10 +441,6 @@ For example::
 
     Exc2:
 
-#### CODE
-
-`RAT001`
-
 #### MESSAGE
 
 Avoid using 'or' in an except block. For example:'except ValueError or TypeError' only catches 'ValueError'. Instead, use parentheses, 'except (ValueError, TypeError)'
@@ -134,10 +470,6 @@ can take a tuple of types and check whether given target suits
 any of them. Rather than chaining multiple ``isinstance`` calls
 with a boolean-or operation, a single ``isinstance`` call where
 the second argument is a tuple of all types can be used.
-
-#### CODE
-
-`RAT002`
 
 #### MESSAGE
 
@@ -179,10 +511,6 @@ Enforces the use of ``==`` and ``!=`` in comparisons to primitives rather than `
 The ``==`` operator checks equality (https://docs.python.org/3/reference/datamodel.html#object.__eq__),
 while ``is`` checks identity (https://docs.python.org/3/reference/expressions.html#is).
 
-#### CODE
-
-`RAT003`
-
 #### MESSAGE
 
 Don't use `is` or `is not` to compare primitives, as they compare references. Use == or != instead.
@@ -223,10 +551,6 @@ Enforces the use of `is` and `is not` in comparisons to singleton primitives (No
 The == operator checks equality, when in this scenario, we want to check identity.
 See Flake8 rules E711 (https://www.flake8rules.com/rules/E711.html) and E712 (https://www.flake8rules.com/rules/E712.html).
 
-#### CODE
-
-`RAT004`
-
 #### MESSAGE
 
 Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity. Use `is` or `is not` instead.
@@ -266,10 +590,6 @@ x is not False
 Checks for the use of the deprecated collections ABC import. Since python 3.3,
 the Collections Abstract Base Classes (ABC) have been moved to `collections.abc`.
 These ABCs are import errors starting in Python 3.10.
-
-#### CODE
-
-`RAT005`
 
 #### MESSAGE
 
@@ -314,10 +634,6 @@ Discourages the use of various deprecated unittest.TestCase functions.
 
 See https://docs.python.org/3/library/unittest.html#deprecated-aliases
 
-#### CODE
-
-`RAT006`
-
 #### MESSAGE
 
 {deprecated} is deprecated, use {replacement} instead
@@ -359,10 +675,6 @@ These calls are replaced with ``assertEqual``.
 Comparisons with True, False and None are replaced with one-argument
 calls to ``assertTrue``, ``assertFalse`` and ``assertIsNone``.
 
-#### CODE
-
-`RAT007`
-
 #### MESSAGE
 
 "assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions.
@@ -401,10 +713,6 @@ self.assertEqual(hash(s[:4]), 0x1234)
 
 In Python 3, a class is inherited from ``object`` by default.
 Explicitly inheriting from ``object`` is redundant, so removing it keeps the code simpler.
-
-#### CODE
-
-`RAT008`
 
 #### MESSAGE
 
@@ -445,76 +753,9 @@ class B(A):
     pass
 
 ```
-### NoNamedTuple
-
-Enforce the use of ``dataclasses.dataclass`` decorator instead of ``NamedTuple`` for cleaner customization and
-inheritance. It supports default value, combining fields for inheritance, and omitting optional fields at
-instantiation. See `PEP 557 <https://www.python.org/dev/peps/pep-0557>`_.
-``@dataclass`` is faster at reading an object's nested properties and executing its methods. (`benchmark <https://medium.com/@jacktator/dataclass-vs-namedtuple-vs-object-for-performance-optimization-in-python-691e234253b9>`_).
-
-#### CODE
-
-`RAT009`
-
-#### MESSAGE
-
-Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
-
-#### AUTOFIX
-
-Yes
-
-
-#### VALID
-
-```python
-@dataclass(frozen=True)
-class Foo:
-    pass
-```
-```python
-@dataclass(frozen=False)
-class Foo:
-    pass
-```
-
-#### INVALID
-
-```python
-from typing import NamedTuple
-
-class Foo(NamedTuple):
-    pass
-
-# suggested fix
-import dataclasses
-
-@dataclasses.dataclass(frozen=True)
-class Foo:
-    pass
-
-```
-```python
-from typing import NamedTuple as NT
-
-class Foo(NT):
-    pass
-
-# suggested fix
-import dataclasses
-
-@dataclasses.dataclass(frozen=True)
-class Foo:
-    pass
-
-```
 ### NoRedundantArgumentsSuper
 
 Remove redundant arguments when using super for readability.
-
-#### CODE
-
-`RAT010`
 
 #### MESSAGE
 
@@ -568,10 +809,6 @@ class Foo(Bar):
 
 Remove redundant f-string without placeholders.
 
-#### CODE
-
-`RAT011`
-
 #### MESSAGE
 
 f-string doesn't have placeholders, remove redundant f-string.
@@ -612,10 +849,6 @@ A lambda function which has a single objective of
 passing all it is arguments to another callable can
 be safely replaced by that callable.
 
-#### CODE
-
-`RAT012`
-
 #### AUTOFIX
 
 Yes
@@ -650,10 +883,6 @@ foo
 
 A derivative of flake8-comprehensions's C407 rule.
 
-#### CODE
-
-`RAT013`
-
 #### AUTOFIX
 
 Yes
@@ -684,50 +913,12 @@ all([val for val in iterable])
 all(val for val in iterable)
 
 ```
-### NoStaticIfCondition
-
-Discourages ``if`` conditions which evaluate to a static value (e.g. ``or True``, ``and False``, etc).
-
-#### CODE
-
-`RAT014`
-
-#### MESSAGE
-
-Your if condition appears to evaluate to a static value (e.g. `or True`, `and False`). Please double check this logic and if it is actually temporary debug code.
-
-
-#### VALID
-
-```python
-if my_func() or not else_func():
-    pass
-```
-```python
-if function_call(True):
-    pass
-```
-
-#### INVALID
-
-```python
-if True:
-    do_something()
-```
-```python
-if crazy_expression or True:
-    do_something()
-```
 ### NoStringTypeAnnotation
 
 Enforce the use of type identifier instead of using string type hints for simplicity and better syntax highlighting.
 Starting in Python 3.7, ``from __future__ import annotations`` can postpone evaluation of type annotations
 `PEP 563 <https://www.python.org/dev/peps/pep-0563/#forward-references>`_
 and thus forward references no longer need to use string annotation style.
-
-#### CODE
-
-`RAT015`
 
 #### MESSAGE
 
@@ -795,10 +986,6 @@ async def foo() -> Class:
 Enforces the use of ``Optional[T]`` over ``Union[T, None]`` and ``Union[None, T]``.
 See https://docs.python.org/3/library/typing.html#typing.Optional to learn more about Optionals.
 
-#### CODE
-
-`RAT016`
-
 #### MESSAGE
 
 `Optional[T]` is preferred over `Union[T, None]` or `Union[None, T]`. Learn more: https://docs.python.org/3/library/typing.html#typing.Optional
@@ -845,10 +1032,6 @@ function calls whenever possible. C403-C404 suggest to remove unnecessary
 list comprehension in a set/dict call, and replace it with set/dict
 comprehension.
 
-#### CODE
-
-`RAT017`
-
 #### AUTOFIX
 
 Yes
@@ -885,10 +1068,6 @@ A derivative of flake8-comprehensions' C405-C406 and C409-C410. It's
 unnecessary to use a list or tuple literal within a call to tuple, list,
 set, or dict since there is literal syntax for these types.
 
-#### CODE
-
-`RAT018`
-
 #### AUTOFIX
 
 Yes
@@ -919,84 +1098,11 @@ tuple((1, 2))
 (1, 2)
 
 ```
-### SortedAttributes
-
-Ever wanted to sort a bunch of class attributes alphabetically?
-Well now it's easy! Just add "@sorted-attributes" in the doc string of
-a class definition and lint will automatically sort all attributes alphabetically.
-
-Feel free to add other methods and such -- it should only affect class attributes.
-
-#### CODE
-
-`RAT019`
-
-#### MESSAGE
-
-It appears you are using the @sorted-attributes directive and the class variables are unsorted. See the lint autofix suggestion.
-
-#### AUTOFIX
-
-Yes
-
-
-#### VALID
-
-```python
-class MyConstants:
-    """
-    @sorted-attributes
-    """
-    A = 'zzz123'
-    B = 'aaa234'
-
-class MyUnsortedConstants:
-    B = 'aaa234'
-    A = 'zzz123'
-```
-
-#### INVALID
-
-```python
-class MyUnsortedConstants:
-    """
-    @sorted-attributes
-    """
-    z = "hehehe"
-    B = 'aaa234'
-    A = 'zzz123'
-    cab = "foo bar"
-    Daaa = "banana"
-
-    @classmethod
-    def get_foo(cls) -> str:
-        return "some random thing"
-
-# suggested fix
-class MyUnsortedConstants:
-    """
-    @sorted-attributes
-    """
-    A = 'zzz123'
-    B = 'aaa234'
-    Daaa = "banana"
-    cab = "foo bar"
-    z = "hehehe"
-
-    @classmethod
-    def get_foo(cls) -> str:
-        return "some random thing"
-
-```
 ### UseAssertIn
 
 Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``
 as it is deprecated (https://docs.python.org/3.8/library/unittest.html#deprecated-aliases).
 Use ``assertIn(x, y)`` and ``assertNotIn(x, y)``) instead.
-
-#### CODE
-
-`RAT020`
 
 #### MESSAGE
 
@@ -1038,10 +1144,6 @@ self.assertIn(f(), b)
 Discourages use of ``assertTrue(x is not None)`` and ``assertFalse(x is not None)`` as it is deprecated (https://docs.python.org/3.8/library/unittest.html#deprecated-aliases).
 Use ``assertIsNotNone(x)`` and ``assertIsNone(x)``) instead.
 
-#### CODE
-
-`RAT021`
-
 #### MESSAGE
 
 "assertTrue" and "assertFalse" are deprecated. Use "assertIsNotNone" and "assertIsNone" instead.
@@ -1081,10 +1183,6 @@ self.assertIsNotNone(x)
 
 Detect if asyncio.sleep is used in an async function.
 
-#### CODE
-
-`RAT022`
-
 #### MESSAGE
 
 Use asyncio.sleep in async function
@@ -1118,10 +1216,6 @@ async def func():
 ### UseClsInClassmethod
 
 Enforces using ``cls`` as the first argument in a ``@classmethod``.
-
-#### CODE
-
-`RAT023`
 
 #### MESSAGE
 
@@ -1200,10 +1294,6 @@ Following two cases not covered:
     For example, %d raises TypeError for non-numeric objects, whereas f"{x:d}" raises ValueError.
     This discrepancy in the type of exception raised could potentially break the logic in the code where the exception is handled
 
-#### CODE
-
-`RAT024`
-
 #### MESSAGE
 
 Do not use printf style formatting or .format(). Use f-string instead to be more readable and efficient. See https://www.python.org/dev/peps/pep-0498/
@@ -1233,206 +1323,4 @@ somebody='you'; f"Hey, {somebody}."
 # suggested fix
 f"{'hi'}"
 
-```
-### UseTypesFromTyping
-
-Enforces the use of types from the ``typing`` module in type annotations in place
-of ``builtins.{builtin_type}`` since the type system doesn't recognize the latter
-as a valid type before Python ``3.10``.
-
-#### CODE
-
-`RAT025`
-
-#### AUTOFIX
-
-Yes
-
-#### PYTHON_VERSION
-
-`'< 3.10'`
-
-#### VALID
-
-```python
-def function(list: List[str]) -> None:
-    pass
-```
-```python
-def function() -> None:
-    thing: Dict[str, str] = {}
-```
-
-#### INVALID
-
-```python
-from typing import List
-def whatever(list: list[str]) -> None:
-    pass
-
-# suggested fix
-from typing import List
-def whatever(list: List[str]) -> None:
-    pass
-
-```
-```python
-def function(list: list[str]) -> None:
-    pass
-```
-### VariadicCallableSyntax
-
-Callable types with arbitrary parameters should be written as `Callable[..., T]`.
-
-#### CODE
-
-`RAT026`
-
-#### AUTOFIX
-
-Yes
-
-
-#### VALID
-
-```python
-from typing import Callable
-x: Callable[[int], int]
-```
-```python
-from typing import Callable
-x: Callable[[int, int, ...], int]
-```
-
-#### INVALID
-
-```python
-from typing import Callable
-x: Callable[[...], int] = ...
-
-# suggested fix
-from typing import Callable
-x: Callable[..., int] = ...
-
-```
-```python
-import typing as t
-x: t.Callable[[...], int] = ...
-
-# suggested fix
-import typing as t
-x: t.Callable[..., int] = ...
-
-```
-
-## `rattle.rules.extra`
-
-```{automodule} rattle.rules.extra
-```
-
-- `ExplicitFrozenDataclass`
-- `UseLintFixmeComment`
-
-### ExplicitFrozenDataclass
-
-Encourages the use of frozen dataclass objects by telling users to specify the
-kwarg.
-
-Without this lint rule, most users of dataclass won't know to use the kwarg, and
-may unintentionally end up with mutable objects.
-
-#### CODE
-
-`RAT027`
-
-#### MESSAGE
-
-When using dataclasses, explicitly specify a frozen keyword argument. Example: `@dataclass(frozen=True)` or `@dataclass(frozen=False)`. Docs: https://docs.python.org/3/library/dataclasses.html
-
-#### AUTOFIX
-
-Yes
-
-
-#### VALID
-
-```python
-@some_other_decorator
-class Cls: pass
-```
-```python
-from dataclasses import dataclass
-@dataclass(frozen=False)
-class Cls: pass
-```
-
-#### INVALID
-
-```python
-from dataclasses import dataclass
-@some_unrelated_decorator
-@dataclass  # not called as a function
-@another_unrelated_decorator
-class Cls: pass
-
-# suggested fix
-from dataclasses import dataclass
-@some_unrelated_decorator
-@dataclass(frozen=True)  # not called as a function
-@another_unrelated_decorator
-class Cls: pass
-
-```
-```python
-from dataclasses import dataclass
-@dataclass()  # called as a function, no kwargs
-class Cls: pass
-
-# suggested fix
-from dataclasses import dataclass
-@dataclass(frozen=True)  # called as a function, no kwargs
-class Cls: pass
-
-```
-### UseLintFixmeComment
-
-To silence a lint warning, use ``lint-fixme`` (when plans to fix the issue later) or ``lint-ignore``
-(when the lint warning is not valid) comments.
-The comment requires to be in a standalone comment line and follows the format ``lint-fixme: RULE_NAMES EXTRA_COMMENTS``.
-It suppresses the lint warning with the RULE_NAMES in the next line.
-RULE_NAMES can be one or more lint rule names separated by comma.
-``noqa`` is deprecated and not supported because explicitly providing lint rule names to be suppressed
-in lint-fixme comment is preferred over implicit noqa comments. Implicit noqa suppression comments
-sometimes accidentally silence warnings unexpectedly.
-
-#### CODE
-
-`RAT028`
-
-#### MESSAGE
-
-noqa is deprecated. Use `lint-fixme` or `lint-ignore` instead.
-
-
-#### VALID
-
-```python
-# lint-fixme: UseFstringRule
-"%s" % "hi"
-```
-```python
-# lint-ignore: UsePlusForStringConcatRule
-'ab' 'cd'
-```
-
-#### INVALID
-
-```python
-fn() # noqa
-```
-```python
-(
- 1,
- 2,  # noqa
-)
 ```
