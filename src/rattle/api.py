@@ -12,6 +12,7 @@ from dataclasses import dataclass, field, replace
 from functools import partial
 from multiprocessing.context import BaseContext
 from pathlib import Path
+from typing import Any, cast
 
 import trailrunner
 from libcst import ParserSyntaxError
@@ -761,7 +762,11 @@ def _rattle_paths_group(
         _preload_rules_for_fork(group)
     batches = _configured_path_batches(group, concurrency=concurrency)
     runner = trailrunner.Trailrunner(concurrency=concurrency, context=context)
-    for _, batch_result in runner.run_iter(batches, fn):  # type: ignore[arg-type]
+    batch_results = cast(
+        Iterable[tuple[ConfiguredPathBatch, ConfiguredPathBatchResult | list[Result]]],
+        cast(Any, runner).run_iter(batches, fn),
+    )
+    for _, batch_result in batch_results:
         if isinstance(batch_result, ConfiguredPathBatchResult):
             deferred_format_paths.extend(batch_result.deferred_format_paths)
             if metrics_hook is not None:
