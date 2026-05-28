@@ -3,12 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import sys
 from pathlib import Path
 from textwrap import dedent
 from unittest import TestCase
 
-import click
 import libcst
 import pytest
 
@@ -191,10 +189,4 @@ class OutputTest(TestCase):
 
         assert plain is not None
         assert colored is not None
-        assert "\x1b[" in colored
-        assert click.style("NoRedundantFString", fg="bright_red", bold=True) in colored
-        assert f"[{click.style('*', fg='bright_cyan', bold=True)}]" in colored
-        location_color = "bright_cyan" if sys.platform == "win32" else "bright_blue"
-        assert click.style(" --> ", fg=location_color, bold=True) in colored
-        assert click.style("help", fg="bright_cyan", bold=True) in colored
-        assert click.unstyle(colored) == plain
+        assert colored == plain

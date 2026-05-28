@@ -22,11 +22,37 @@ class CliTest(TestCase):
     def test_upgrade_command_removed(self) -> None:
         result = self.runner.invoke(main, ["upgrade"], catch_exceptions=False)
         assert result.exit_code == 2
-        assert "No such command 'upgrade'" in result.stderr
+        assert "invalid choice: 'upgrade'" in result.stderr
 
     def test_test_command_accepts_code_selector(self) -> None:
         result = self.runner.invoke(main, ["test", "RAT024"], catch_exceptions=False)
         assert result.exit_code == 0
+
+    def test_test_command_returns_nonzero_for_missing_rule(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["test", "DefinitelyMissingRule"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 1
+
+    def test_lint_returns_usage_error_for_missing_path(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["lint", "missing.py"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 2
+        assert "path must be an existing path: missing.py" in result.stderr
+
+    def test_fix_returns_usage_error_for_missing_path(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["fix", "missing.py"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 2
+        assert "path must be an existing path: missing.py" in result.stderr
 
     def test_fix_returns_nonzero_for_unfixable_violations(self) -> None:
         with TemporaryDirectory() as td:
@@ -73,7 +99,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["--no-format", "fix", path.as_posix()],
+                ["fix", "-n", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -87,7 +113,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "--brief", path.as_posix()],
+                ["lint", "-b", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -104,10 +130,15 @@ class CliTest(TestCase):
             seen_jobs.append(cast(Options, kwargs["options"]).jobs)
             return iter(())
 
-        with patch("rattle.cli.rattle_paths", side_effect=rattle_paths_stub):
+        with (
+            patch("rattle.cli.rattle_paths", side_effect=rattle_paths_stub),
+            TemporaryDirectory() as td,
+        ):
+            path = Path(td) / "clean.py"
+            path.write_text("value = 1\n")
             result = self.runner.invoke(
                 main,
-                ["--jobs", "2", "lint", "clean.py"],
+                ["lint", "-j", "2", path.as_posix()],
                 catch_exceptions=False,
             )
 

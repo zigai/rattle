@@ -13,13 +13,12 @@ from functools import partial
 from multiprocessing.context import BaseContext
 from pathlib import Path
 
-import click
 import trailrunner
 from libcst import ParserSyntaxError
-from moreorless.click import echo_color_precomputed_diff
 
 from .cache import ResultCache
 from .config import collect_rules, generate_config
+from .console import echo, echo_color_precomputed_diff
 from .engine import LintRunner, diff_module
 from .format import format_module, format_paths
 from .ftypes import (
@@ -146,11 +145,11 @@ def _print_rattle_result(
     if rendered is None:
         return False
 
-    click.echo(rendered, err=stderr, color=None)
+    echo(rendered, err=stderr)
     if show_diff and result.violation and result.violation.diff:
-        echo_color_precomputed_diff(result.violation.diff)
+        echo_color_precomputed_diff(result.violation.diff, err=stderr)
     if not brief or (show_diff and result.violation and result.violation.diff):
-        click.echo(err=stderr, color=None)
+        echo(err=stderr)
     return True
 
 
@@ -194,9 +193,9 @@ def _print_violation_result(
     else:
         raise NotImplementedError(f"output-format = {output_format!r}")
 
-    click.secho(line, fg="yellow", err=stderr)
+    echo(line, color="yellow", err=stderr)
     if show_diff and violation.diff:
-        echo_color_precomputed_diff(violation.diff)
+        echo_color_precomputed_diff(violation.diff, err=stderr)
     return True
 
 
@@ -217,8 +216,8 @@ def _print_error_result(
             return True
         raise NotImplementedError("missing rattle renderer for syntax error")
 
-    click.secho(f"{path}: EXCEPTION: {error}", fg="red", err=stderr)
-    click.echo(tb.strip(), err=stderr)
+    echo(f"{path}: EXCEPTION: {error}", color="red", err=stderr)
+    echo(tb.strip(), err=stderr)
     return True
 
 

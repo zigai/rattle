@@ -4,8 +4,8 @@ import re
 import sys
 from pathlib import Path
 
-import click
 from libcst import ParserSyntaxError
+from stdl.st import colored
 
 from .ftypes import CodePosition, CodeRange, FileContent, LintViolation, Result
 
@@ -36,6 +36,7 @@ def _render_violation(
     color: bool,
     brief: bool,
 ) -> str:
+    assert violation.range is not None
     header = _error_style(violation.rule_name, color=color)
     if violation.autofixable:
         header += f" {_fix_marker(color=color)}"
@@ -204,28 +205,21 @@ def _to_display_column(source_line: str, column: int) -> int:
     return len(source_line[:column].expandtabs())
 
 
-def _style(text: str, *, color: bool, fg: str | None = None, bold: bool | None = None) -> str:
-    if not color:
-        return text
-
-    return click.style(text, fg=fg, bold=bold)
-
-
 def _error_style(text: str, *, color: bool) -> str:
-    return _style(text, color=color, fg="bright_red", bold=True)
+    return colored(text, color="light_red", style="bold") if color else text
 
 
 def _help_style(text: str, *, color: bool) -> str:
-    return _style(text, color=color, fg="bright_cyan", bold=True)
+    return colored(text, color="light_cyan", style="bold") if color else text
 
 
 def _line_no_style(text: str, *, color: bool) -> str:
-    fg = "bright_cyan" if sys.platform == "win32" else "bright_blue"
-    return _style(text, color=color, fg=fg, bold=True)
+    fg = "light_cyan" if sys.platform == "win32" else "light_blue"
+    return colored(text, color=fg, style="bold") if color else text
 
 
 def _secondary_code_style(text: str, *, color: bool) -> str:
-    return _style(text, color=color, fg="red", bold=True)
+    return colored(text, color="red", style="bold") if color else text
 
 
 def _fix_marker(*, color: bool) -> str:

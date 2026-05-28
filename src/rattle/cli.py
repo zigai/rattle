@@ -6,17 +6,18 @@
 import logging
 import sys
 import unittest
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-import click
+from interfacy import ExecutableFlag, Interfacy
+from stdl.st import colored
 
 from rattle.__version__ import __version__
 
 from .api import print_result, rattle_paths
 from .config import collect_rules, generate_config, parse_rule, validate_config
-from .ftypes import Config, LSPOptions, Options, OutputFormat, Tags
+from .console import echo, getchar
+from .ftypes import STDIN, Config, LSPOptions, Options, OutputFormat, RuleSelector, Tags
 from .rule import LintRule
 from .testing import generate_lint_rule_test_cases
 from .util import capture
@@ -34,34 +35,34 @@ def splash(
         return "file" if v == 1 else "files"
 
     if violation_files or error_files:
-        reports = [click.style(f"{len(visited)} {f(len(visited))} checked")]
+        reports = [colored(f"{len(visited)} {f(len(visited))} checked")]
         if violations:
             reports.append(
-                click.style(
+                colored(
                     f"{violations} violation{'s' if violations != 1 else ''} "
                     f"in {len(violation_files)} {f(len(violation_files))}",
-                    fg="yellow",
-                    bold=True,
+                    color="yellow",
+                    style="bold",
                 )
             )
         if error_files:
             reports.append(
-                click.style(
+                colored(
                     f"{len(error_files)} {f(len(error_files))} with errors",
-                    fg="yellow",
-                    bold=True,
+                    color="yellow",
+                    style="bold",
                 )
             )
         if autofixes:
-            reports.append(click.style(f"{autofixes} autofixable", bold=True))
+            reports.append(colored(f"{autofixes} autofixable", style="bold"))
         if fixed:
             word = "fix" if fixed == 1 else "fixes"
-            reports.append(click.style(f"{fixed} {word} applied", bold=True))
+            reports.append(colored(f"{fixed} {word} applied", style="bold"))
 
         message = ", ".join(reports)
-        click.secho(message, err=True)
+        echo(message, err=True)
     else:
-        click.secho(f"{len(visited)} {f(len(visited))} clean", err=True)
+        echo(f"{len(visited)} {f(len(visited))} clean", err=True)
 
 
 def _output_config_for_path(path: Path, options: Options) -> Config:
@@ -79,14 +80,14 @@ class FixState:
 def _prompt_for_fix(generator: capture, state: FixState) -> bool:
     prompt = "Apply autofix? [Y]es, [n]o, [q]uit: "
     while True:
-        click.echo(prompt, nl=False, err=True)
-        answer = click.getchar(echo=True).lower()
-        click.echo(err=True)
-        if answer in {"\n", "\r"}:
+        echo(prompt, nl=False, err=True)
+        answer = getchar(echo_input=True, err=True).lower()
+        echo(err=True)
+        if answer in {"\n", "\r", ""}:
             answer = "y"
         if answer in {"y", "n", "q"}:
             break
-        click.echo("Press y to apply, n to skip, or q to quit fixing.", err=True)
+        echo("Press y to apply, n to skip, or q to quit fixing.", err=True)
 
     if answer == "y":
         generator.respond(answer=True)
@@ -129,78 +130,72 @@ def _update_fix_state(
     return False
 
 
-@click.group()
-@click.pass_context
-@click.version_option(__version__, "--version", "-V", prog_name="rattle")
-@click.option("--debug/--quiet", is_flag=True, default=None, help="Increase decrease verbosity")
-@click.option(
-    "--config-file",
-    "-c",
-    type=click.Path(dir_okay=False, exists=True, path_type=Path),
-    default=None,
-    help="Override default config file search behavior",
-)
-@click.option(
-    "--jobs",
-    "-j",
-    type=click.IntRange(min=1),
-    default=None,
-    help="Number of worker processes to use when linting multiple files",
-)
-@click.option(
-    "--tags",
-    type=str,
-    default="",
-    help="Select or filter rules by tags",
-)
-@click.option(
-    "--rules",
-    type=str,
-    default="",
-    help="Override configured rules",
-)
-@click.option(
-    "--output-format",
-    "-o",
-    type=click.Choice([o.name for o in OutputFormat], case_sensitive=False),
-    show_choices=True,
-    default=None,
-    help="Select output format type",
-)
-@click.option(
-    "--output-template",
-    type=str,
-    default="",
-    help="Python format template to use with output format 'custom'",
-)
-@click.option("--print-metrics", is_flag=True, help="Print metrics of this run")
-@click.option("--no-format", is_flag=True, help="Skip configured post-fix formatting")
-def main(
-    ctx: click.Context,
-    debug: bool | None,
-    config_file: Path | None,
-    jobs: int | None,
-    tags: str,
-    rules: str,
-    output_format: OutputFormat | None,
-    output_template: str,
-    print_metrics: bool,
-    no_format: bool,
-) -> None:
+def _version() -> str:
+    return f"rattle, version {__version__}"
+
+
+def usage_error(message: str) -> None:
+    echo(message, err=True)
+    raise SystemExit(2)
+
+
+def require_existing_file(path: Path, *, option: str) -> Path:
+    if not path.exists() or not path.is_file():
+        usage_error(f"{option} must be an existing file: {path}")
+    return path
+
+
+def require_existing_path(path: Path, *, argument: str) -> Path:
+    if not path.exists():
+        usage_error(f"{argument} must be an existing path: {path}")
+    return path
+
+
+def _resolve_input_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
+    if not paths:
+        return (Path.cwd(),)
+    if paths[0] == STDIN:
+        return paths
+    return tuple(require_existing_path(path, argument="path") for path in paths)
+
+
+def parse_rules(rules: str | None) -> list[RuleSelector]:
+    selectors = (selector.strip() for selector in (rules or "").split(","))
+    return sorted({parse_rule(selector, Path.cwd()) for selector in selectors if selector}, key=str)
+
+
+def build_options(
+    *,
+    rules: str | None = None,
+    tags: str | None = None,
+    jobs: int | None = None,
+    config_file: Path | None = None,
+    output_format: OutputFormat | None = None,
+    output_template: str = "",
+    print_metrics: bool = False,
+    no_format: bool = False,
+    quiet: bool = False,
+    debug: bool = False,
+) -> Options:
+    if debug and quiet:
+        usage_error("--debug and --quiet cannot be used together")
+    if jobs is not None and jobs < 1:
+        usage_error("--jobs must be an integer greater than or equal to 1")
+
+    debug_option = True if debug else False if quiet else None
     level = logging.WARNING
-    if debug is not None:
-        level = logging.DEBUG if debug else logging.ERROR
+    if debug_option is not None:
+        level = logging.DEBUG if debug_option else logging.ERROR
     logging.basicConfig(level=level, stream=sys.stderr)
 
-    ctx.obj = Options(
-        debug=debug,
-        config_file=config_file,
+    return Options(
+        debug=debug_option,
+        config_file=(
+            require_existing_file(config_file, option="--config-file") if config_file else None
+        ),
         jobs=jobs,
         tags=Tags.parse(tags),
-        rules=sorted(
-            {parse_rule(r, Path.cwd()) for r in (rs.strip() for rs in rules.split(",")) if r},
-            key=str,
-        ),
+        rules=parse_rules(rules),
         output_format=output_format,
         output_template=output_template,
         print_metrics=print_metrics,
@@ -208,27 +203,52 @@ def main(
     )
 
 
-@main.command()
-@click.pass_context
-@click.option("--brief", is_flag=True, help="Print each diagnostic on one line")
-@click.option("--diff", "-d", is_flag=True, help="Show diff of suggested changes")
-@click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
 def lint(
-    ctx: click.Context,
-    brief: bool,
-    diff: bool,
-    paths: Sequence[Path],
+    *paths: Path,
+    rules: str | None = None,
+    tags: str | None = None,
+    jobs: int | None = None,
+    config_file: Path | None = None,
+    output_format: OutputFormat | None = None,
+    output_template: str = "",
+    diff: bool = False,
+    brief: bool = False,
+    quiet: bool = False,
+    print_metrics: bool = False,
+    debug: bool = False,
 ) -> None:
     """
     Lint one or more paths and return suggestions.
 
+    Args:
+        paths: Files or directories to lint. Use "- <FILENAME>" to lint stdin as a file.
+        debug: Increase logging verbosity.
+        quiet: Decrease logging verbosity.
+        config_file: Override default config file search behavior.
+        jobs: Number of worker processes to use when linting multiple files.
+        tags: Select or filter rules by comma-separated tags.
+        rules: Override configured rules with comma-separated selectors.
+        output_format: Select output format type.
+        output_template: Python format template to use with custom output.
+        print_metrics: Print metrics for this run.
+        brief: Print each diagnostic on one line.
+        diff: Show diffs for suggested changes.
+
     pass "- <FILENAME>" for STDIN representing <FILENAME>
     """
-    options: Options = ctx.obj
+    paths = _resolve_input_paths(paths)
 
-    if not paths:
-        paths = [Path.cwd()]
-
+    runtime_options = build_options(
+        debug=debug,
+        quiet=quiet,
+        config_file=config_file,
+        jobs=jobs,
+        tags=tags,
+        rules=rules,
+        output_format=output_format,
+        output_template=output_template,
+        print_metrics=print_metrics,
+    )
     exit_code = 0
     visited: set[Path] = set()
     violation_files: set[Path] = set()
@@ -239,13 +259,13 @@ def lint(
         paths,
         include_diff=diff,
         allow_cached_dirty_results=True,
-        options=options,
-        metrics_hook=print if options.print_metrics else None,
+        options=runtime_options,
+        metrics_hook=print if runtime_options.print_metrics else None,
     ):
         visited.add(result.path)
         if not result.violation and not result.error:
             continue
-        config = result.config or _output_config_for_path(result.path, options)
+        config = result.config or _output_config_for_path(result.path, runtime_options)
         if print_result(
             result,
             show_diff=diff,
@@ -264,39 +284,67 @@ def lint(
                 exit_code |= 2
 
     splash(visited, violation_files, error_files, violations, autofixes)
-    ctx.exit(exit_code)
+    if exit_code:
+        raise SystemExit(exit_code)
 
 
-@main.command()
-@click.pass_context
-@click.option(
-    "--interactive/--automatic",
-    "-i/-a",
-    is_flag=True,
-    default=False,
-    help="how to apply fixes; automatic by default unless --interactive is set",
-)
-@click.option("--brief", is_flag=True, help="Print each diagnostic on one line")
-@click.option("--diff", "-d", is_flag=True, help="show diff even with --automatic")
-@click.argument("paths", nargs=-1, type=click.Path(path_type=Path))
 def fix(
-    ctx: click.Context,
-    interactive: bool,
-    brief: bool,
-    diff: bool,
-    paths: Sequence[Path],
+    *paths: Path,
+    rules: str | None = None,
+    tags: str | None = None,
+    quiet: bool = False,
+    jobs: int | None = None,
+    output_format: OutputFormat | None = None,
+    output_template: str = "",
+    config_file: Path | None = None,
+    diff: bool = False,
+    automatic: bool = False,
+    interactive: bool = False,
+    print_metrics: bool = False,
+    no_format: bool = False,
+    brief: bool = False,
+    debug: bool = False,
 ) -> None:
     """
     Lint and autofix one or more files and return results.
 
+    Args:
+        paths: Files or directories to lint and fix. Use "- <FILENAME>" to fix stdin.
+        debug: Increase logging verbosity.
+        quiet: Decrease logging verbosity.
+        config_file: Override default config file search behavior.
+        jobs: Number of worker processes to use when linting multiple files.
+        tags: Select or filter rules by comma-separated tags.
+        rules: Override configured rules with comma-separated selectors.
+        output_format: Select output format type.
+        output_template: Python format template to use with custom output.
+        print_metrics: Print metrics for this run.
+        no_format: Skip configured post-fix formatting.
+        interactive: Prompt before applying each autofix.
+        automatic: Apply autofixes without prompting.
+        brief: Print each diagnostic on one line.
+        diff: Show diffs even when applying fixes automatically.
+
     pass "- <FILENAME>" for STDIN representing <FILENAME>;
     this will ignore "--interactive" and always use "--automatic"
     """
-    options: Options = ctx.obj
+    if interactive and automatic:
+        usage_error("--interactive and --automatic cannot be used together")
 
-    if not paths:
-        paths = [Path.cwd()]
+    paths = _resolve_input_paths(paths)
 
+    runtime_options = build_options(
+        debug=debug,
+        quiet=quiet,
+        config_file=config_file,
+        jobs=jobs,
+        tags=tags,
+        rules=rules,
+        output_format=output_format,
+        output_template=output_template,
+        print_metrics=print_metrics,
+        no_format=no_format,
+    )
     is_stdin = bool(paths[0] and str(paths[0]) == "-")
     interactive = interactive and not is_stdin
     autofix = not interactive
@@ -311,16 +359,16 @@ def fix(
             paths,
             autofix=autofix,
             include_diff=interactive or diff,
-            options=options,
+            options=runtime_options,
             parallel=autofix,
-            metrics_hook=print if options.print_metrics else None,
+            metrics_hook=print if runtime_options.print_metrics else None,
         )
     )
     for result in generator:
         visited.add(result.path)
         if not result.violation and not result.error:
             continue
-        config = result.config or _output_config_for_path(result.path, options)
+        config = result.config or _output_config_for_path(result.path, runtime_options)
         # for STDIN, we need STDOUT to equal the fixed content, so
         # move everything else to STDERR
         if print_result(
@@ -352,48 +400,66 @@ def fix(
         state.autofixes,
         state.fixed,
     )
-    ctx.exit(state.exit_code)
+    if state.exit_code:
+        raise SystemExit(state.exit_code)
 
 
-@main.command()
-@click.pass_context
-@click.option("--stdio", type=bool, default=True, help="Serve LSP over stdio")
-@click.option("--tcp", type=int, help="Port to serve LSP over")
-@click.option("--ws", type=int, help="Port to serve WS over")
-@click.option(
-    "--debounce-interval",
-    type=float,
-    default=LSPOptions.debounce_interval,
-    help="Delay in seconds for server-side debounce",
-)
 def lsp(
-    ctx: click.Context,
-    stdio: bool,
-    tcp: int | None,
-    ws: int | None,
-    debounce_interval: float,
+    *,
+    rules: str | None = None,
+    config_file: Path | None = None,
+    tags: str | None = None,
+    ws: int | None = None,
+    tcp: int | None = None,
+    debounce_interval: float = LSPOptions.debounce_interval,
+    no_stdio: bool = False,
+    debug: bool = False,
+    quiet: bool = False,
 ) -> None:
-    """
-    Start server for:
+    """Start the language server.
+
     https://microsoft.github.io/language-server-protocol/.
+
+    Args:
+        debug: Increase logging verbosity.
+        quiet: Decrease logging verbosity.
+        config_file: Override default config file search behavior.
+        tags: Select or filter rules by comma-separated tags.
+        rules: Override configured rules with comma-separated selectors.
+        no_stdio: Disable stdio transport when using TCP or WebSocket.
+        tcp: Port to serve LSP over TCP.
+        ws: Port to serve LSP over WebSocket.
+        debounce_interval: Delay in seconds for server-side debounce.
     """
     from .lsp import LSP
 
-    main_options = ctx.obj
     lsp_options = LSPOptions(
         tcp=tcp,
         ws=ws,
-        stdio=stdio,
+        stdio=not no_stdio,
         debounce_interval=debounce_interval,
     )
-    LSP(main_options, lsp_options).start()
+    LSP(
+        build_options(
+            debug=debug,
+            quiet=quiet,
+            config_file=config_file,
+            tags=tags,
+            rules=rules,
+        ),
+        lsp_options,
+    ).start()
 
 
-@main.command()
-@click.pass_context
-@click.argument("rules", nargs=-1, required=True, type=str)
-def test(ctx: click.Context, rules: Sequence[str]) -> None:
-    """Test lint rules and their VALID/INVALID cases."""
+def test(*rules: str) -> None:
+    """Test lint rules and their VALID/INVALID cases.
+
+    Args:
+        rules: Rule selectors to test.
+    """
+    if not rules:
+        usage_error("missing required argument: rules")
+
     qual_rules = [parse_rule(rule, Path.cwd().resolve()) for rule in rules]
     lint_rules = collect_rules(Config(enable=qual_rules, disable=[], python_version=None))
     test_cases = generate_lint_rule_test_cases(lint_rules)
@@ -403,32 +469,52 @@ def test(ctx: click.Context, rules: Sequence[str]) -> None:
     for test_case in test_cases:
         test_suite.addTest(loader.loadTestsFromTestCase(test_case))
 
+    test_count = test_suite.countTestCases()
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(test_suite)
-    if not result.wasSuccessful():
-        ctx.exit(1)
+    if test_count == 0 or not result.wasSuccessful():
+        raise SystemExit(1)
 
 
-@main.command()
-@click.pass_context
-@click.argument("paths", nargs=-1, type=click.Path(exists=True, path_type=Path))
-def debug(ctx: click.Context, paths: Sequence[Path]) -> None:
-    """Print materialized configuration for paths."""
-    options: Options = ctx.obj
+def debug(
+    *paths: Path,
+    rules: str | None = None,
+    tags: str | None = None,
+    config_file: Path | None = None,
+    debug: bool = False,
+    quiet: bool = False,
+) -> None:
+    """Print materialized configuration for paths.
 
-    if not paths:
-        paths = [Path.cwd()]
+    Args:
+        paths: Files or directories whose configuration should be shown.
+        debug: Increase logging verbosity.
+        quiet: Decrease logging verbosity.
+        config_file: Override default config file search behavior.
+        tags: Select or filter rules by comma-separated tags.
+        rules: Override configured rules with comma-separated selectors.
+    """
+    resolved_paths = tuple(require_existing_path(path, argument="path") for path in paths) or (
+        Path.cwd(),
+    )
 
     try:
         from rich import print as pprint
     except ImportError:
         from pprint import pprint
 
-    pprint(options)
+    runtime_options = build_options(
+        debug=debug,
+        quiet=quiet,
+        config_file=config_file,
+        tags=tags,
+        rules=rules,
+    )
+    pprint(runtime_options)
 
-    for path in paths:
+    for path in resolved_paths:
         path = path.resolve()
-        config = generate_config(path, options=options)
+        config = generate_config(path, options=runtime_options)
         disabled: dict[type[LintRule], str] = {}
         enabled = collect_rules(config, debug_reasons=disabled)
         resolved_settings = {}
@@ -447,12 +533,13 @@ def debug(ctx: click.Context, paths: Sequence[Path]) -> None:
         )
 
 
-@main.command(name="validate-config")
-@click.pass_context
-@click.argument("path", nargs=1, type=click.Path(exists=True, path_type=Path))
-def validate_config_command(_ctx: click.Context, path: Path) -> None:
-    """Validate the config provided."""
-    exceptions = validate_config(path)
+def validate_config_command(path: Path) -> None:
+    """Validate the config provided.
+
+    Args:
+        path: Config file to validate.
+    """
+    exceptions = validate_config(require_existing_file(path, option="path"))
 
     try:
         from rich import print as pprint
@@ -462,11 +549,38 @@ def validate_config_command(_ctx: click.Context, path: Path) -> None:
     if exceptions:
         for e in exceptions:
             pprint(e)
-        sys.exit(-1)
+        raise SystemExit(255)
+
+
+def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
+    app = Interfacy(
+        sys_exit_enabled=sys_exit_enabled,
+        executable_flags=[
+            ExecutableFlag(
+                ("--version", "-V"),
+                _version,
+                help="Show the version and exit.",
+            )
+        ],
+    )
+    app.add_type_parser(OutputFormat, lambda value: OutputFormat(value.lower()))
+    app.add_command(lint)
+    app.add_command(fix)
+    app.add_command(lsp)
+    app.add_command(test)
+    app.add_command(debug)
+    app.add_command(validate_config_command, name="validate-config")
+    return app
+
+
+def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> object:
+    """Run the rattle CLI."""
+    return build_app(sys_exit_enabled=sys_exit_enabled).run(args=args)
 
 
 __all__ = (
     "FixState",
+    "build_app",
     "debug",
     "fix",
     "lint",
