@@ -617,6 +617,25 @@ class ConfigTest(TestCase):
 
             assert actual.excluded is True
 
+        with self.subTest("Rattle file exclusion"), TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            target = tdp / "build" / "ignored.py"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("pass\n")
+            (tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
+                    exclude = ["build"]
+                    """
+                )
+            )
+
+            actual = config.generate_config(target)
+
+            assert actual.excluded is True
+
     def test_invalid_config(self) -> None:
         with self.subTest("inner enable-root-import"):
             (self.tdp / "pyproject.toml").write_text("[tool.rattle]\nroot = true\n")
@@ -970,7 +989,7 @@ class ConfigTest(TestCase):
             with self.subTest("override output-format"):
                 result = runner.invoke(
                     main,
-                    ["--output-format", "vscode", "lint", filepath.as_posix()],
+                    ["lint", "-o", "vscode", filepath.as_posix()],
                     catch_exceptions=True,
                 )
                 assert re.search(output_format_regex, result.output)
@@ -979,9 +998,9 @@ class ConfigTest(TestCase):
                 result = runner.invoke(
                     main,
                     [
+                        "lint",
                         "--output-template",
                         "file {path} line {start_line} rule {rule_name}",
-                        "lint",
                         filepath.as_posix(),
                     ],
                     catch_exceptions=True,
@@ -1192,6 +1211,23 @@ class ConfigTest(TestCase):
 
             assert results == [
                 "Failed to parse inherit-ruff-files: ConfigError: 'inherit-ruff-files' must be a boolean"
+            ]
+
+        with self.subTest("validate-config invalid exclude"), TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            path = tdp / "pyproject.toml"
+            path.write_text(
+                """
+                [tool.rattle]
+                root = true
+                exclude = "build"
+                """
+            )
+
+            results = config.validate_config(path)
+
+            assert results == [
+                "Failed to parse exclude: ConfigError: 'exclude' must be array of values, got <class 'str'>"
             ]
 
     def test_validate_config_with_override(self) -> None:

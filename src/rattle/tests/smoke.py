@@ -253,7 +253,7 @@ class SmokeTest(TestCase):
                 with self.subTest(selector):
                     result = self.runner.invoke(
                         main,
-                        ["--rules", selector, "lint", dirty.as_posix()],
+                        ["lint", "-r", selector, dirty.as_posix()],
                         catch_exceptions=False,
                     )
                     assert "UseFstring [*] Do not use printf style formatting" in result.output
@@ -270,6 +270,28 @@ class SmokeTest(TestCase):
                     inherit-ruff-files = true
 
                     [tool.ruff]
+                    exclude = ["ignored.py"]
+                    """
+                )
+            )
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
+            result = self.runner.invoke(main, ["lint", td], catch_exceptions=False)
+
+            assert "included.py" in result.output
+            assert "ignored.py" not in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_directory_respects_rattle_file_excludes(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            (tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
                     exclude = ["ignored.py"]
                     """
                 )

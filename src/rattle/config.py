@@ -1020,6 +1020,8 @@ class ConfigMerger:
         inherit_ruff_files = data.pop("inherit-ruff-files", False)
         if not isinstance(inherit_ruff_files, bool):
             raise ConfigError("'inherit-ruff-files' must be a boolean", config=self.config)
+        excludes = _get_string_sequence_from_mapping(self.config, data, "exclude")
+        data.pop("exclude", None)
 
         self._process_subpath(
             self.config.path.parent,
@@ -1035,6 +1037,7 @@ class ConfigMerger:
             enable=get_rule_pattern_table(self.config, "per-file-enable"),
             disable=get_rule_pattern_table(self.config, "per-file-disable"),
         )
+        self._process_file_excludes(self.config.path.parent, excludes=excludes)
         self._process_ruff_file_selection(self.config.path.parent, inherited=inherit_ruff_files)
 
         for key in data:
@@ -1181,6 +1184,18 @@ class ConfigMerger:
             if _path_matches_glob(relative_path, pattern):
                 self._apply_rule_selection(config_dir=config_dir, disable=rules)
 
+    def _process_file_excludes(self, config_dir: Path, *, excludes: Sequence[str]) -> None:
+        relative_path = _relative_path_str(self.path, config_dir)
+        if relative_path is None:
+            return
+
+        if (
+            excludes
+            and any(_path_matches_glob(relative_path, pattern) for pattern in excludes)
+            and not self.explicit_path
+        ):
+            self.excluded = True
+
     def _process_ruff_file_selection(self, config_dir: Path, *, inherited: bool) -> None:
         if not inherited:
             return
@@ -1270,6 +1285,7 @@ class ConfigValidator:
             self._collect_global_rules()
             self._collect_global_options()
             self._collect_per_file_rules()
+            self._validate_file_selection()
             self._validate_inherited_ruff_files()
             self._collect_overrides()
             self._resolve_collected_rules()
@@ -1316,6 +1332,12 @@ class ConfigValidator:
             )
         else:
             self._collect_rule_patterns(per_file_disable, "per-file-disable")
+
+    def _validate_file_selection(self) -> None:
+        try:
+            _get_string_sequence_from_mapping(self.config, self.data, "exclude")
+        except Exception as error:  # noqa: BLE001 - validation boundary
+            self.exceptions.append(f"Failed to parse exclude: {error.__class__.__name__}: {error}")
 
     def _validate_inherited_ruff_files(self) -> None:
         inherit_ruff_files = self.data.get("inherit-ruff-files", False)
