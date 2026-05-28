@@ -219,7 +219,7 @@ class Options:
     tags: Tags | None = None
     rules: Sequence[RuleSelector] = ()
     output_format: OutputFormat | None = None
-    output_template: str = ""
+    output_template: str | None = None
     print_metrics: bool = False
     no_format: bool = False
 

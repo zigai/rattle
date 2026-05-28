@@ -6,6 +6,7 @@
 import logging
 import sys
 import unittest
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,13 +15,31 @@ from stdl.st import colored
 
 from rattle.__version__ import __version__
 
-from .api import print_result, rattle_paths
+from .api import rattle_paths
 from .config import collect_rules, generate_config, parse_rule, validate_config
-from .console import echo, getchar
-from .ftypes import STDIN, Config, LSPOptions, Options, OutputFormat, RuleSelector, Tags
+from .console import AsyncConsole, echo, getchar
+from .ftypes import (
+    STDIN,
+    Config,
+    LSPOptions,
+    Metrics,
+    Options,
+    OutputFormat,
+    Result,
+    RuleSelector,
+    Tags,
+)
+from .output import render_console_result
 from .rule import LintRule
 from .testing import generate_lint_rule_test_cases
 from .util import capture
+
+
+def _display_path(path: Path) -> Path:
+    try:
+        return path.relative_to(Path.cwd())
+    except ValueError:
+        return path
 
 
 def splash(
@@ -30,7 +49,7 @@ def splash(
     violations: int = 0,
     autofixes: int = 0,
     fixed: int = 0,
-) -> None:
+) -> str:
     def f(v: int) -> str:
         return "file" if v == 1 else "files"
 
@@ -59,10 +78,39 @@ def splash(
             word = "fix" if fixed == 1 else "fixes"
             reports.append(colored(f"{fixed} {word} applied", style="bold"))
 
-        message = ", ".join(reports)
-        echo(message, err=True)
-    else:
-        echo(f"{len(visited)} {f(len(visited))} clean", err=True)
+        return ", ".join(reports)
+
+    return f"{len(visited)} {f(len(visited))} clean"
+
+
+def _submit_result(
+    console: AsyncConsole,
+    result: Result,
+    *,
+    show_diff: bool,
+    stderr: bool = False,
+    output_format: OutputFormat,
+    output_template: str,
+    brief: bool,
+) -> bool:
+    rendered = render_console_result(
+        result,
+        path=_display_path(result.path),
+        show_diff=show_diff,
+        output_format=output_format,
+        output_template=output_template,
+        brief=brief,
+    )
+    if rendered is None:
+        return False
+    console.submit(rendered, err=stderr)
+    return True
+
+
+def _metrics_hook(console: AsyncConsole, enabled: bool) -> Callable[[Metrics], None] | None:
+    if not enabled:
+        return None
+    return lambda metrics: console.submit(str(metrics))
 
 
 def _output_config_for_path(path: Path, options: Options) -> Config:
@@ -171,7 +219,7 @@ def build_options(
     jobs: int | None = None,
     config_file: Path | None = None,
     output_format: OutputFormat | None = None,
-    output_template: str = "",
+    output_template: str | None = None,
     print_metrics: bool = False,
     no_format: bool = False,
     quiet: bool = False,
@@ -210,7 +258,7 @@ def lint(
     jobs: int | None = None,
     config_file: Path | None = None,
     output_format: OutputFormat | None = None,
-    output_template: str = "",
+    output_template: str | None = None,
     diff: bool = False,
     brief: bool = False,
     quiet: bool = False,
@@ -255,35 +303,42 @@ def lint(
     error_files: set[Path] = set()
     violations = 0
     autofixes = 0
-    for result in rattle_paths(
-        paths,
-        include_diff=diff,
-        allow_cached_dirty_results=True,
-        options=runtime_options,
-        metrics_hook=print if runtime_options.print_metrics else None,
-    ):
-        visited.add(result.path)
-        if not result.violation and not result.error:
-            continue
-        config = result.config or _output_config_for_path(result.path, runtime_options)
-        if print_result(
-            result,
-            show_diff=diff,
-            output_format=config.output_format,
-            output_template=config.output_template,
-            brief=brief,
+    console = AsyncConsole()
+    try:
+        for result in rattle_paths(
+            paths,
+            include_diff=diff,
+            allow_cached_dirty_results=True,
+            options=runtime_options,
+            metrics_hook=_metrics_hook(console, runtime_options.print_metrics),
         ):
-            if result.violation:
-                violation_files.add(result.path)
-                violations += 1
-                exit_code |= 1
-                if result.violation.autofixable:
-                    autofixes += 1
-            if result.error:
-                error_files.add(result.path)
-                exit_code |= 2
+            visited.add(result.path)
+            if not result.violation and not result.error:
+                continue
+            config = result.config or _output_config_for_path(result.path, runtime_options)
+            if _submit_result(
+                console,
+                result,
+                show_diff=diff,
+                output_format=config.output_format,
+                output_template=config.output_template,
+                brief=brief,
+            ):
+                if result.violation:
+                    violation_files.add(result.path)
+                    violations += 1
+                    exit_code |= 1
+                    if result.violation.autofixable:
+                        autofixes += 1
+                if result.error:
+                    error_files.add(result.path)
+                    exit_code |= 2
 
-    splash(visited, violation_files, error_files, violations, autofixes)
+        console.submit(
+            splash(visited, violation_files, error_files, violations, autofixes), err=True
+        )
+    finally:
+        console.close()
     if exit_code:
         raise SystemExit(exit_code)
 
@@ -295,7 +350,7 @@ def fix(
     quiet: bool = False,
     jobs: int | None = None,
     output_format: OutputFormat | None = None,
-    output_template: str = "",
+    output_template: str | None = None,
     config_file: Path | None = None,
     diff: bool = False,
     automatic: bool = False,
@@ -354,52 +409,62 @@ def fix(
     violation_files: set[Path] = set()
     error_files: set[Path] = set()
 
-    generator = capture(
-        rattle_paths(
-            paths,
-            autofix=autofix,
-            include_diff=interactive or diff,
-            options=runtime_options,
-            parallel=autofix,
-            metrics_hook=print if runtime_options.print_metrics else None,
+    console = AsyncConsole()
+    try:
+        generator = capture(
+            rattle_paths(
+                paths,
+                autofix=autofix,
+                include_diff=interactive or diff,
+                options=runtime_options,
+                parallel=autofix,
+                metrics_hook=_metrics_hook(console, runtime_options.print_metrics),
+            )
         )
-    )
-    for result in generator:
-        visited.add(result.path)
-        if not result.violation and not result.error:
-            continue
-        config = result.config or _output_config_for_path(result.path, runtime_options)
-        # for STDIN, we need STDOUT to equal the fixed content, so
-        # move everything else to STDERR
-        if print_result(
-            result,
-            show_diff=interactive or diff,
-            stderr=is_stdin,
-            output_format=config.output_format,
-            output_template=config.output_template,
-            brief=brief,
-        ):
-            if result.violation:
-                violation_files.add(result.path)
-            if result.error:
-                error_files.add(result.path)
-        if _update_fix_state(
-            result,
-            autofix=autofix,
-            interactive=interactive,
-            generator=generator,
-            state=state,
-        ):
-            break
+        for result in generator:
+            visited.add(result.path)
+            if not result.violation and not result.error:
+                continue
+            config = result.config or _output_config_for_path(result.path, runtime_options)
+            # for STDIN, we need STDOUT to equal the fixed content, so
+            # move everything else to STDERR
+            if _submit_result(
+                console,
+                result,
+                show_diff=interactive or diff,
+                stderr=is_stdin,
+                output_format=config.output_format,
+                output_template=config.output_template,
+                brief=brief,
+            ):
+                if result.violation:
+                    violation_files.add(result.path)
+                if result.error:
+                    error_files.add(result.path)
+            if interactive:
+                console.flush()
+            if _update_fix_state(
+                result,
+                autofix=autofix,
+                interactive=interactive,
+                generator=generator,
+                state=state,
+            ):
+                break
 
-    splash(
-        visited,
-        violation_files,
-        error_files,
-        state.violations,
-        state.autofixes,
-        state.fixed,
-    )
+        console.submit(
+            splash(
+                visited,
+                violation_files,
+                error_files,
+                state.violations,
+                state.autofixes,
+                state.fixed,
+            ),
+            err=True,
+        )
+    finally:
+        console.close()
     if state.exit_code:
         raise SystemExit(state.exit_code)
 

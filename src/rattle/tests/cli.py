@@ -145,6 +145,27 @@ class CliTest(TestCase):
         assert result.exit_code == 0
         assert seen_jobs == [2]
 
+    def test_lint_print_metrics_uses_cli_output_path(self) -> None:
+        def rattle_paths_stub(*_args: object, **kwargs: object) -> object:
+            kwargs["metrics_hook"]({"Count.Total": 1})
+            return iter(())
+
+        with (
+            patch("rattle.cli.rattle_paths", side_effect=rattle_paths_stub),
+            TemporaryDirectory() as td,
+        ):
+            path = Path(td) / "clean.py"
+            path.write_text("value = 1\n")
+            result = self.runner.invoke(
+                main,
+                ["lint", "--print-metrics", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 0
+        assert "{'Count.Total': 1}" in result.stdout
+        assert result.stderr == "0 files clean\n"
+
     def test_fix_brief_prints_one_line_diagnostics(self) -> None:
         with TemporaryDirectory() as td:
             path = Path(td) / "fstring.py"
