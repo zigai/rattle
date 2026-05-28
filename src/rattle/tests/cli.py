@@ -16,6 +16,20 @@ from rattle.ftypes import Options
 from .helpers import make_cli_runner
 
 
+def assert_brief_diagnostic(stdout: str, path: Path) -> None:
+    line = stdout.strip()
+    prefix = (
+        "NoRedundantFString [*] f-string doesn't have placeholders, "
+        "remove redundant f-string.  --> "
+    )
+
+    assert line.startswith(prefix)
+    location = line.removeprefix(prefix)
+    path_text, line_number, column = location.rsplit(":", 2)
+    assert Path(path_text).resolve() == path.resolve()
+    assert (line_number, column) == ("1", "9")
+
+
 class CliTest(TestCase):
     def setUp(self) -> None:
         self.runner = make_cli_runner()
@@ -191,10 +205,7 @@ class CliTest(TestCase):
             )
 
             assert result.exit_code == 1
-            assert result.stdout.splitlines() == [
-                "NoRedundantFString [*] f-string doesn't have placeholders, "
-                f"remove redundant f-string.  --> {path.as_posix()}:1:9"
-            ]
+            assert_brief_diagnostic(result.stdout, path)
 
     def test_lint_accepts_jobs_option(self) -> None:
         seen_jobs: list[int | None] = []
@@ -251,10 +262,7 @@ class CliTest(TestCase):
             )
 
             assert result.exit_code == 0
-            assert result.stdout.splitlines() == [
-                "NoRedundantFString [*] f-string doesn't have placeholders, "
-                f"remove redundant f-string.  --> {path.as_posix()}:1:9"
-            ]
+            assert_brief_diagnostic(result.stdout, path)
             assert path.read_text() == 'value = "hello"\n'
 
     def test_fix_logs_missing_rule_collection_once(self) -> None:
