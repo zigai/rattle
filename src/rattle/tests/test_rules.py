@@ -12,6 +12,7 @@ for generated_case in generate_lint_rule_test_cases(
         Config(
             enable=[
                 QualifiedRule("rattle.rules.fixit"),
+                QualifiedRule("rattle.rules.fixit_extra"),
             ],
             python_version=None,
         )

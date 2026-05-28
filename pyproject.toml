@@ -118,6 +118,7 @@ skip = ".git,uv.lock"
 testpaths = ["src/rattle/tests"]
 python_files = [
     "test_*.py",
+    "cli.py",
     "config.py",
     "engine.py",
     "ftypes.py",
