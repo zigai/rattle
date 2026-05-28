@@ -7,7 +7,8 @@ from pathlib import Path
 from libcst import ParserSyntaxError
 from stdl.st import colored
 
-from .ftypes import CodePosition, CodeRange, FileContent, LintViolation, Result
+from .console import color_precomputed_diff
+from .ftypes import CodePosition, CodeRange, FileContent, LintViolation, OutputFormat, Result
 
 _PARSER_ERROR_PREFIX = re.compile(r"^parser error:\s*", re.IGNORECASE)
 _PARSER_LOCATION_PREFIX = re.compile(r"^error at \d+:\d+:\s*", re.IGNORECASE)
@@ -26,6 +27,106 @@ def render_rattle_result(
             return _render_syntax_error(path, error, result.source, color=color, brief=brief)
 
     return None
+
+
+def render_console_result(
+    result: Result,
+    *,
+    path: Path,
+    show_diff: bool = False,
+    output_format: OutputFormat = OutputFormat.rattle,
+    output_template: str = "",
+    brief: bool = False,
+) -> str | None:
+    if result.violation:
+        return _render_console_violation(
+            result,
+            path=path,
+            show_diff=show_diff,
+            output_format=output_format,
+            output_template=output_template,
+            brief=brief,
+        )
+
+    if result.error:
+        return _render_console_error(
+            result,
+            path=path,
+            output_format=output_format,
+            brief=brief,
+        )
+
+    return None
+
+
+def _render_console_violation(
+    result: Result,
+    *,
+    path: Path,
+    show_diff: bool,
+    output_format: OutputFormat,
+    output_template: str,
+    brief: bool,
+) -> str:
+    violation = result.violation
+    assert violation is not None
+    assert violation.range is not None
+
+    if output_format == OutputFormat.rattle:
+        rendered = render_rattle_result(result, path=path, color=True, brief=brief)
+        if rendered is None:
+            raise NotImplementedError("missing rattle renderer for lint violation")
+        lines = [rendered]
+        if show_diff and violation.diff:
+            lines.append(color_precomputed_diff(violation.diff).rstrip("\n"))
+        if not brief or (show_diff and violation.diff):
+            lines.append("")
+        return "\n".join(lines)
+
+    rule_name = violation.rule_name
+    start_line = violation.range.start.line
+    start_col = violation.range.start.column
+    message = violation.message
+    if violation.autofixable:
+        message += " (has autofix)"
+
+    if output_format == OutputFormat.vscode:
+        rendered = f"{path}:{start_line}:{start_col} {rule_name}: {message}"
+    elif output_format == OutputFormat.custom:
+        rendered = output_template.format(
+            message=message,
+            path=path,
+            result=result,
+            rule_name=rule_name,
+            start_col=start_col,
+            start_line=start_line,
+        )
+    else:
+        raise NotImplementedError(f"output-format = {output_format!r}")
+
+    rendered = colored(rendered, color="yellow")
+    if show_diff and violation.diff:
+        rendered += "\n" + color_precomputed_diff(violation.diff).rstrip("\n")
+    return rendered
+
+
+def _render_console_error(
+    result: Result,
+    *,
+    path: Path,
+    output_format: OutputFormat,
+    brief: bool,
+) -> str:
+    error, tb = result.error or (None, "")
+    assert error is not None
+
+    if output_format == OutputFormat.rattle and isinstance(error, ParserSyntaxError):
+        rendered = render_rattle_result(result, path=path, color=True, brief=brief)
+        if rendered is None:
+            raise NotImplementedError("missing rattle renderer for syntax error")
+        return rendered + ("\n" if not brief else "")
+
+    return f"{colored(f'{path}: EXCEPTION: {error}', color='red')}\n{tb.strip()}"
 
 
 def _render_violation(
@@ -226,4 +327,4 @@ def _fix_marker(*, color: bool) -> str:
     return f"[{_help_style('*', color=color)}]"
 
 
-__all__ = ("render_rattle_result",)
+__all__ = ("render_console_result", "render_rattle_result")
