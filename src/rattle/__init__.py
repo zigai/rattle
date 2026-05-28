@@ -9,10 +9,8 @@ from .__version__ import __version__
 from .api import print_result, rattle_bytes, rattle_file, rattle_paths
 from .format import Formatter
 from .ftypes import (
-    AliasSelector,
     CodePosition,
     CodeRange,
-    CodeSelector,
     Config,
     FileContent,
     Invalid,
@@ -20,16 +18,15 @@ from .ftypes import (
     Options,
     QualifiedRule,
     Result,
+    RuleNameSelector,
     Tags,
     Valid,
 )
 from .rule import LintRule, RuleSetting
 
 __all__ = [
-    "AliasSelector",
     "CodePosition",
     "CodeRange",
-    "CodeSelector",
     "Config",
     "FileContent",
     "Formatter",
@@ -39,6 +36,7 @@ __all__ = [
     "Options",
     "QualifiedRule",
     "Result",
+    "RuleNameSelector",
     "RuleSetting",
     "Tags",
     "Valid",

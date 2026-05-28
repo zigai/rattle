@@ -91,9 +91,7 @@ QualifiedRuleRegex = re.compile(
     re.VERBOSE,
 )
 
-CodeSelectorRegex = re.compile(r"^[A-Z]+[0-9]*$")
-
-AliasSelectorRegex = re.compile(r"^[A-Z][A-Za-z0-9_]*$")
+RuleNameSelectorRegex = re.compile(r"^[A-Z][A-Za-z0-9_]*$")
 
 
 class QualifiedRuleRegexResult(TypedDict):
@@ -138,32 +136,19 @@ class QualifiedRule:
 
 
 @dataclass(frozen=True)
-class CodeSelector:
+class RuleNameSelector:
     value: str
 
     def __str__(self) -> str:
         return self.value
 
     def __lt__(self, other: object) -> bool:
-        if isinstance(other, CodeSelector):
+        if isinstance(other, RuleNameSelector):
             return self.value < other.value
         return NotImplemented
 
 
-@dataclass(frozen=True)
-class AliasSelector:
-    value: str
-
-    def __str__(self) -> str:
-        return self.value
-
-    def __lt__(self, other: object) -> bool:
-        if isinstance(other, AliasSelector):
-            return self.value < other.value
-        return NotImplemented
-
-
-RuleSelector = QualifiedRule | CodeSelector | AliasSelector
+RuleSelector = QualifiedRule | RuleNameSelector
 
 
 @dataclass(frozen=True)
@@ -246,7 +231,7 @@ class Config:
     enable_root_import: bool | Path = False
 
     # rule selection
-    enable: list[RuleSelector] = field(default_factory=lambda: [QualifiedRule("rattle.rules")])
+    enable: list[RuleSelector] = field(default_factory=list)
     disable: list[RuleSelector] = field(default_factory=list)
     options: RuleOptionsTable = field(default_factory=dict)
 

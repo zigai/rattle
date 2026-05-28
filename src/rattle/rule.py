@@ -195,12 +195,6 @@ class LintRule(BatchableCSTVisitor):
     TAGS: set[str] = set()
     "Arbitrary classification tags for use in configuration/selection"
 
-    CODE: ClassVar[str | None] = None
-    "Stable short rule identifier for config and selection, when defined."
-
-    ALIASES: ClassVar[tuple[str, ...]] = ()
-    "Optional exact-match selector aliases for this rule."
-
     PYTHON_VERSION: str = ""
     """
     Compatible target Python versions, in `PEP 440 version specifier`__ format.
