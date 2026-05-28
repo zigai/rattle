@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import os
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -315,6 +316,105 @@ class SmokeTest(TestCase):
             assert "ignored.py" not in result.output
             assert result.exit_code == 1
             assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_directory_respects_cli_exclude(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "skipped.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
+            result = self.runner.invoke(
+                main,
+                [
+                    "lint",
+                    "-r",
+                    "UseFstring",
+                    td,
+                    "--exclude",
+                    "ignored.py",
+                    "--exclude",
+                    "skipped.py",
+                ],
+                catch_exceptions=False,
+            )
+
+            assert "included.py" in result.output
+            assert "ignored.py" not in result.output
+            assert "skipped.py" not in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_cli_exclude_overrides_inherited_ruff_file_excludes(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            (tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
+                    inherit-ruff-files = true
+
+                    [tool.ruff]
+                    exclude = ["ignored.py"]
+                    """
+                )
+            )
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "UseFstring", td, "--exclude", "included.py"],
+                catch_exceptions=False,
+            )
+
+            assert "included.py" not in result.output
+            assert "ignored.py" in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_directory_respects_cli_extend_exclude(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "generated.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "UseFstring", td, "--extend-exclude", "generated.py"],
+                catch_exceptions=False,
+            )
+
+            assert "included.py" in result.output
+            assert "generated.py" not in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_lint_stats_groups_violations_by_directory(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            nested = tdp / "pkg"
+            nested.mkdir()
+            (tdp / "root.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (nested / "one.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (nested / "two.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
+            original_cwd = Path.cwd()
+            os.chdir(tdp.parent)
+            try:
+                result = self.runner.invoke(
+                    main,
+                    ["lint", "-r", "UseFstring", "--stats", tdp.as_posix()],
+                    catch_exceptions=False,
+                )
+            finally:
+                os.chdir(original_cwd)
+
+            assert result.exit_code == 1
+            assert "Violation stats by directory:" in result.stderr
+            assert f"  {tdp.name}      1" in result.stderr
+            assert f"  {tdp.name}/pkg  2" in result.stderr
 
     def test_directory_with_errors(self) -> None:
         with TemporaryDirectory() as td:
