@@ -258,7 +258,7 @@ class ConfigTest(TestCase):
                 actual = config.read_configs(paths)
                 assert expected == actual
 
-    def test_merge_configs(self) -> None:
+    def test_config_merger(self) -> None:
         root = self.tdp
         target = root / "a" / "b" / "c" / "foo.py"
 
@@ -385,7 +385,7 @@ class ConfigTest(TestCase):
         )
         for name, raw_configs, expected in params:
             with self.subTest(name):
-                actual = config.merge_configs(target, raw_configs)
+                actual = config.ConfigMerger(target, raw_configs).merge()
                 assert expected == actual
 
         with self.subTest("per-file rule toggles"):
@@ -402,7 +402,7 @@ class ConfigTest(TestCase):
                 )
             ]
 
-            actual = config.merge_configs(target, raw_configs)
+            actual = config.ConfigMerger(target, raw_configs).merge()
 
             assert actual == Config(
                 path=target,
@@ -422,7 +422,7 @@ class ConfigTest(TestCase):
                 )
             ]
 
-            actual = config.merge_configs(target, raw_configs)
+            actual = config.ConfigMerger(target, raw_configs).merge()
 
             assert actual == Config(
                 path=target,
@@ -895,6 +895,19 @@ class ConfigTest(TestCase):
             )
             assert isinstance(rule, UseFstring)
             assert rule.settings["simple_expression_max_length"] == 70
+
+        with self.subTest("cached rule plan materializes fresh rule instances"):
+            cfg = Config(
+                enable=[AliasSelector("UseFstring")],
+                disable=[],
+                options={"UseFstring": {"simple_expression_max_length": 60}},
+                python_version=None,
+            )
+            (first_rule,) = config.collect_rules(cfg)
+            (second_rule,) = config.collect_rules(cfg)
+            assert first_rule is not second_rule
+            assert isinstance(second_rule, UseFstring)
+            assert second_rule.settings["simple_expression_max_length"] == 60
 
         with (
             self.subTest("invalid rule setting name fails"),

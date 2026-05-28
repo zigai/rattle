@@ -31,6 +31,7 @@ class CollapseIsinstanceChecks(LintRule):
     )
 
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
+    SOURCE_PATTERNS = ("isinstance",)
 
     VALID = [
         Valid("foo() or foo()"),

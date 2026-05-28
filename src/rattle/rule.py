@@ -48,8 +48,15 @@ from .ftypes import (
     VisitorMethod,
 )
 
+SourcePattern = str | bytes
 
-def _source_pattern_matches(source: FileContent, pattern: bytes) -> bool:
+
+def _normalize_source_pattern(pattern: SourcePattern) -> bytes:
+    return pattern.encode("utf-8") if isinstance(pattern, str) else pattern
+
+
+def _source_pattern_matches(source: FileContent, pattern: SourcePattern) -> bool:
+    pattern = _normalize_source_pattern(pattern)
     whitespace = rb"[ \t\f\r\n]*"
     if pattern in source:
         return True
@@ -210,7 +217,7 @@ class LintRule(BatchableCSTVisitor):
     SETTINGS: ClassVar[dict[str, RuleSetting]] = {}
     "Optional typed configuration settings for this lint rule."
 
-    SOURCE_PATTERNS: ClassVar[tuple[bytes, ...]] = ()
+    SOURCE_PATTERNS: ClassVar[tuple[SourcePattern, ...]] = ()
 
     AUTOFIX = False  # set by __subclass_init__
     """

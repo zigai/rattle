@@ -46,7 +46,7 @@ class RunnerTest(TestCase):
 
     def test_source_patterns_skip_rule(self) -> None:
         class PatternRule(NoopRule):
-            SOURCE_PATTERNS = (b"def ",)
+            SOURCE_PATTERNS = ("def ",)
 
         rule = PatternRule()
         violations = self.runner.collect_violations([rule], Config())
@@ -55,7 +55,7 @@ class RunnerTest(TestCase):
 
     def test_source_patterns_allow_valid_call_whitespace(self) -> None:
         class PatternRule(NoopRule):
-            SOURCE_PATTERNS = (b"list(",)
+            SOURCE_PATTERNS = ("list(",)
 
         rule = PatternRule()
         runner = LintRunner(Path("fake.py"), b"value = list ((1, 2))\n")
@@ -67,7 +67,7 @@ class RunnerTest(TestCase):
 
     def test_source_patterns_allow_valid_attribute_whitespace(self) -> None:
         class PatternRule(NoopRule):
-            SOURCE_PATTERNS = (b".format",)
+            SOURCE_PATTERNS = (".format",)
 
         rule = PatternRule()
         runner = LintRunner(Path("fake.py"), b'value = "{}" . format(1)\n')

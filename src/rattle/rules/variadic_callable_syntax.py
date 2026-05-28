@@ -15,6 +15,7 @@ class VariadicCallableSyntax(LintRule):
     """Callable types with arbitrary parameters should be written as `Callable[..., T]`."""
 
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
+    SOURCE_PATTERNS = ("Callable",)
     VALID = [
         Valid(
             """
@@ -121,7 +122,7 @@ class VariadicCallableSyntax(LintRule):
             new_node = node.with_changes(slice=slices)
             self.report(
                 node,
-                self.__doc__,
+                self.__doc__ or "",
                 replacement=node.deep_replace(node, new_node),
             )
 

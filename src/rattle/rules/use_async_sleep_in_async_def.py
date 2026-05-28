@@ -2,10 +2,12 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+from pathlib import Path
+
 import libcst as cst
 from libcst.metadata import QualifiedNameProvider
 
-from rattle import Invalid, LintRule, Valid
+from rattle import FileContent, Invalid, LintRule, Valid
 
 
 class UseAsyncSleepInAsyncDef(LintRule):
@@ -124,10 +126,15 @@ class UseAsyncSleepInAsyncDef(LintRule):
         super().__init__()
         self.function_stack: list[bool] = []
 
+    def should_lint_file(self, source: FileContent, path: Path) -> bool:
+        del path
+        return b"sleep" in source and b"async def" in source
+
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         self.function_stack.append(node.asynchronous is not None)
 
-    def leave_FunctionDef(self, _original_node: cst.FunctionDef) -> None:
+    def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
+        del original_node
         self.function_stack.pop()
 
     def visit_Call(self, node: cst.Call) -> None:

@@ -12,18 +12,18 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 class NoRedundantFString(LintRule):
     CODE = "RAT011"
     SOURCE_PATTERNS = (
-        b"f'",
-        b'f"',
-        b"F'",
-        b'F"',
-        b"fr'",
-        b'fr"',
-        b"fR'",
-        b'fR"',
-        b"Fr'",
-        b'Fr"',
-        b"FR'",
-        b'FR"',
+        "f'",
+        'f"',
+        "F'",
+        'F"',
+        "fr'",
+        'fr"',
+        "fR'",
+        'fR"',
+        "Fr'",
+        'Fr"',
+        "FR'",
+        'FR"',
     )
     """Remove redundant f-string without placeholders."""
 

@@ -215,11 +215,13 @@ class Options:
 
     debug: bool | None = None
     config_file: Path | None = None
+    jobs: int | None = None
     tags: Tags | None = None
     rules: Sequence[RuleSelector] = ()
     output_format: OutputFormat | None = None
     output_template: str = ""
     print_metrics: bool = False
+    no_format: bool = False
 
 
 @dataclass

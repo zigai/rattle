@@ -85,7 +85,7 @@ class EngineTest(TestCase):
 
     def test_collect_violations_still_parses_when_all_rules_are_source_filtered(self) -> None:
         class PatternRule(LintRule):
-            SOURCE_PATTERNS = (b"def ",)
+            SOURCE_PATTERNS = ("def ",)
 
             def visit_Module(self, node: Module) -> None:
                 pass

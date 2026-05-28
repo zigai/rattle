@@ -11,6 +11,7 @@ import platform
 import sys
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
+from copy import deepcopy
 from dataclasses import dataclass, field
 from functools import cache
 from importlib.machinery import ModuleSpec
@@ -18,6 +19,7 @@ from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import (
     Any,
+    cast,
 )
 
 from packaging.specifiers import SpecifierSet
@@ -57,6 +59,7 @@ BUILTIN_RULE_MODULES = ("rattle.rules", "rattle.rules.extra")
 log = logging.getLogger(__name__)
 GLOB_META_CHARS = frozenset("*?[")
 _logged_rule_load_failures: set[tuple[Path, Path | None, str, str, str]] = set()
+_rule_plan_cache: dict[tuple[object, ...], tuple["RulePlanEntry", ...]] = {}
 
 
 class ConfigError(ValueError):
@@ -79,6 +82,12 @@ class RuleResolution:
     selector: RuleSelector
     rules: tuple[type[LintRule], ...]
     concrete: bool
+
+
+@dataclass(frozen=True)
+class RulePlanEntry:
+    rule_type: type[LintRule]
+    settings: Mapping[str, object]
 
 
 @dataclass
@@ -552,6 +561,60 @@ def materialize_rules(
     return materialized_rules
 
 
+def materialize_rule_plan(plan: Collection[RulePlanEntry]) -> list[LintRule]:
+    materialized_rules: list[LintRule] = []
+    for entry in plan:
+        rule = entry.rule_type()
+        rule.configure(deepcopy(dict(entry.settings)))
+        materialized_rules.append(rule)
+
+    return materialized_rules
+
+
+def _config_rule_plan_key(config: Config) -> tuple[object, ...]:
+    return (
+        config.root,
+        config.enable_root_import,
+        tuple(str(selector) for selector in config.enable),
+        tuple(str(selector) for selector in config.disable),
+        (
+            config.tags.include,
+            config.tags.exclude,
+        ),
+        str(config.python_version) if config.python_version is not None else None,
+        tuple(
+            sorted(
+                (
+                    rule_name,
+                    tuple(
+                        sorted(
+                            (option_name, repr(option_value))
+                            for option_name, option_value in settings.items()
+                        )
+                    ),
+                )
+                for rule_name, settings in config.options.items()
+            )
+        ),
+    )
+
+
+def resolve_rule_plan(config: Config) -> tuple[RulePlanEntry, ...]:
+    key = _config_rule_plan_key(config)
+    plan = _rule_plan_cache.get(key)
+    if plan is not None:
+        return plan
+
+    rule_types = collect_rule_types(config)
+    resolved_settings = resolve_rule_settings(config, rule_types)
+    plan = tuple(
+        RulePlanEntry(rule_type, deepcopy(resolved_settings.get(rule_type, {})))
+        for rule_type in sorted(rule_types, key=_rule_key_for_type)
+    )
+    _rule_plan_cache[key] = plan
+    return plan
+
+
 def collect_rules(
     config: Config,
     *,
@@ -559,6 +622,9 @@ def collect_rules(
     debug_reasons: dict[type[LintRule], str] | None = None,
 ) -> Collection[LintRule]:
     """Import, configure, and return rules specified by `enables` and `disables`."""
+    if debug_reasons is None:
+        return materialize_rule_plan(resolve_rule_plan(config))
+
     rule_types = collect_rule_types(config, debug_reasons=debug_reasons)
     resolved_settings = resolve_rule_settings(config, rule_types)
     return materialize_rules(rule_types, resolved_settings)
@@ -577,14 +643,29 @@ def locate_configs(path: Path, root: Path | None = None) -> list[Path]:
 
     Returns a list of config paths in priority order, from highest priority to lowest.
     """
-    results: list[Path] = []
-
     if not path.is_dir():
         path = path.parent
 
     root = root.resolve() if root is not None else Path(path.anchor)
-    path.relative_to(root)  # enforce path being inside root
+    path = path.resolve()
+    return list(
+        _locate_configs_for_directory(
+            path,
+            root,
+            _directory_fingerprints(path, root),
+        )
+    )
 
+
+@cache
+def _locate_configs_for_directory(
+    path: Path,
+    root: Path,
+    directory_fingerprints: tuple[tuple[str, int, int], ...],
+) -> tuple[Path, ...]:
+    del directory_fingerprints
+    path.relative_to(root)  # enforce path being inside root
+    results: list[Path] = []
     while True:
         candidates = (path / filename for filename in RATTLE_CONFIG_FILENAMES)
         results.extend(candidate for candidate in candidates if candidate.is_file())
@@ -594,7 +675,25 @@ def locate_configs(path: Path, root: Path | None = None) -> list[Path]:
 
         path = path.parent
 
-    return results
+    return tuple(results)
+
+
+def _directory_fingerprints(path: Path, root: Path) -> tuple[tuple[str, int, int], ...]:
+    path.relative_to(root)  # enforce path being inside root
+    fingerprints: list[tuple[str, int, int]] = []
+    while True:
+        try:
+            stat = path.stat()
+        except OSError:
+            fingerprints.append((path.as_posix(), -1, -1))
+        else:
+            fingerprints.append((path.as_posix(), stat.st_mtime_ns, stat.st_size))
+
+        if path in (root, path.parent):
+            break
+        path = path.parent
+
+    return tuple(fingerprints)
 
 
 def read_configs(paths: list[Path]) -> list[RawConfig]:
@@ -614,18 +713,36 @@ def read_configs(paths: list[Path]) -> list[RawConfig]:
             raise ConfigError(
                 "Rattle only reads configuration from `pyproject.toml`",
             )
-        content = path.read_text()
-        data = tomllib.loads(content)
-        rattle_data = data.get("tool", {}).get("rattle", {})
+        try:
+            stat = path.stat()
+        except OSError as error:
+            raise ConfigError(f"Failed to stat configuration file {path}") from error
+        data = _read_pyproject_data(path, stat.st_mtime_ns, stat.st_size)
+        tool_data = data.get("tool", {})
+        if not isinstance(tool_data, Mapping):
+            continue
+        rattle_data = tool_data.get("rattle", {})
 
         if rattle_data:
-            config = RawConfig(path=path, data=rattle_data)
+            if not isinstance(rattle_data, dict):
+                raise ConfigError("'tool.rattle' must be mapping of values")
+            config = RawConfig(path=path, data=deepcopy(rattle_data))
             configs.append(config)
 
             if config.data.get("root", False):
                 break
 
     return configs
+
+
+@cache
+def _read_pyproject_data(path: Path, mtime_ns: int, size: int) -> dict[str, Any]:
+    del mtime_ns, size
+    content = path.read_text()
+    data = tomllib.loads(content)
+    if not isinstance(data, dict):
+        return {}
+    return data
 
 
 def get_rule_pattern_table(
@@ -674,7 +791,7 @@ def _get_string_sequence_from_mapping(
         raise ConfigError(f"{key!r} must be array of values, got {type(value)}", config=config)
 
     result: list[str] = []
-    for item in value:
+    for item in cast(Sequence[object], value):
         if not isinstance(item, str):
             raise ConfigError(f"{key!r} values must be strings, got {type(item)}", config=config)
         result.append(item)
@@ -851,66 +968,149 @@ def parse_exact_rule_target(
     return selector
 
 
-def merge_configs(  # noqa: C901 - config merge orchestration
-    path: Path,
-    raw_configs: list[RawConfig],
-    root: Path | None = None,
-    *,
-    explicit_path: bool = False,
-) -> Config:
-    """
-    Given multiple raw configs, merge them in priority order.
-
-    Assumes raw_configs are given in order from highest to lowest priority.
-    """
-    config: RawConfig
+@dataclass
+class ConfigMerger:
+    path: Path
+    raw_configs: list[RawConfig]
+    root: Path | None = None
+    explicit_path: bool = False
     enable_root_import: bool | Path = Config.enable_root_import
-    enable_rules: set[RuleSelector] = {QualifiedRule("rattle.rules")}
-    disable_rules: set[RuleSelector] = set()
-    rule_options: RuleOptionsTable = {}
-    target_python_version: Version | None = Version(platform.python_version())
+    enable_rules: set[RuleSelector] = field(default_factory=lambda: {QualifiedRule("rattle.rules")})
+    disable_rules: set[RuleSelector] = field(default_factory=set)
+    rule_options: RuleOptionsTable = field(default_factory=dict)
+    target_python_version: Version | None = field(
+        default_factory=lambda: Version(platform.python_version())
+    )
     target_formatter: str | None = None
     output_format: OutputFormat = OutputFormat.rattle
     output_template: str = ""
-    excluded = False
+    excluded: bool = False
+    config: RawConfig = field(init=False)
 
-    def update_target_python_version(python_version: str | None) -> None:
-        nonlocal target_python_version
+    def merge(self) -> Config:
+        for config in reversed(self.raw_configs):
+            self.config = config
+            self._merge_config()
 
+        return Config(
+            path=self.path,
+            root=self.root or Path(self.path.anchor),
+            excluded=self.excluded,
+            enable_root_import=self.enable_root_import,
+            enable=sorted(self.enable_rules, key=str),
+            disable=sorted(self.disable_rules, key=str),
+            options=self.rule_options,
+            python_version=self.target_python_version,
+            formatter=self.target_formatter,
+            output_format=self.output_format,
+            output_template=self.output_template,
+        )
+
+    def _merge_config(self) -> None:
+        if self.root is None:
+            self.root = self.config.path.parent
+
+        data = self.config.data
+        if data.pop("root", False):
+            self.root = self.config.path.parent
+
+        self._apply_root_import(data)
+        self._apply_output_options(data)
+
+        inherit_ruff_files = data.pop("inherit-ruff-files", False)
+        if not isinstance(inherit_ruff_files, bool):
+            raise ConfigError("'inherit-ruff-files' must be a boolean", config=self.config)
+
+        self._process_subpath(
+            self.config.path.parent,
+            enable=get_sequence(self.config, "enable"),
+            disable=get_sequence(self.config, "disable"),
+            options=get_options(self.config, "options"),
+            python_version=self.config.data.pop("python-version", None),
+            formatter=self.config.data.pop("formatter", None),
+        )
+        self._process_overrides()
+        self._process_rule_patterns(
+            self.config.path.parent,
+            enable=get_rule_pattern_table(self.config, "per-file-enable"),
+            disable=get_rule_pattern_table(self.config, "per-file-disable"),
+        )
+        self._process_ruff_file_selection(self.config.path.parent, inherited=inherit_ruff_files)
+
+        for key in data:
+            log.warning("unknown configuration option %r", key)
+
+    def _apply_root_import(self, data: dict[str, Any]) -> None:
+        if not (value := data.pop("enable-root-import", False)):
+            return
+
+        if self.root != self.config.path.parent:
+            raise ConfigError(
+                "enable-root-import not allowed in non-root configs", config=self.config
+            )
+        if isinstance(value, str):
+            value_path = Path(value)
+            if value_path.is_absolute():
+                raise ConfigError(
+                    "enable-root-import: absolute paths not allowed", config=self.config
+                )
+            if ".." in value_path.parts:
+                raise ConfigError(
+                    "enable-root-import: '..' components not allowed", config=self.config
+                )
+            self.enable_root_import = value_path
+        else:
+            self.enable_root_import = True
+
+    def _apply_output_options(self, data: dict[str, Any]) -> None:
+        if value := data.pop("output-format", ""):
+            try:
+                self.output_format = OutputFormat(value)
+            except ValueError as e:
+                raise ConfigError(
+                    f"output-format: unknown value {value!r}", config=self.config
+                ) from e
+
+        if value := data.pop("output-template", ""):
+            self.output_template = value
+
+    def _update_target_python_version(self, python_version: str | None) -> None:
         if python_version is None:
             return
         if not isinstance(python_version, str):
-            raise ConfigError("'python-version' must be a string", config=config)
+            raise ConfigError("'python-version' must be a string", config=self.config)
         if python_version:
             try:
-                target_python_version = Version(python_version)
+                self.target_python_version = Version(python_version)
             except InvalidVersion as error:
                 raise ConfigError(
                     f"'python-version' {python_version!r} is not valid",
-                    config=config,
+                    config=self.config,
                 ) from error
             return
 
         # disable versioning, aka python-version = ""
-        target_python_version = None
+        self.target_python_version = None
 
-    def apply_rule_selection(
+    def _apply_rule_selection(
+        self,
         *,
         config_dir: Path,
         enable: Sequence[str] = (),
         disable: Sequence[str] = (),
     ) -> None:
         for rule in enable:
-            selector = parse_rule(rule, config_dir, config)
-            enable_rules.add(selector)
-            disable_rules.discard(selector)
+            selector = parse_rule(rule, config_dir, self.config)
+            self.enable_rules.add(selector)
+            self.disable_rules.discard(selector)
 
         for rule in disable:
-            selector = parse_rule(rule, config_dir, config)
-            enable_rules.discard(selector)
-            disable_rules.add(selector)
+            selector = parse_rule(rule, config_dir, self.config)
+            self.enable_rules.discard(selector)
+            self.disable_rules.add(selector)
 
-    def process_subpath(
+    def _process_subpath(
+        self,
         subpath: Path,
         *,
         enable: Sequence[str] = (),
@@ -919,159 +1119,86 @@ def merge_configs(  # noqa: C901 - config merge orchestration
         python_version: str | None = None,
         formatter: str | None = None,
     ) -> None:
-        nonlocal target_python_version
-        nonlocal target_formatter
-
         subpath = subpath.resolve()
         try:
-            path.relative_to(subpath)
+            self.path.relative_to(subpath)
         except ValueError:  # not relative to subpath
             return
 
-        apply_rule_selection(config_dir=config.path.parent, enable=enable, disable=disable)
+        self._apply_rule_selection(
+            config_dir=self.config.path.parent,
+            enable=enable,
+            disable=disable,
+        )
 
         if options:
             for rule_name, option_values in options.items():
-                existing_options = rule_options.setdefault(rule_name, {})
+                existing_options = self.rule_options.setdefault(rule_name, {})
                 existing_options.update(option_values)
 
-        update_target_python_version(python_version)
+        self._update_target_python_version(python_version)
 
         if formatter:
             if formatter not in FORMAT_STYLES:
-                raise ConfigError(f"'formatter' {formatter!r} not supported", config=config)
+                raise ConfigError(f"'formatter' {formatter!r} not supported", config=self.config)
 
-            target_formatter = formatter
+            self.target_formatter = formatter
 
-    def process_rule_patterns(
+    def _process_overrides(self) -> None:
+        for override in get_sequence(self.config, "overrides"):
+            if not isinstance(override, dict):
+                raise ConfigError("'overrides' requires array of tables", config=self.config)
+
+            subpath = override.get("path", None)
+            if not subpath:
+                raise ConfigError("'overrides' table requires 'path' value", config=self.config)
+
+            self._process_subpath(
+                self.config.path.parent / subpath,
+                enable=get_sequence(self.config, "enable", data=override),
+                disable=get_sequence(self.config, "disable", data=override),
+                options=get_options(self.config, "options", data=override),
+                python_version=override.pop("python-version", None),
+                formatter=override.pop("formatter", None),
+            )
+
+    def _process_rule_patterns(
+        self,
         config_dir: Path,
         *,
         enable: Mapping[str, Sequence[str]] | None = None,
         disable: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
-        relative_path = _relative_path_str(path, config_dir)
+        relative_path = _relative_path_str(self.path, config_dir)
         if relative_path is None:
             return
 
         for pattern, rules in (enable or {}).items():
             if _path_matches_glob(relative_path, pattern):
-                apply_rule_selection(config_dir=config_dir, enable=rules)
+                self._apply_rule_selection(config_dir=config_dir, enable=rules)
 
         for pattern, rules in (disable or {}).items():
             if _path_matches_glob(relative_path, pattern):
-                apply_rule_selection(config_dir=config_dir, disable=rules)
+                self._apply_rule_selection(config_dir=config_dir, disable=rules)
 
-    def process_ruff_file_selection(config_dir: Path, *, inherited: bool) -> None:
-        nonlocal excluded
-
+    def _process_ruff_file_selection(self, config_dir: Path, *, inherited: bool) -> None:
         if not inherited:
             return
 
-        relative_path = _relative_path_str(path, config_dir)
+        relative_path = _relative_path_str(self.path, config_dir)
         if relative_path is None:
             return
 
-        includes, excludes, force_exclude = _read_ruff_file_selection(config)
+        includes, excludes, force_exclude = _read_ruff_file_selection(self.config)
         if includes and not any(_path_matches_glob(relative_path, pattern) for pattern in includes):
-            excluded = True
+            self.excluded = True
 
         if (
             excludes
             and any(_path_matches_glob(relative_path, pattern) for pattern in excludes)
-            and (force_exclude or not explicit_path)
+            and (force_exclude or not self.explicit_path)
         ):
-            excluded = True
-
-    for config in reversed(raw_configs):
-        if root is None:
-            root = config.path.parent
-
-        data = config.data
-        if data.pop("root", False):
-            root = config.path.parent
-
-        if value := data.pop("enable-root-import", False):
-            if root != config.path.parent:
-                raise ConfigError(
-                    "enable-root-import not allowed in non-root configs", config=config
-                )
-            if isinstance(value, str):
-                value_path = Path(value)
-                if value_path.is_absolute():
-                    raise ConfigError(
-                        "enable-root-import: absolute paths not allowed", config=config
-                    )
-                if ".." in value_path.parts:
-                    raise ConfigError(
-                        "enable-root-import: '..' components not allowed", config=config
-                    )
-                enable_root_import = value_path
-            else:
-                enable_root_import = True
-
-        if value := data.pop("output-format", ""):
-            try:
-                output_format = OutputFormat(value)
-            except ValueError as e:
-                raise ConfigError(f"output-format: unknown value {value!r}", config=config) from e
-
-        if value := data.pop("output-template", ""):
-            output_template = value
-
-        inherit_ruff_files = data.pop("inherit-ruff-files", False)
-        if not isinstance(inherit_ruff_files, bool):
-            raise ConfigError("'inherit-ruff-files' must be a boolean", config=config)
-
-        process_subpath(
-            config.path.parent,
-            enable=get_sequence(config, "enable"),
-            disable=get_sequence(config, "disable"),
-            options=get_options(config, "options"),
-            python_version=config.data.pop("python-version", None),
-            formatter=config.data.pop("formatter", None),
-        )
-
-        for override in get_sequence(config, "overrides"):
-            if not isinstance(override, dict):
-                raise ConfigError("'overrides' requires array of tables", config=config)
-
-            subpath = override.get("path", None)
-            if not subpath:
-                raise ConfigError("'overrides' table requires 'path' value", config=config)
-
-            subpath = config.path.parent / subpath
-            process_subpath(
-                subpath,
-                enable=get_sequence(config, "enable", data=override),
-                disable=get_sequence(config, "disable", data=override),
-                options=get_options(config, "options", data=override),
-                python_version=override.pop("python-version", None),
-                formatter=override.pop("formatter", None),
-            )
-
-        process_rule_patterns(
-            config.path.parent,
-            enable=get_rule_pattern_table(config, "per-file-enable"),
-            disable=get_rule_pattern_table(config, "per-file-disable"),
-        )
-        process_ruff_file_selection(config.path.parent, inherited=inherit_ruff_files)
-
-        for key in data:
-            log.warning("unknown configuration option %r", key)
-
-    return Config(
-        path=path,
-        root=root or Path(path.anchor),
-        excluded=excluded,
-        enable_root_import=enable_root_import,
-        enable=sorted(enable_rules, key=str),
-        disable=sorted(disable_rules, key=str),
-        options=rule_options,
-        python_version=target_python_version,
-        formatter=target_formatter,
-        output_format=output_format,
-        output_template=output_template,
-    )
+            self.excluded = True
 
 
 def generate_config(
@@ -1093,7 +1220,12 @@ def generate_config(
         config_paths = locate_configs(path, root=root)
 
     raw_configs = read_configs(config_paths)
-    config = merge_configs(path, raw_configs, root=root, explicit_path=explicit_path)
+    config = ConfigMerger(
+        path=path,
+        raw_configs=raw_configs,
+        root=root,
+        explicit_path=explicit_path,
+    ).merge()
 
     if options:
         if options.tags:
@@ -1108,6 +1240,9 @@ def generate_config(
 
         if options.output_template:
             config.output_template = options.output_template
+
+        if options.no_format:
+            config.formatter = None
 
     return config
 
@@ -1344,6 +1479,7 @@ __all__ = (
     "RATTLE_LOCAL_MODULE",
     "CollectionError",
     "ConfigError",
+    "ConfigMerger",
     "RuleRegistry",
     "RuleResolution",
     "collect_rule_types",
@@ -1357,7 +1493,6 @@ __all__ = (
     "local_rule_loader",
     "locate_configs",
     "materialize_rules",
-    "merge_configs",
     "parse_exact_rule_target",
     "parse_rule",
     "read_configs",

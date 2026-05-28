@@ -134,6 +134,7 @@ class ResultCache:
         config: Config,
         rules: Collection[LintRule],
         autofix: bool,
+        allow_cached_dirty_results: bool = False,
     ) -> tuple[list[Result] | None, set[str], bool]:
         cached_results = self._read_result(
             cache_key,
@@ -146,6 +147,9 @@ class ResultCache:
             return None, set(), False
 
         if all(result.violation is None for result in cached_results):
+            return cached_results, set(), True
+
+        if not autofix and allow_cached_dirty_results:
             return cached_results, set(), True
 
         if not autofix:
@@ -260,7 +264,7 @@ class ResultCache:
             return None
 
         if entry.status == "clean":
-            return _cached_clean_results(path, config, stat)
+            return _cached_clean_results(path, config)
 
         source = _decode_cached_source(entry)
         if source is None:
@@ -311,10 +315,7 @@ class ResultCache:
         ):
             return None
 
-        source = _read_source_if_stat_stable(path, stat)
-        if source is None:
-            return None
-        return Result(path, violation=None, source=source)
+        return Result(path, violation=None)
 
     def _write_json(
         self,
@@ -348,10 +349,6 @@ def _path_stat_fingerprint(path: Path | None) -> tuple[str, int, int] | None:
     except OSError:
         return (path.as_posix(), -1, -1)
     return (path.as_posix(), stat.st_mtime_ns, stat.st_size)
-
-
-def _same_file_stat(left: os.stat_result, right: os.stat_result) -> bool:
-    return left.st_mtime_ns == right.st_mtime_ns and left.st_size == right.st_size
 
 
 def _package_version(package_name: str) -> str | None:
@@ -767,29 +764,8 @@ def _decode_cached_source(entry: ResultCacheEntry) -> FileContent | None:
         return None
 
 
-def _cached_clean_results(
-    path: Path,
-    config: Config,
-    expected_stat: os.stat_result,
-) -> list[Result] | None:
-    source = _read_source_if_stat_stable(path, expected_stat)
-    if source is None:
-        return None
-    return [Result(path, violation=None, source=source, config=config)]
-
-
-def _read_source_if_stat_stable(
-    path: Path,
-    expected_stat: os.stat_result,
-) -> bytes | None:
-    try:
-        source = path.read_bytes()
-        current_stat = path.stat()
-    except OSError:
-        return None
-    if not _same_file_stat(expected_stat, current_stat):
-        return None
-    return source
+def _cached_clean_results(path: Path, config: Config) -> list[Result] | None:
+    return [Result(path, violation=None, config=config)]
 
 
 def _serialize_violation(violation: LintViolation) -> dict[str, object]:
