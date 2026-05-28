@@ -424,6 +424,7 @@ def rattle_configured_file(
 
     try:
         stat = path.stat()
+        rules = collect_rules(config)
         cache = ResultCache.from_environment() if metrics_hook is None else None
         cache_key = cache.result_key(path, stat, config, include_diff=include_diff) if cache else ""
         cached_results: list[Result] | None = None
@@ -435,6 +436,7 @@ def rattle_configured_file(
                     stat,
                     path=path,
                     config=config,
+                    rules=rules,
                     autofix=autofix,
                 )
             )
@@ -442,7 +444,7 @@ def rattle_configured_file(
                 yield from cached_results or ()
                 return
 
-        rules = collect_rules(config)
+        cached_passthrough: list[Result] = []
         if cached_autofix_rule_names:
             cached_passthrough = [
                 result
@@ -475,7 +477,7 @@ def rattle_configured_file(
         if updated and updated != content:
             LOG.info("%s: writing changes to file", path)
             path.write_bytes(updated)
-        elif clean and cache is not None:
+        elif clean and not cached_passthrough and cache is not None:
             cache.write_result(cache_key, stat, rules=rules)
             cache.write_clean_status(
                 path,
@@ -654,17 +656,12 @@ def rattle_paths(
     if cache is None:
         pending_paths = [(path.resolve(), explicit_path) for path, explicit_path in expanded_paths]
     else:
-        pending_paths = yield from cache.collect_pending_paths(
+        pending_paths = cache.collect_pending_paths(
             expanded_paths,
             include_diff=include_diff,
             options=options,
         )
     included_paths = _configured_paths(pending_paths, options=options)
-    if cache is not None:
-        included_paths = yield from cache.collect_uncached_paths(
-            included_paths,
-            include_diff=include_diff,
-        )
 
     if len(included_paths) == 1 or not parallel:
         for path, config, explicit_path in included_paths:
