@@ -103,4 +103,6 @@ class AvoidOrInExcept(LintRule):
             self.report(node, self.MESSAGE)
 
 
-__all__ = ("AvoidOrInExcept",)
+__all__ = [
+    "AvoidOrInExcept",
+]

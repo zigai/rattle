@@ -105,4 +105,6 @@ class DeprecatedUnittestAsserts(LintRule):
                 break
 
 
-__all__ = ("DeprecatedUnittestAsserts",)
+__all__ = [
+    "DeprecatedUnittestAsserts",
+]

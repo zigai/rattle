@@ -173,4 +173,6 @@ class CollapseIsinstanceChecks(LintRule):
         return isinstance(target, cst.Name)
 
 
-__all__ = ("CollapseIsinstanceChecks",)
+__all__ = [
+    "CollapseIsinstanceChecks",
+]

@@ -82,4 +82,6 @@ class NoRedundantFString(LintRule):
         self.report(node, self.MESSAGE, replacement=cst.SimpleString(new_string_literal))
 
 
-__all__ = ("NoRedundantFString",)
+__all__ = [
+    "NoRedundantFString",
+]

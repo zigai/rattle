@@ -18,7 +18,7 @@ from libcst._add_slots import add_slots
 from libcst.metadata import CodePosition, CodeRange
 from packaging.version import Version
 
-__all__ = ("CodePosition", "CodeRange", "Version")
+__all__ = ["CodePosition", "CodeRange", "Version"]
 
 T = TypeVar("T")
 

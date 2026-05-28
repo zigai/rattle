@@ -264,4 +264,6 @@ class ExplicitFrozenDataclass(LintRule):
                     )
 
 
-__all__ = ("ExplicitFrozenDataclass",)
+__all__ = [
+    "ExplicitFrozenDataclass",
+]

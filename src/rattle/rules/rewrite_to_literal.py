@@ -145,4 +145,6 @@ class RewriteToLiteral(LintRule):
             )
 
 
-__all__ = ("RewriteToLiteral",)
+__all__ = [
+    "RewriteToLiteral",
+]

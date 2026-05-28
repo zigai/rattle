@@ -1494,7 +1494,7 @@ def validate_config(path: Path) -> list[str]:
     return ConfigValidator(path).validate()
 
 
-__all__ = (
+__all__ = [
     "BUILTIN_RULE_MODULES",
     "GLOB_META_CHARS",
     "RATTLE_CONFIG_FILENAMES",
@@ -1521,4 +1521,4 @@ __all__ = (
     "resolve_rule_settings",
     "validate_config",
     "walk_module",
-)
+]

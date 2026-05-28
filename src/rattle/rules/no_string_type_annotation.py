@@ -317,4 +317,6 @@ class NoStringTypeAnnotation(LintRule):
                 self.report(node, self.MESSAGE)
 
 
-__all__ = ("NoStringTypeAnnotation",)
+__all__ = [
+    "NoStringTypeAnnotation",
+]

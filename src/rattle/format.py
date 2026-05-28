@@ -202,7 +202,7 @@ def _usort_config(path: Path) -> object:
     return ufmt.UsortConfig.find(path)
 
 
-__all__ = (
+__all__ = [
     "FORMAT_STYLES",
     "AutoFormatter",
     "BlackFormatter",
@@ -210,4 +210,4 @@ __all__ = (
     "RuffFormatter",
     "UfmtFormatter",
     "format_module",
-)
+]

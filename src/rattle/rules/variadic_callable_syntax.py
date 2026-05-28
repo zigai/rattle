@@ -127,4 +127,6 @@ class VariadicCallableSyntax(LintRule):
             )
 
 
-__all__ = ("VariadicCallableSyntax",)
+__all__ = [
+    "VariadicCallableSyntax",
+]

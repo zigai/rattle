@@ -327,4 +327,4 @@ def _fix_marker(*, color: bool) -> str:
     return f"[{_help_style('*', color=color)}]"
 
 
-__all__ = ("render_console_result", "render_rattle_result")
+__all__ = ["render_console_result", "render_rattle_result"]

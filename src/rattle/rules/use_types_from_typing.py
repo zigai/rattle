@@ -153,4 +153,6 @@ class UseTypesFromTyping(LintRule):
             )
 
 
-__all__ = ("UseTypesFromTyping",)
+__all__ = [
+    "UseTypesFromTyping",
+]

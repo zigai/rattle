@@ -143,4 +143,6 @@ class RewriteToComprehension(LintRule):
             self.report(node, message_formatter.format(func=call_name), replacement=replacement)
 
 
-__all__ = ("RewriteToComprehension",)
+__all__ = [
+    "RewriteToComprehension",
+]

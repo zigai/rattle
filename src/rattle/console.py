@@ -125,11 +125,11 @@ class AsyncConsole:
             raise self._error
 
 
-__all__ = (
+__all__ = [
     "AsyncConsole",
     "ConsoleMessage",
     "color_precomputed_diff",
     "echo",
     "echo_color_precomputed_diff",
     "getchar",
-)
+]

@@ -62,4 +62,6 @@ class UseLintFixmeComment(LintRule):
             self.report(node, self.MESSAGE)
 
 
-__all__ = ("UseLintFixmeComment",)
+__all__ = [
+    "UseLintFixmeComment",
+]

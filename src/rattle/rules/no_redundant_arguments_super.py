@@ -150,4 +150,6 @@ class NoRedundantArgumentsSuper(LintRule):
         return matcher
 
 
-__all__ = ("NoRedundantArgumentsSuper",)
+__all__ = [
+    "NoRedundantArgumentsSuper",
+]

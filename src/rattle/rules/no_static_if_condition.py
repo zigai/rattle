@@ -157,4 +157,6 @@ class NoStaticIfCondition(LintRule):
             self.report(node, self.MESSAGE)
 
 
-__all__ = ("NoStaticIfCondition",)
+__all__ = [
+    "NoStaticIfCondition",
+]

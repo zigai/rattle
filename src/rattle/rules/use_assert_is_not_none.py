@@ -157,4 +157,6 @@ class UseAssertIsNotNone(LintRule):
                 self.report(node, self.MESSAGE, replacement=new_call)
 
 
-__all__ = ("UseAssertIsNotNone",)
+__all__ = [
+    "UseAssertIsNotNone",
+]

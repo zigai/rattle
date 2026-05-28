@@ -357,4 +357,6 @@ class NoNamedTupleTransformer(cst.CSTTransformer):
         return self._leave_module(original_node, updated_node)
 
 
-__all__ = ("NoNamedTuple",)
+__all__ = [
+    "NoNamedTuple",
+]

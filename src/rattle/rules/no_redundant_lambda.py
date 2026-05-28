@@ -80,4 +80,6 @@ class NoRedundantLambda(LintRule):
             )
 
 
-__all__ = ("NoRedundantLambda",)
+__all__ = [
+    "NoRedundantLambda",
+]

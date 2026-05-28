@@ -61,4 +61,6 @@ class NoRedundantListComprehension(LintRule):
             )
 
 
-__all__ = ("NoRedundantListComprehension",)
+__all__ = [
+    "NoRedundantListComprehension",
+]

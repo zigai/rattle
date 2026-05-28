@@ -882,7 +882,7 @@ def rattle_paths(
     )
 
 
-__all__ = (
+__all__ = [
     "ConfiguredPath",
     "ConfiguredPathBatch",
     "print_result",
@@ -891,4 +891,4 @@ __all__ = (
     "rattle_file",
     "rattle_paths",
     "rattle_stdin",
-)
+]

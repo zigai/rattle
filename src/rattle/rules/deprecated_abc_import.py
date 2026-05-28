@@ -325,4 +325,6 @@ def _normalize_import_alias(alias: cst.ImportAlias) -> cst.ImportAlias:
     return alias.with_changes(comma=MaybeSentinel.DEFAULT)
 
 
-__all__ = ("DeprecatedABCImport",)
+__all__ = [
+    "DeprecatedABCImport",
+]

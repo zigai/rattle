@@ -63,4 +63,6 @@ class NoInheritFromObject(LintRule):
             self.report(node, self.MESSAGE, replacement=new_classdef)
 
 
-__all__ = ("NoInheritFromObject",)
+__all__ = [
+    "NoInheritFromObject",
+]

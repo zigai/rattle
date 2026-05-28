@@ -245,4 +245,6 @@ class UseFstring(LintRule):
             self.report(node, self.MESSAGE)
 
 
-__all__ = ("UseFstring",)
+__all__ = [
+    "UseFstring",
+]

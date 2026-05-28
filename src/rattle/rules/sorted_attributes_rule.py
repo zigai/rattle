@@ -120,4 +120,6 @@ class SortedAttributes(LintRule):
         return target.value
 
 
-__all__ = ("SortedAttributes",)
+__all__ = [
+    "SortedAttributes",
+]

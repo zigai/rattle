@@ -282,4 +282,6 @@ class UseClsInClassmethod(LintRule):
         self.report(node, self.MESSAGE, replacement=repl)
 
 
-__all__ = ("UseClsInClassmethod",)
+__all__ = [
+    "UseClsInClassmethod",
+]

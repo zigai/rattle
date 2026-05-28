@@ -300,8 +300,8 @@ class LintRunner:
         return updated
 
 
-__all__ = (
+__all__ = [
     "LintRunner",
     "diff_module",
     "diff_violation",
-)
+]

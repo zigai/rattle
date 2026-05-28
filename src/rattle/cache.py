@@ -772,7 +772,7 @@ def _serialize_violation(violation: LintViolation) -> dict[str, object]:
     return SerializedViolationCacheEntry.from_violation(violation).to_json()
 
 
-__all__ = (
+__all__ = [
     "ResultCache",
     "rule_cache_fingerprint",
-)
+]

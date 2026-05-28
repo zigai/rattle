@@ -229,7 +229,7 @@ def add_lint_rule_tests_to_module(
             test_case_class.__module__ = test_module
 
 
-__all__ = (
+__all__ = [
     "LintRuleTestCase",
     "Patch",
     "Report",
@@ -240,4 +240,4 @@ __all__ = (
     "generate_lint_rule_test_cases",
     "get_fixture_path",
     "validate_patch",
-)
+]

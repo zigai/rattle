@@ -478,8 +478,8 @@ class LintRule(BatchableCSTVisitor):
         }
 
 
-__all__ = (
+__all__ = [
     "LintRule",
     "RuleConfigurationError",
     "RuleSetting",
-)
+]

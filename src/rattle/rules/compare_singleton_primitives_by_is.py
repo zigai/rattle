@@ -109,4 +109,6 @@ class CompareSingletonPrimitivesByIs(LintRule):
         )
 
 
-__all__ = ("CompareSingletonPrimitivesByIs",)
+__all__ = [
+    "CompareSingletonPrimitivesByIs",
+]
