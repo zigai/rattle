@@ -1,12 +1,15 @@
 import base64
+import binascii
 import hashlib
 import inspect
 import json
 import logging
 import os
-from collections.abc import Collection, Generator
+import platform
+import uuid
+from collections.abc import Collection
 from dataclasses import dataclass
-from functools import cache
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from libcst import Name
@@ -27,7 +30,8 @@ from .rule import LintRule
 LOG = logging.getLogger(__name__)
 CACHE_VERSION = "results-v1"
 CLEAN_STATUS_PRECHECK_MIN_PATHS = 20
-_rule_fingerprint_validation_cache: dict[str, bool] = {}
+CACHE_MAX_BYTES = 250 * 1024 * 1024
+CACHE_PRUNE_TARGET_BYTES = 200 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -128,6 +132,7 @@ class ResultCache:
         *,
         path: Path,
         config: Config,
+        rules: Collection[LintRule],
         autofix: bool,
         allow_cached_dirty_results: bool = False,
     ) -> tuple[list[Result] | None, set[str], bool]:
@@ -136,6 +141,7 @@ class ResultCache:
             stat,
             path=path,
             config=config,
+            rules=rules,
         )
         if cached_results is None:
             return None, set(), False
@@ -224,28 +230,11 @@ class ResultCache:
         *,
         include_diff: bool,
         options: Options | None,
-    ) -> Generator[Result, None, list[tuple[Path, bool]]]:
-        clean_precheck = len(expanded_paths) >= CLEAN_STATUS_PRECHECK_MIN_PATHS
-        config_fingerprint_cache: dict[Path, tuple[tuple[str, int, int], ...]] = {}
+    ) -> list[tuple[Path, bool]]:
+        del include_diff, options
         pending_paths: list[tuple[Path, bool]] = []
         for path, explicit_path in expanded_paths:
             path = path.resolve()
-            if clean_precheck:
-                parent = path.parent
-                config_fingerprints = config_fingerprint_cache.get(parent)
-                if config_fingerprints is None:
-                    config_fingerprints = _config_path_fingerprints(path, options=options)
-                    config_fingerprint_cache[parent] = config_fingerprints
-                cached_clean = self._read_clean_status(
-                    path,
-                    options=options,
-                    explicit_path=explicit_path,
-                    include_diff=include_diff,
-                    config_fingerprints=config_fingerprints,
-                )
-                if cached_clean is not None:
-                    yield cached_clean
-                    continue
             pending_paths.append((path, explicit_path))
         return pending_paths
 
@@ -262,20 +251,16 @@ class ResultCache:
         *,
         path: Path,
         config: Config,
+        rules: Collection[LintRule],
     ) -> list[Result] | None:
         try:
             raw = self._result_entry_path(cache_key).read_text()
             raw_data: object = json.loads(raw)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return None
 
         entry = _decode_result_cache_entry(raw_data, stat)
-        if entry is None:
-            return None
-        if not _cached_rule_fingerprints_match(
-            entry.rule_fingerprints,
-            entry.rule_fingerprint_hash,
-        ):
+        if entry is None or not _cached_result_entry_matches_current_rules(entry, rules):
             return None
 
         if entry.status == "clean":
@@ -318,7 +303,7 @@ class ResultCache:
         try:
             raw = self._clean_status_entry_path(cache_key).read_text()
             raw_data: object = json.loads(raw)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             return None
 
         entry = _decode_clean_status_cache_entry(raw_data, stat)
@@ -341,9 +326,10 @@ class ResultCache:
     ) -> None:
         try:
             entry_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp_path = entry_path.with_name(f"{entry_path.name}.{os.getpid()}.tmp")
+            tmp_path = entry_path.with_name(f"{entry_path.name}.{os.getpid()}.{uuid.uuid4()}.tmp")
             tmp_path.write_text(json.dumps(data, sort_keys=True))
             tmp_path.replace(entry_path)
+            _prune_cache(self.root)
         except OSError:
             LOG.debug(error_message, exc_info=True)
 
@@ -354,7 +340,6 @@ def _jsonable_option_value(value: object) -> object:
     return value
 
 
-@cache
 def _path_stat_fingerprint(path: Path | None) -> tuple[str, int, int] | None:
     if path is None:
         return None
@@ -364,6 +349,54 @@ def _path_stat_fingerprint(path: Path | None) -> tuple[str, int, int] | None:
     except OSError:
         return (path.as_posix(), -1, -1)
     return (path.as_posix(), stat.st_mtime_ns, stat.st_size)
+
+
+def _package_version(package_name: str) -> str | None:
+    try:
+        return version(package_name)
+    except PackageNotFoundError:
+        return None
+
+
+def _runtime_fingerprint() -> tuple[tuple[str, str | None], ...]:
+    return (
+        ("python", platform.python_version()),
+        ("rattle-lint", _package_version("rattle-lint")),
+        ("libcst", _package_version("libcst")),
+    )
+
+
+def _prune_cache(
+    root: Path,
+    *,
+    max_bytes: int = CACHE_MAX_BYTES,
+    target_bytes: int = CACHE_PRUNE_TARGET_BYTES,
+) -> None:
+    entries: list[tuple[int, int, Path]] = []
+    total_bytes = 0
+    try:
+        paths = list(root.rglob("*.json"))
+        for path in paths:
+            try:
+                stat = path.stat()
+            except OSError:
+                continue
+            total_bytes += stat.st_size
+            entries.append((stat.st_mtime_ns, stat.st_size, path))
+    except OSError:
+        return
+
+    if total_bytes <= max_bytes:
+        return
+
+    for _, size, path in sorted(entries):
+        try:
+            path.unlink()
+        except OSError:
+            continue
+        total_bytes -= size
+        if total_bytes <= target_bytes:
+            return
 
 
 def rule_cache_fingerprint(rule: LintRule) -> tuple[object, ...]:
@@ -385,9 +418,26 @@ def rule_cache_fingerprint(rule: LintRule) -> tuple[object, ...]:
         rule_type.__qualname__,
         _path_stat_fingerprint(resolved_source_path),
         _path_stat_fingerprint(resolved_source_path.parent if resolved_source_path else None),
+        _sibling_python_file_fingerprints(resolved_source_path),
         tuple(
             sorted((name, _jsonable_option_value(value)) for name, value in rule.settings.items())
         ),
+    )
+
+
+def _sibling_python_file_fingerprints(
+    source_path: Path | None,
+) -> tuple[tuple[str, int, int], ...]:
+    if source_path is None:
+        return ()
+    try:
+        paths = sorted(source_path.parent.glob("*.py"))
+    except OSError:
+        return ()
+    return tuple(
+        fingerprint
+        for path in paths
+        if (fingerprint := _path_stat_fingerprint(path.resolve())) is not None
     )
 
 
@@ -400,6 +450,7 @@ def _clean_cache_key(
 ) -> str:
     payload: dict[str, object] = {
         "version": CACHE_VERSION,
+        "runtime": _runtime_fingerprint(),
         "path": path.as_posix(),
         "mtime_ns": stat.st_mtime_ns,
         "size": stat.st_size,
@@ -467,6 +518,7 @@ def _clean_status_cache_key(
     payload: dict[str, object] = {
         "version": CACHE_VERSION,
         "kind": "clean-status",
+        "runtime": _runtime_fingerprint(),
         "path": path.as_posix(),
         "mtime_ns": stat.st_mtime_ns,
         "size": stat.st_size,
@@ -484,18 +536,30 @@ def _fingerprint_matches(raw_fingerprint: object) -> bool:
         return False
 
     for raw_path_stat in (raw_fingerprint[2], raw_fingerprint[3]):
-        if (
-            not isinstance(raw_path_stat, list | tuple)
-            or len(raw_path_stat) != 3
-            or not isinstance(raw_path_stat[0], str)
-        ):
-            return False
-        path = Path(raw_path_stat[0])
-        current = _path_stat_fingerprint(path)
-        if current != tuple(raw_path_stat):
+        if not _path_stat_fingerprint_matches(raw_path_stat):
             return False
 
+    if len(raw_fingerprint) >= 6:
+        raw_sibling_stats = raw_fingerprint[4]
+        if not isinstance(raw_sibling_stats, list | tuple):
+            return False
+        for raw_path_stat in raw_sibling_stats:
+            if not _path_stat_fingerprint_matches(raw_path_stat):
+                return False
+
     return True
+
+
+def _path_stat_fingerprint_matches(raw_path_stat: object) -> bool:
+    if (
+        not isinstance(raw_path_stat, list | tuple)
+        or len(raw_path_stat) != 3
+        or not isinstance(raw_path_stat[0], str)
+    ):
+        return False
+    path = Path(raw_path_stat[0])
+    current = _path_stat_fingerprint(path)
+    return current == tuple(raw_path_stat)
 
 
 def _rule_fingerprints_match(raw_fingerprints: object) -> bool:
@@ -523,14 +587,32 @@ def _cached_rule_fingerprints_match(
         fingerprint_hash = _rule_fingerprint_hash(raw_fingerprints)
     if fingerprint_hash is None:
         return False
+    return _rule_fingerprints_match(raw_fingerprints)
 
-    cached = _rule_fingerprint_validation_cache.get(fingerprint_hash)
-    if cached is not None:
-        return cached
 
-    valid = _rule_fingerprints_match(raw_fingerprints)
-    _rule_fingerprint_validation_cache[fingerprint_hash] = valid
-    return valid
+def _cached_result_entry_matches_current_rules(
+    entry: ResultCacheEntry,
+    rules: Collection[LintRule],
+) -> bool:
+    return _cached_rule_fingerprints_match(
+        entry.rule_fingerprints,
+        entry.rule_fingerprint_hash,
+    ) and _cached_rule_set_matches_current(entry, rules)
+
+
+def _cached_rule_set_matches_current(
+    entry: ResultCacheEntry,
+    rules: Collection[LintRule],
+) -> bool:
+    current_rule_fingerprints: list[object] = [rule_cache_fingerprint(rule) for rule in rules]
+    current_rule_fingerprint_hash = _rule_fingerprint_hash(current_rule_fingerprints)
+    entry_rule_fingerprint_hash = entry.rule_fingerprint_hash
+    if entry_rule_fingerprint_hash is None:
+        entry_rule_fingerprint_hash = _rule_fingerprint_hash(entry.rule_fingerprints)
+    return (
+        current_rule_fingerprint_hash is not None
+        and entry_rule_fingerprint_hash == current_rule_fingerprint_hash
+    )
 
 
 def _decode_code_position(value: object) -> CodePosition | None:
@@ -677,8 +759,8 @@ def _decode_cached_source(entry: ResultCacheEntry) -> FileContent | None:
         return None
 
     try:
-        return base64.b64decode(entry.source)
-    except ValueError:
+        return base64.b64decode(entry.source, validate=True)
+    except (ValueError, binascii.Error):
         return None
 
 

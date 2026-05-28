@@ -12,7 +12,6 @@ from dataclasses import dataclass, replace
 from functools import partial
 from multiprocessing.context import BaseContext
 from pathlib import Path
-from typing import cast
 
 import click
 import trailrunner
@@ -510,6 +509,7 @@ def rattle_configured_file(
 
     try:
         stat = path.stat()
+        rules = collect_rules(config)
         cache = ResultCache.from_environment() if metrics_hook is None else None
         cache_key = cache.result_key(path, stat, config, include_diff=include_diff) if cache else ""
         cached_results: list[Result] | None = None
@@ -521,6 +521,7 @@ def rattle_configured_file(
                     stat,
                     path=path,
                     config=config,
+                    rules=rules,
                     autofix=autofix,
                     allow_cached_dirty_results=allow_cached_dirty_results,
                 )
@@ -529,11 +530,11 @@ def rattle_configured_file(
                 yield from cached_results or ()
                 return
 
-        rules = collect_rules(config)
         defer_format = bool(
             deferred_format_paths is not None and autofix and config.formatter == "ruff"
         )
         lint_config = replace(config, formatter=None) if defer_format else config
+        cached_passthrough: list[Result] = []
         if cached_autofix_rule_names:
             cached_passthrough = [
                 result
@@ -568,7 +569,7 @@ def rattle_configured_file(
             path.write_bytes(updated)
             if defer_format and deferred_format_paths is not None:
                 deferred_format_paths.append(path)
-        elif clean and cache is not None:
+        elif clean and not cached_passthrough and cache is not None:
             cache.write_result(cache_key, stat, rules=rules)
             cache.write_clean_status(
                 path,
@@ -841,13 +842,10 @@ def rattle_paths(
     if cache is None:
         pending_paths = [(path.resolve(), explicit_path) for path, explicit_path in expanded_paths]
     else:
-        pending_paths = yield from cast(
-            Generator[Result, bool, list[tuple[Path, bool]]],
-            cache.collect_pending_paths(
-                expanded_paths,
-                include_diff=include_diff,
-                options=options,
-            ),
+        pending_paths = cache.collect_pending_paths(
+            expanded_paths,
+            include_diff=include_diff,
+            options=options,
         )
     included_paths = _configured_paths(pending_paths, options=options)
 
