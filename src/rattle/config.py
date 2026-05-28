@@ -9,6 +9,7 @@ import logging
 import pkgutil
 import platform
 import sys
+from collections import defaultdict
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from copy import deepcopy
@@ -97,9 +98,9 @@ class RuleRegistry:
     imported_rules: dict[QualifiedRule, tuple[type[LintRule], ...]] = field(default_factory=dict)
     import_errors: dict[QualifiedRule, Exception] = field(default_factory=dict)
     rules_by_key: dict[str, type[LintRule]] = field(default_factory=dict)
-    rules_by_name: dict[str, type[LintRule]] = field(default_factory=dict)
+    rules_by_name: dict[str, list[type[LintRule]]] = field(default_factory=dict)
 
-    def register(self, rule_type: type[LintRule], *, builtin: bool) -> None:
+    def register(self, rule_type: type[LintRule]) -> None:
         key = _rule_key_for_type(rule_type)
         existing = self.rules_by_key.get(key)
         if existing is None:
@@ -110,13 +111,7 @@ class RuleRegistry:
                 QualifiedRule(rule_type.__module__, rule_type.__name__),
             )
 
-        if builtin:
-            self._register_unique_selector(
-                self.rules_by_name,
-                rule_type.__name__,
-                rule_type,
-                selector_kind="rule name",
-            )
+        self._register_name(rule_type)
 
     def resolve(self, selector: RuleSelector) -> RuleResolution:
         if isinstance(selector, QualifiedRule):
@@ -127,8 +122,16 @@ class RuleRegistry:
                 raise CollectionError(f"could not find rule {selector}", selector)
             return RuleResolution(selector, rules, concrete=selector.name is not None)
 
-        if rule_type := self.rules_by_name.get(selector.value):
-            return RuleResolution(selector, (rule_type,), concrete=True)
+        if rules := self.rules_by_name.get(selector.value):
+            if len(rules) == 1:
+                return RuleResolution(selector, (rules[0],), concrete=True)
+            options = ", ".join(
+                _rule_key_for_type(rule_type) for rule_type in sorted(rules, key=_rule_key_for_type)
+            )
+            raise CollectionError(
+                f"ambiguous rule name {selector.value!r}; use one of: {options}",
+                selector,
+            )
 
         raise CollectionError(f"could not find rule {selector}", selector)
 
@@ -166,28 +169,11 @@ class RuleRegistry:
             if resolution is not None:
                 yield resolution
 
-    def _register_unique_selector(
-        self,
-        mapping: dict[str, type[LintRule]],
-        selector: str,
-        rule_type: type[LintRule],
-        *,
-        selector_kind: str,
-    ) -> None:
-        existing = mapping.get(selector)
-        if existing is None:
-            mapping[selector] = rule_type
+    def _register_name(self, rule_type: type[LintRule]) -> None:
+        rules = self.rules_by_name.setdefault(rule_type.__name__, [])
+        if rule_type in rules:
             return
-        if existing is rule_type:
-            return
-
-        raise CollectionError(
-            (
-                f"duplicate rule {selector_kind} {selector!r} for "
-                f"{_rule_key_for_type(existing)} and {_rule_key_for_type(rule_type)}"
-            ),
-            QualifiedRule(rule_type.__module__, rule_type.__name__),
-        )
+        rules.append(rule_type)
 
 
 def is_rule(obj: type[T]) -> bool:
@@ -342,6 +328,24 @@ def _option_key_aliases_for_rule_type(rule_type: type[LintRule]) -> set[str]:
     return aliases
 
 
+def _option_key_aliases_for_rule_types(
+    rule_types: Collection[type[LintRule]],
+) -> dict[str, type[LintRule]]:
+    aliases: dict[str, type[LintRule]] = {}
+    rules_by_name: dict[str, list[type[LintRule]]] = defaultdict(list)
+
+    for rule_type in rule_types:
+        for alias in _option_key_aliases_for_rule_type(rule_type):
+            aliases[alias] = rule_type
+        rules_by_name[rule_type.__name__].append(rule_type)
+
+    for name, named_rules in rules_by_name.items():
+        if len(named_rules) == 1:
+            aliases[name] = named_rules[0]
+
+    return aliases
+
+
 def _enable_root_import_path(enable_root_import: bool | Path, root: Path) -> Path | None:
     if not enable_root_import:
         return None
@@ -388,7 +392,7 @@ def _build_rule_registry(
     registry = RuleRegistry()
     builtin_rule_types = set(_builtin_rule_types())
     for rule_type in builtin_rule_types:
-        registry.register(rule_type, builtin=True)
+        registry.register(rule_type)
 
     import_selectors = sorted(
         {selector for selector in selectors if isinstance(selector, QualifiedRule)},
@@ -417,7 +421,7 @@ def _build_rule_registry(
 
             registry.imported_rules[selector] = rules
             for rule_type in rules:
-                registry.register(rule_type, builtin=rule_type in builtin_rule_types)
+                registry.register(rule_type)
 
     return registry
 
@@ -485,10 +489,7 @@ def resolve_rule_settings(
     config: Config,
     rule_types: Collection[type[LintRule]],
 ) -> dict[type[LintRule], dict[str, object]]:
-    rules_by_key: dict[str, type[LintRule]] = {}
-    for rule_type in rule_types:
-        for alias in _option_key_aliases_for_rule_type(rule_type):
-            rules_by_key[alias] = rule_type
+    rules_by_key = _option_key_aliases_for_rule_types(rule_types)
 
     resolved_settings: dict[type[LintRule], dict[str, object]] = {}
     for rule_name, settings in config.options.items():

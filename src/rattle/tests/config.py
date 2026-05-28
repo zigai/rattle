@@ -698,8 +698,8 @@ class ConfigTest(TestCase):
             pass
 
         registry = config.RuleRegistry()
-        registry.register(BetaRule, builtin=True)
-        registry.register(AlphaRule, builtin=True)
+        registry.register(BetaRule)
+        registry.register(AlphaRule)
 
         alpha_resolution = registry.resolve(RuleNameSelector("AlphaRule"))
         assert alpha_resolution.rules == (AlphaRule,)
@@ -710,6 +710,17 @@ class ConfigTest(TestCase):
             config.CollectionError, match="could not find rule DefinitelyMissingRule"
         ):
             registry.resolve(missing_selector)
+
+    def test_rule_registry_rejects_ambiguous_short_selector(self) -> None:
+        first_rule = type("DuplicateRule", (LintRule,), {"__module__": "first.rules"})
+        second_rule = type("DuplicateRule", (LintRule,), {"__module__": "second.rules"})
+
+        registry = config.RuleRegistry()
+        registry.register(first_rule)
+        registry.register(second_rule)
+
+        with pytest.raises(config.CollectionError, match="ambiguous rule name 'DuplicateRule'"):
+            registry.resolve(RuleNameSelector("DuplicateRule"))
 
     def test_collect_rules(self) -> None:
         from rattle.rules.fixit.explicit_frozen_dataclass import ExplicitFrozenDataclass
@@ -814,6 +825,31 @@ class ConfigTest(TestCase):
                 )
             )
             assert [UseFstring] == rules
+
+        with self.subTest("local module rules can be disabled by unique rule name"):
+            (self.tdp / "custom_rules.py").write_text(
+                dedent(
+                    """
+                    from rattle import LintRule
+
+                    class KeepRule(LintRule):
+                        pass
+
+                    class SkipRule(LintRule):
+                        pass
+                    """
+                )
+            )
+            rules = collect_types(
+                Config(
+                    root=self.tdp,
+                    enable_root_import=True,
+                    enable=[QualifiedRule("custom_rules")],
+                    disable=[RuleNameSelector("SkipRule")],
+                    python_version=None,
+                )
+            )
+            assert [rule.__name__ for rule in rules] == ["KeepRule"]
 
         with self.subTest("override broad opt-out"):
             rules = collect_types(
