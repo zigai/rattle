@@ -11,8 +11,10 @@ from typing import cast
 from unittest import TestCase
 from unittest.mock import patch
 
-from rattle.cli import main
+from rattle.cli import _rule_line, main
 from rattle.ftypes import Metrics, Options
+from rattle.rule import LintRule
+from rattle.rules.fixit_extra.use_fstring import UseFstring
 
 from .helpers import make_cli_runner
 
@@ -70,9 +72,34 @@ class CliTest(TestCase):
         assert "1 enabled" in result.stdout
         assert "UseFstring - Do not use printf style formatting" in result.stdout
         assert "[fix]" not in result.stdout
+        assert "simple_expression_max_length" not in result.stdout
         assert "rattle.rules.fixit_extra.use_fstring:UseFstring" not in result.stdout
         assert "Options(" not in result.stdout
         assert "Config(" not in result.stdout
+
+    def test_rule_line_omits_rule_tags(self) -> None:
+        class TaggedRule(LintRule):
+            MESSAGE = "Use the narrow rules listing."
+            TAGS = {"architecture", "local"}
+
+        assert _rule_line(TaggedRule()) == "  Tagged - Use the narrow rules listing."
+
+    def test_rule_line_only_colors_rule_name(self) -> None:
+        def fake_colored(
+            text: str,
+            color: str | None = None,
+            background: str | None = None,
+            style: str | None = None,
+        ) -> str:
+            del background, color, style
+            return f"<colored>{text}</colored>"
+
+        with patch("rattle.cli.colored", side_effect=fake_colored):
+            line = _rule_line(UseFstring())
+
+        assert line.startswith("  <colored>UseFstring</colored> - ")
+        assert " - Do not use printf style formatting" in line
+        assert " - <colored>Do not use printf style formatting" not in line
 
     def test_debug_command_removed(self) -> None:
         result = self.runner.invoke(main, ["debug"], catch_exceptions=False)
