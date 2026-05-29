@@ -579,14 +579,9 @@ def _run_rule_tests(lint_rules: list[LintRule] | tuple[LintRule, ...]) -> None:
 
 
 def _rule_line(rule: LintRule) -> str:
-    labels: list[str] = []
-    if rule.TAGS:
-        labels.append(",".join(sorted(rule.TAGS)))
-    labels_text = ", ".join(labels)
-    suffix = f" {colored(f'[{labels_text}]', color='gray')}" if labels_text else ""
     description = _rule_description(rule)
-    description_text = f" - {colored(description, color='gray')}" if description else ""
-    return f"  {colored(rule.name, color='light_cyan', style='bold')}{suffix}{description_text}"
+    description_text = f" - {description}" if description else ""
+    return f"  {colored(rule.name, color='light_cyan', style='bold')}{description_text}"
 
 
 def _rule_description(rule: LintRule) -> str:
@@ -666,12 +661,8 @@ def rules_command(
         echo(colored(f"Rules for {path}", style="bold"))
         echo(f"{len(enabled)} enabled" + (f", {len(disabled)} disabled" if disabled else ""))
         for rule in sorted(enabled, key=lambda candidate: candidate.name):
-            echo(_rule_line(rule))
-            if rule.settings:
-                settings = ", ".join(
-                    f"{key}={value!r}" for key, value in sorted(rule.settings.items())
-                )
-                echo(f"      {colored(settings, color='gray')}")
+            sys.stdout.write(f"{_rule_line(rule)}\n")
+            sys.stdout.flush()
 
         if disabled:
             echo()
