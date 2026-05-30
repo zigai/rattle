@@ -133,6 +133,12 @@ class ConfigurableRule(LintRule):
     SETTINGS = {
         "max_length": RuleSetting(int, default=10),
         "allowed_prefixes": RuleSetting(list[str], default=["TODO"]),
+        "structured_entries": RuleSetting(list[dict[str, str]], default=[]),
+        "renamed_entries": RuleSetting(
+            list[dict[str, str]],
+            default=[],
+            validator=lambda value: [{"name": entry["old_name"]} for entry in value],
+        ),
     }
 
 
@@ -469,9 +475,16 @@ class RuleTest(TestCase):
 
     def test_rule_setting_configure_overrides(self) -> None:
         rule = ConfigurableRule()
-        rule.configure({"max_length": 20, "allowed_prefixes": ["TODO", "FIXME"]})
+        rule.configure(
+            {
+                "max_length": 20,
+                "allowed_prefixes": ["TODO", "FIXME"],
+                "structured_entries": [{"name": "alpha", "message": "Use alpha."}],
+            }
+        )
         assert rule.settings["max_length"] == 20
         assert rule.settings["allowed_prefixes"] == ["TODO", "FIXME"]
+        assert rule.settings["structured_entries"] == [{"name": "alpha", "message": "Use alpha."}]
 
     def test_rule_setting_unknown_key(self) -> None:
         rule = ConfigurableRule()
@@ -480,8 +493,18 @@ class RuleTest(TestCase):
 
     def test_rule_setting_invalid_type(self) -> None:
         rule = ConfigurableRule()
-        with pytest.raises(ValueError, match="expected items of type"):
+        with pytest.raises(ValueError, match=r"allowed_prefixes\[0\]"):
             rule.configure({"allowed_prefixes": [1]})
+
+    def test_rule_setting_invalid_nested_type(self) -> None:
+        rule = ConfigurableRule()
+        with pytest.raises(ValueError, match=r"structured_entries\[0\]\.name"):
+            rule.configure({"structured_entries": [{"name": 1}]})
+
+    def test_rule_setting_validator_can_normalize_value(self) -> None:
+        rule = ConfigurableRule()
+        rule.configure({"renamed_entries": [{"old_name": "alpha"}]})
+        assert rule.settings["renamed_entries"] == [{"name": "alpha"}]
 
     def test_runner_applies_default_settings(self) -> None:
         runner = LintRunner(Path("fake.py"), b"pass")

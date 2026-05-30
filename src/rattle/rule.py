@@ -8,13 +8,15 @@ from __future__ import annotations
 import functools
 import re
 from collections.abc import Callable, Collection, Generator, Mapping, Sequence
+from contextlib import suppress
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from pathlib import Path
-from types import FunctionType, MappingProxyType
+from types import FunctionType, MappingProxyType, UnionType
 from typing import (
     Any,
     ClassVar,
+    Union,
     get_args,
     get_origin,
 )
@@ -108,6 +110,170 @@ def _is_instance_for_type(value: object, expected: type[object]) -> bool:
     return isinstance(value, expected)
 
 
+def _type_name(expected_type: object) -> str:
+    name = getattr(expected_type, "__name__", None)
+    if name is not None:
+        return name
+    return repr(expected_type)
+
+
+def _validate_union_value(
+    value: object,
+    expected_type: object,
+    *,
+    setting_name: str,
+    rule_name: str,
+    path: str,
+) -> None:
+    for option_type in get_args(expected_type):
+        with suppress(RuleConfigurationError):
+            _validate_value_for_type(
+                value,
+                option_type,
+                setting_name=setting_name,
+                rule_name=rule_name,
+                path=path,
+            )
+            return
+
+    expected = " | ".join(_type_name(option_type) for option_type in get_args(expected_type))
+    raise RuleConfigurationError(
+        f"{rule_name}: setting {setting_name!r} at {path} expected {expected}, got {type(value)!r}"
+    )
+
+
+def _validate_list_value(
+    value: object,
+    expected_type: object,
+    *,
+    setting_name: str,
+    rule_name: str,
+    path: str,
+) -> None:
+    args = get_args(expected_type)
+    if len(args) != 1:
+        raise RuleConfigurationError(
+            f"{rule_name}: unsupported list type for setting {setting_name!r}: {expected_type!r}"
+        )
+
+    if not isinstance(value, list):
+        raise RuleConfigurationError(
+            f"{rule_name}: setting {setting_name!r} at {path} expected {expected_type!r}, got {type(value)!r}"
+        )
+
+    item_type = args[0]
+    for index, item in enumerate(value):
+        _validate_value_for_type(
+            item,
+            item_type,
+            setting_name=setting_name,
+            rule_name=rule_name,
+            path=f"{path}[{index}]",
+        )
+
+
+def _validate_dict_value(
+    value: object,
+    expected_type: object,
+    *,
+    setting_name: str,
+    rule_name: str,
+    path: str,
+) -> None:
+    args = get_args(expected_type)
+    if len(args) != 2 or args[0] is not str:
+        raise RuleConfigurationError(
+            f"{rule_name}: unsupported dict type for setting {setting_name!r}: {expected_type!r}"
+        )
+
+    if not isinstance(value, Mapping):
+        raise RuleConfigurationError(
+            f"{rule_name}: setting {setting_name!r} at {path} expected {expected_type!r}, got {type(value)!r}"
+        )
+
+    item_type = args[1]
+    for key, item in value.items():
+        if not isinstance(key, str):
+            raise RuleConfigurationError(
+                f"{rule_name}: setting {setting_name!r} at {path} expected string keys, got {type(key)!r}"
+            )
+        _validate_value_for_type(
+            item,
+            item_type,
+            setting_name=setting_name,
+            rule_name=rule_name,
+            path=f"{path}.{key}",
+        )
+
+
+def _validate_scalar_value(
+    value: object,
+    expected_type: object,
+    *,
+    setting_name: str,
+    rule_name: str,
+    path: str,
+) -> None:
+    if not _is_scalar_setting_type(expected_type):
+        raise RuleConfigurationError(
+            f"{rule_name}: unsupported type for setting {setting_name!r}: {expected_type!r}"
+        )
+
+    assert isinstance(expected_type, type)
+    if not _is_instance_for_type(value, expected_type):
+        raise RuleConfigurationError(
+            f"{rule_name}: setting {setting_name!r} at {path} expected {expected_type!r}, got {type(value)!r}"
+        )
+
+
+def _validate_value_for_type(
+    value: object,
+    expected_type: object,
+    *,
+    setting_name: str,
+    rule_name: str,
+    path: str,
+) -> None:
+    origin = get_origin(expected_type)
+    if origin in (Union, UnionType):
+        _validate_union_value(
+            value,
+            expected_type,
+            setting_name=setting_name,
+            rule_name=rule_name,
+            path=path,
+        )
+        return
+
+    if origin is list:
+        _validate_list_value(
+            value,
+            expected_type,
+            setting_name=setting_name,
+            rule_name=rule_name,
+            path=path,
+        )
+        return
+
+    if origin is dict:
+        _validate_dict_value(
+            value,
+            expected_type,
+            setting_name=setting_name,
+            rule_name=rule_name,
+            path=path,
+        )
+        return
+
+    _validate_scalar_value(
+        value,
+        expected_type,
+        setting_name=setting_name,
+        rule_name=rule_name,
+        path=path,
+    )
+
+
 @dataclass(frozen=True)
 class RuleSetting:
     value_type: object
@@ -121,37 +287,13 @@ class RuleSetting:
         setting_name: str,
         rule_name: str,
     ) -> None:
-        expected_type = self.value_type
-        origin = get_origin(expected_type)
-        if origin is list:
-            args = get_args(expected_type)
-            if len(args) != 1 or not _is_scalar_setting_type(args[0]):
-                raise RuleConfigurationError(
-                    f"{rule_name}: unsupported list type for setting {setting_name!r}: {expected_type!r}"
-                )
-
-            item_type = args[0]
-            if not isinstance(value, list):
-                raise RuleConfigurationError(
-                    f"{rule_name}: setting {setting_name!r} expected {expected_type!r}, got {type(value)!r}"
-                )
-
-            if not all(_is_instance_for_type(item, item_type) for item in value):
-                raise RuleConfigurationError(
-                    f"{rule_name}: setting {setting_name!r} expected items of type {item_type!r}, got {value!r}"
-                )
-            return
-
-        if not _is_scalar_setting_type(expected_type):
-            raise RuleConfigurationError(
-                f"{rule_name}: unsupported type for setting {setting_name!r}: {expected_type!r}"
-            )
-
-        assert isinstance(expected_type, type)
-        if not _is_instance_for_type(value, expected_type):
-            raise RuleConfigurationError(
-                f"{rule_name}: setting {setting_name!r} expected {expected_type!r}, got {type(value)!r}"
-            )
+        _validate_value_for_type(
+            value,
+            self.value_type,
+            setting_name=setting_name,
+            rule_name=rule_name,
+            path=setting_name,
+        )
 
     def validate(
         self,
@@ -174,6 +316,9 @@ class RuleSetting:
                 raise RuleConfigurationError(
                     f"{rule_name}: setting {setting_name!r} failed validation"
                 )
+
+            if validator_result is not None and validator_result is not True:
+                return validator_result
 
         return value
 
