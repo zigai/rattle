@@ -232,7 +232,7 @@ simple_expression_max_length = 42
 Option keys must point to one concrete lint rule class, not a package or
 module. Keys should be quoted when using `:` or a leading `.`.
 
-Option values may be TOML scalars or arrays of scalars.
+Option values may be TOML scalars, arrays, or tables.
 
 For rules with a larger number of options, the rule name may instead be part of
 the table name:
@@ -241,6 +241,10 @@ the table name:
 [tool.rattle.options."rattle.rules.fixit_extra:ExampleRule"]
 greeting = "hello world"
 answer = 42
+entries = [
+  {name = "alpha", message = "Use the alpha path."},
+  {name = "beta", message = "Use the beta path."},
+]
 ```
 
 Inline mappings are still supported:
