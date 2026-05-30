@@ -6,7 +6,7 @@
 import platform
 import re
 import traceback
-from collections.abc import Callable, Collection, Container, Iterable, Sequence
+from collections.abc import Callable, Collection, Container, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -26,7 +26,7 @@ STDIN = Path("-")
 
 FileContent = bytes
 RuleOptionScalar = str | int | float | bool
-RuleOptionValue = RuleOptionScalar | list[RuleOptionScalar]
+RuleOptionValue = RuleOptionScalar | list[Any] | dict[str, Any]
 RuleOptionTypes = (str, int, float, bool)
 RuleOptions = dict[str, RuleOptionValue]
 RuleOptionsTable = dict[str, RuleOptions]
@@ -110,7 +110,12 @@ def is_rule_option_value(value: object) -> bool:
 
     if is_sequence(value):
         assert isinstance(value, Sequence)
-        return all(isinstance(item, RuleOptionTypes) for item in value)
+        return all(is_rule_option_value(item) for item in value)
+
+    if isinstance(value, Mapping):
+        return all(
+            isinstance(key, str) and is_rule_option_value(item) for key, item in value.items()
+        )
 
     return False
 

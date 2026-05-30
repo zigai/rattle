@@ -12,11 +12,22 @@ from rattle import ftypes
 
 class TypesTest(TestCase):
     def test_rule_option_value(self) -> None:
-        for value in ("hello", 1, 1.5, True, ["TODO", "FIXME"], [1, 2], [False, True]):
+        for value in (
+            "hello",
+            1,
+            1.5,
+            True,
+            ["TODO", "FIXME"],
+            [1, 2],
+            [False, True],
+            {"symbol": "typing.cast", "message": "Do not call cast."},
+            [{"symbol": "typing.cast"}, {"symbol": "typing_extensions.cast"}],
+            {"groups": [{"name": "alpha", "enabled": True}]},
+        ):
             with self.subTest(value):
                 assert ftypes.is_rule_option_value(value)
 
-        for value in ({}, [{"nested": "value"}], [[1, 2]], [object()]):
+        for value in ({1: "value"}, [object()], {"nested": object()}):
             with self.subTest(value):
                 assert not ftypes.is_rule_option_value(value)
 
