@@ -344,7 +344,10 @@ class ConfigTest(TestCase):
                         {
                             "options": {
                                 "rattle.rules.fixit_extra:UseFstring": {
-                                    "allowed_prefixes": ["TODO", "FIXME"]
+                                    "allowed_prefixes": ["TODO", "FIXME"],
+                                    "structured_entries": [
+                                        {"symbol": "typing.cast", "message": "Avoid cast."}
+                                    ],
                                 }
                             }
                         },
@@ -379,6 +382,9 @@ class ConfigTest(TestCase):
                             "simple_expression_max_length": 60,
                             "allow_dot_format": False,
                             "allowed_prefixes": ["TODO", "FIXME"],
+                            "structured_entries": [
+                                {"symbol": "typing.cast", "message": "Avoid cast."}
+                            ],
                         }
                     },
                 ),
@@ -674,7 +680,7 @@ class ConfigTest(TestCase):
             with pytest.raises(config.ConfigError, match="module:ClassName"):
                 config.generate_config(self.tdp / "foo.py")
 
-        with self.subTest("options value must be scalar or scalar array"):
+        with self.subTest("options support structured values"):
             (self.tdp / "pyproject.toml").write_text(
                 dedent(
                     """
@@ -682,12 +688,30 @@ class ConfigTest(TestCase):
                     root = true
 
                     [tool.rattle.options]
-                    "rattle.rules.fixit_extra:UseFstring" = { simple_expression_max_length = { nested = true } }
+                    "rattle.rules.fixit_extra:UseFstring" = { structured_entries = [{symbol = "typing.cast", message = "Avoid cast."}] }
                     """
                 )
             )
 
-            with pytest.raises(config.ConfigError, match="TOML scalar or array of scalars"):
+            actual = config.generate_config(self.tdp / "foo.py")
+            assert actual.options["rattle.rules.fixit_extra:UseFstring"]["structured_entries"] == [
+                {"symbol": "typing.cast", "message": "Avoid cast."}
+            ]
+
+        with self.subTest("options value must be TOML-shaped"):
+            (self.tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
+
+                    [tool.rattle.options]
+                    "rattle.rules.fixit_extra:UseFstring" = { simple_expression_max_length = 1979-05-27 }
+                    """
+                )
+            )
+
+            with pytest.raises(config.ConfigError, match="TOML scalar, array, or table"):
                 config.generate_config(self.tdp / "foo.py")
 
     def test_rule_registry_resolves_selectors(self) -> None:
@@ -1106,6 +1130,42 @@ class ConfigTest(TestCase):
                     [tool.rattle.options]
                     "rattle.rules.fixit_extra.use_fstring:UseFstring" = {simple_expression_max_length = 42}
                     """
+            )
+
+            results = config.validate_config(path)
+
+            assert results == []
+
+        with (
+            self.subTest("validate-config valid with structured options"),
+            TemporaryDirectory() as td,
+        ):
+            tdp = Path(td).resolve()
+            path = tdp / "pyproject.toml"
+            (tdp / "structured_rule.py").write_text(
+                dedent(
+                    """
+                from rattle import LintRule, RuleSetting
+
+                class StructuredRule(LintRule):
+                    SETTINGS = {
+                        "entries": RuleSetting(list[dict[str, str]], default=[]),
+                    }
+                """
+                )
+            )
+            path.write_text(
+                """
+                [tool.rattle]
+                root = true
+                enable = [".structured_rule:StructuredRule"]
+
+                [tool.rattle.options.".structured_rule:StructuredRule"]
+                entries = [
+                    {symbol = "typing.cast", message = "Avoid cast."},
+                    {symbol = "typing_extensions.cast", message = "Avoid cast."},
+                ]
+                """
             )
 
             results = config.validate_config(path)

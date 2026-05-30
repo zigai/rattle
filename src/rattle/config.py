@@ -885,7 +885,7 @@ def get_options(  # noqa: C901 - option parsing and normalization
 
             if not is_rule_option_value(value):
                 raise ConfigError(
-                    f"{option_name!r} must be a TOML scalar or array of scalars, got {type(value)}",
+                    f"{option_name!r} must be a TOML scalar, array, or table, got {type(value)}",
                     config=config,
                 )
 
