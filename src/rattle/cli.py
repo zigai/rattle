@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+import os
+import shutil
 import sys
 import unittest
 from collections import Counter
@@ -34,6 +36,17 @@ from .output import render_console_result
 from .rule import LintRule
 from .testing import generate_lint_rule_test_cases
 from .util import capture
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
+
+UV_REEXEC_ENV = "RATTLE_UV_RUN_REEXEC"
+UV_REEXEC_DISABLE_ENV = "RATTLE_NO_UV_RUN_REEXEC"
+UV_PROJECT_MARKERS = ("uv.lock",)
+UV_REEXEC_COMMANDS = frozenset({"lint", "fix", "rules", "validate", "lsp"})
 
 
 def _display_path(path: Path) -> Path:
@@ -200,6 +213,54 @@ def _update_fix_state(
 
 def _version() -> str:
     return f"rattle, version {__version__}"
+
+
+def _find_uv_project_root(path: Path) -> Path | None:
+    for directory in (path, *path.parents):
+        if any((directory / marker).is_file() for marker in UV_PROJECT_MARKERS):
+            return directory
+
+        pyproject = directory / "pyproject.toml"
+        if not pyproject.is_file():
+            continue
+
+        try:
+            data = tomllib.loads(pyproject.read_text())
+        except Exception:  # noqa: BLE001, S112 - bootstrap should not block normal CLI handling
+            continue
+
+        tool = data.get("tool", {})
+        if isinstance(tool, dict) and "uv" in tool:
+            return directory
+
+        dependency_groups = data.get("dependency-groups", {})
+        if isinstance(dependency_groups, dict):
+            return directory
+
+    return None
+
+
+def _should_reexec_with_uv(args: list[str]) -> bool:
+    if os.environ.get(UV_REEXEC_ENV) or os.environ.get(UV_REEXEC_DISABLE_ENV):
+        return False
+    if shutil.which("uv") is None:
+        return False
+
+    command = next((arg for arg in args if not arg.startswith("-")), None)
+    if command not in UV_REEXEC_COMMANDS:
+        return False
+
+    return _find_uv_project_root(Path.cwd()) is not None
+
+
+def _reexec_with_uv(args: list[str]) -> None:
+    uv_path = shutil.which("uv")
+    if uv_path is None:
+        return
+
+    env = os.environ.copy()
+    env[UV_REEXEC_ENV] = "1"
+    os.execve(uv_path, [uv_path, "run", "rattle", *args], env)  # noqa: S606
 
 
 def usage_error(message: str) -> None:
@@ -744,6 +805,11 @@ def _coalesce_repeated_list_options(args: list[str] | None) -> list[str] | None:
 
 def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> object:
     """Run the rattle CLI."""
+    if args is None:
+        args = sys.argv[1:]
+        if _should_reexec_with_uv(args):
+            _reexec_with_uv(args)
+
     return build_app(sys_exit_enabled=sys_exit_enabled).run(
         args=_coalesce_repeated_list_options(args)
     )

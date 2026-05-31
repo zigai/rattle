@@ -11,7 +11,7 @@ from typing import cast
 from unittest import TestCase
 from unittest.mock import patch
 
-from rattle.cli import _rule_line, main
+from rattle.cli import _find_uv_project_root, _rule_line, _should_reexec_with_uv, main
 from rattle.ftypes import Metrics, Options
 from rattle.rule import LintRule
 from rattle.rules.fixit_extra.use_fstring import UseFstring
@@ -100,6 +100,44 @@ class CliTest(TestCase):
         assert line.startswith("  <colored>UseFstring</colored> - ")
         assert " - Do not use printf style formatting" in line
         assert " - <colored>Do not use printf style formatting" not in line
+
+    def test_find_uv_project_root_accepts_uv_lock(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            nested = root / "src" / "pkg"
+            nested.mkdir(parents=True)
+            (root / "uv.lock").write_text("")
+
+            assert _find_uv_project_root(nested) == root
+
+    def test_find_uv_project_root_accepts_tool_uv(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            nested = root / "src" / "pkg"
+            nested.mkdir(parents=True)
+            (root / "pyproject.toml").write_text("[tool.uv]\n")
+
+            assert _find_uv_project_root(nested) == root
+
+    def test_uv_reexec_is_limited_to_rule_loading_commands(self) -> None:
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("rattle.cli.shutil.which", return_value="/usr/bin/uv"),
+            patch("rattle.cli._find_uv_project_root", return_value=Path.cwd()),
+        ):
+            assert _should_reexec_with_uv(["lint"])
+            assert _should_reexec_with_uv(["fix", "."])
+            assert _should_reexec_with_uv(["rules"])
+            assert not _should_reexec_with_uv(["--version"])
+            assert not _should_reexec_with_uv(["upgrade"])
+
+    def test_uv_reexec_guard_prevents_loop(self) -> None:
+        with (
+            patch.dict(os.environ, {"RATTLE_UV_RUN_REEXEC": "1"}, clear=True),
+            patch("rattle.cli.shutil.which", return_value="/usr/bin/uv"),
+            patch("rattle.cli._find_uv_project_root", return_value=Path.cwd()),
+        ):
+            assert not _should_reexec_with_uv(["lint"])
 
     def test_debug_command_removed(self) -> None:
         result = self.runner.invoke(main, ["debug"], catch_exceptions=False)
