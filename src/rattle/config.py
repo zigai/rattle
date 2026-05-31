@@ -53,6 +53,7 @@ else:
 RATTLE_CONFIG_FILENAMES = ("pyproject.toml",)
 RATTLE_LOCAL_MODULE = "rattle.local"
 BUILTIN_RULE_PACKS = {
+    "blank_lines": "rattle.rules.blank_lines",
     "fixit": "rattle.rules.fixit",
     "fixit_extra": "rattle.rules.fixit_extra",
 }
