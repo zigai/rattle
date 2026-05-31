@@ -8,9 +8,336 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # Built-in Rules
 
+- `rattle.rules.blank_lines`
 - `rattle.rules.fixit`
 - `rattle.rules.fixit_extra`
 
+
+## `rattle.rules.blank_lines`
+
+```{automodule} rattle.rules.blank_lines
+```
+
+- `BlankLineAfterControlBlock`
+- `BlankLineBeforeAssignment`
+- `BlankLineBeforeBranchInLargeSuite`
+- `BlockHeaderCuddleRelaxed`
+- `NoSuiteLeadingTrailingBlankLines`
+
+### BlankLineAfterControlBlock
+
+Require separation after multiline control-flow block statements.
+
+#### MESSAGE
+
+Missing blank line after multiline control-flow block statement.
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+def f(value: int) -> int:
+    if value > 0:
+        value += 1
+
+    return value
+```
+```python
+def f(value: int) -> int:
+    if value > 0:
+        value += 1
+    # comment separator
+    return value
+```
+
+#### INVALID
+
+```python
+def f(value: int) -> int:
+    if value > 0:
+        value += 1
+    return value
+
+# suggested fix
+def f(value: int) -> int:
+    if value > 0:
+        value += 1
+
+    return value
+
+```
+```python
+def f(values: list[int]) -> int:
+    total = 0
+    for value in values:
+        total += value
+    return total
+
+# suggested fix
+def f(values: list[int]) -> int:
+    total = 0
+    for value in values:
+        total += value
+
+    return total
+
+```
+### BlankLineBeforeAssignment
+
+Require separators before assignments that do not continue the local flow.
+
+#### MESSAGE
+
+Missing blank line before assignment statement that follows a non-assignment statement.
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+def f() -> int:
+    value = 1
+    other = value + 1
+    return other
+```
+```python
+def f() -> int:
+    log_start()
+
+    value = compute()
+    log_value(value)
+    return value
+```
+
+#### INVALID
+
+```python
+def f(values: list[int]) -> int:
+    total = 0
+    if values:
+        total += len(values)
+    total += 1
+    return total
+
+# suggested fix
+def f(values: list[int]) -> int:
+    total = 0
+    if values:
+        total += len(values)
+
+    total += 1
+    return total
+
+```
+```python
+def f(flag: bool, value: str) -> str:
+    if not flag:
+        return value
+    normalized = value.strip()
+    return normalized
+
+# suggested fix
+def f(flag: bool, value: str) -> str:
+    if not flag:
+        return value
+
+    normalized = value.strip()
+    return normalized
+
+```
+### BlankLineBeforeBranchInLargeSuite
+
+Require branch statements to be visually separated in large suites.
+
+#### MESSAGE
+
+Missing blank line before return/raise/break/continue in a large suite.
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+def f(value: int) -> int:
+    x = value + 1
+    y = x + 1
+
+    return y
+```
+```python
+def f(value: int) -> int:
+    x = value + 1
+    return x
+```
+
+#### INVALID
+
+```python
+def f(value: int) -> int:
+    x = value + 1
+    y = x + 1
+    z = y + 1
+    return z
+
+# suggested fix
+def f(value: int) -> int:
+    x = value + 1
+    y = x + 1
+    z = y + 1
+
+    return z
+
+```
+```python
+def f(values: list[int]) -> int:
+    total = 0
+    message = str(total)
+    flag = bool(message)
+    raise RuntimeError("boom")
+
+# suggested fix
+def f(values: list[int]) -> int:
+    total = 0
+    message = str(total)
+    flag = bool(message)
+
+    raise RuntimeError("boom")
+
+```
+### BlockHeaderCuddleRelaxed
+
+Allow cuddling when the setup remains part of the same control-flow step.
+
+#### MESSAGE
+
+Illegal cuddle before block header. The preceding setup must directly feed the upcoming block.
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+def f(value: int) -> int:
+    prepared = value + 1
+    if prepared > 0:
+        return prepared
+
+    return 0
+```
+```python
+def f(value: int) -> int:
+    prepared = value + 1
+    if value > 0:
+        result = prepared
+        return result
+
+    return 0
+```
+
+#### INVALID
+
+```python
+def f(value: int) -> int:
+    prepared = value + 1
+    if value > 0:
+        return value
+
+    return 0
+
+# suggested fix
+def f(value: int) -> int:
+    prepared = value + 1
+
+    if value > 0:
+        return value
+
+    return 0
+
+```
+```python
+def f(value: int) -> int:
+    prepared = value + 1
+    log(prepared)
+    if prepared > 0:
+        return prepared
+
+    return 0
+
+# suggested fix
+def f(value: int) -> int:
+    prepared = value + 1
+    log(prepared)
+
+    if prepared > 0:
+        return prepared
+
+    return 0
+
+```
+### NoSuiteLeadingTrailingBlankLines
+
+Disallow leading/trailing empty lines at suite boundaries.
+
+#### AUTOFIX
+
+Yes
+
+
+#### VALID
+
+```python
+def f() -> int:
+    value = 1
+    return value
+```
+```python
+def f() -> int:
+    # comment lines are separators, not blank lines
+    value = 1
+    return value
+```
+
+#### INVALID
+
+```python
+def f() -> int:
+
+    value = 1
+    return value
+
+# suggested fix
+def f() -> int:
+    value = 1
+    return value
+
+```
+```python
+def f(items: list[int]) -> None:
+
+
+    def emit() -> None:
+        print(items)
+
+# suggested fix
+def f(items: list[int]) -> None:
+
+    def emit() -> None:
+        print(items)
+
+```
 
 ## `rattle.rules.fixit`
 
