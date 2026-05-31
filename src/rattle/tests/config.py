@@ -729,11 +729,30 @@ class ConfigTest(TestCase):
         assert alpha_resolution.rules == (AlphaRule,)
         assert alpha_resolution.concrete
 
+        alpha_alias_resolution = registry.resolve(RuleNameSelector("Alpha"))
+        assert alpha_alias_resolution.rules == (AlphaRule,)
+        assert alpha_alias_resolution.concrete
+
+        beta_alias_resolution = registry.resolve(RuleNameSelector("Beta"))
+        assert beta_alias_resolution.rules == (BetaRule,)
+        assert beta_alias_resolution.concrete
+
         missing_selector = RuleNameSelector("DefinitelyMissingRule")
         with pytest.raises(
             config.CollectionError, match="could not find rule DefinitelyMissingRule"
         ):
             registry.resolve(missing_selector)
+
+    def test_rule_registry_resolves_rule_suffix_alias(self) -> None:
+        class Gamma(LintRule):
+            pass
+
+        registry = config.RuleRegistry()
+        registry.register(Gamma)
+
+        gamma_resolution = registry.resolve(RuleNameSelector("GammaRule"))
+        assert gamma_resolution.rules == (Gamma,)
+        assert gamma_resolution.concrete
 
     def test_rule_registry_rejects_ambiguous_short_selector(self) -> None:
         first_rule = type("DuplicateRule", (LintRule,), {"__module__": "first.rules"})

@@ -170,10 +170,11 @@ class RuleRegistry:
                 yield resolution
 
     def _register_name(self, rule_type: type[LintRule]) -> None:
-        rules = self.rules_by_name.setdefault(rule_type.__name__, [])
-        if rule_type in rules:
-            return
-        rules.append(rule_type)
+        for name in _rule_name_aliases(rule_type.__name__):
+            rules = self.rules_by_name.setdefault(name, [])
+            if rule_type in rules:
+                continue
+            rules.append(rule_type)
 
 
 def is_rule(obj: type[T]) -> bool:
@@ -296,6 +297,15 @@ def _rule_key_for_type(rule_type: type[LintRule]) -> str:
     return f"{rule_type.__module__}:{rule_type.__name__}"
 
 
+def _rule_name_aliases(name: str) -> set[str]:
+    aliases = {name}
+    if name.endswith("Rule"):
+        aliases.add(name.removesuffix("Rule"))
+    else:
+        aliases.add(f"{name}Rule")
+    return aliases
+
+
 @cache
 def _builtin_rule_types() -> tuple[type[LintRule], ...]:
     builtin_rules: list[type[LintRule]] = []
@@ -307,9 +317,10 @@ def _builtin_rule_types() -> tuple[type[LintRule], ...]:
 def _option_key_aliases_for_rule_type(rule_type: type[LintRule]) -> set[str]:
     module_parts = rule_type.__module__.split(".")
     aliases: set[str] = set()
+    rule_names = _rule_name_aliases(rule_type.__name__)
     for idx in range(len(module_parts), 0, -1):
         module_name = ".".join(module_parts[:idx])
-        aliases.add(f"{module_name}:{rule_type.__name__}")
+        aliases.update(f"{module_name}:{rule_name}" for rule_name in rule_names)
 
     local_prefix = f"{RATTLE_LOCAL_MODULE}."
     if rule_type.__module__.startswith(local_prefix):
@@ -317,13 +328,13 @@ def _option_key_aliases_for_rule_type(rule_type: type[LintRule]) -> set[str]:
         local_parts = local_module.split(".")
         for idx in range(len(local_parts), 0, -1):
             module_name = ".".join(local_parts[:idx])
-            aliases.add(f".{module_name}:{rule_type.__name__}")
+            aliases.update(f".{module_name}:{rule_name}" for rule_name in rule_names)
 
     if rule_type in set(_builtin_rule_types()):
-        aliases.add(rule_type.__name__)
+        aliases.update(rule_names)
         for module_name in BUILTIN_RULE_MODULES:
             if rule_type in set(find_rules(QualifiedRule(module_name))):
-                aliases.add(f"{module_name}:{rule_type.__name__}")
+                aliases.update(f"{module_name}:{rule_name}" for rule_name in rule_names)
 
     return aliases
 
@@ -337,7 +348,8 @@ def _option_key_aliases_for_rule_types(
     for rule_type in rule_types:
         for alias in _option_key_aliases_for_rule_type(rule_type):
             aliases[alias] = rule_type
-        rules_by_name[rule_type.__name__].append(rule_type)
+        for rule_name in _rule_name_aliases(rule_type.__name__):
+            rules_by_name[rule_name].append(rule_type)
 
     for name, named_rules in rules_by_name.items():
         if len(named_rules) == 1:
