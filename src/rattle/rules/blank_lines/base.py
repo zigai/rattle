@@ -26,7 +26,6 @@ from rattle.rules.blank_lines.utils import (
     has_separator,
     header_expression_nodes,
     is_compact_guard_if,
-    is_docstring_statement,
     is_header_block_statement,
     last_assigned_name,
     leading_block_body_statements,
@@ -38,6 +37,7 @@ from rattle.rules.blank_lines.utils import (
     statement_touches_name,
     statement_touches_target_expression,
 )
+from rattle.rules.helpers import is_docstring_statement, validate_non_negative_int
 
 
 class BaseBlankLinesRule(BatchableCSTVisitor):
@@ -643,16 +643,6 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             block_statement,
             last_name,
         )
-
-
-def validate_non_negative_int(value: object) -> object:
-    if not isinstance(value, int):
-        raise TypeError("must be an integer")
-
-    if value < 0:
-        raise ValueError("must be greater than or equal to 0")
-
-    return value
 
 
 __all__: list[str] = [

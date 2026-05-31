@@ -5,11 +5,12 @@ from typing import Protocol, cast
 
 import libcst as cst
 
+from rattle.rules.helpers import is_docstring_statement
+
 BRANCH_SMALL_STATEMENTS = (cst.Break, cst.Continue, cst.Raise, cst.Return)
 HEADER_BLOCK_STATEMENTS = (cst.For, cst.If, cst.Match, cst.While, cst.With)
 CONTROL_BLOCK_STATEMENTS = (cst.For, cst.If, cst.Match, cst.Try, cst.While, cst.With)
 EXCEPTION_CLEANUP_PARENTS = (cst.ExceptHandler, cst.Finally)
-DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
 
 
 class StatementWithLeadingLines(Protocol):
@@ -137,20 +138,6 @@ def is_branch_statement(statement: cst.BaseStatement) -> bool:
     return isinstance(statement.body[0], BRANCH_SMALL_STATEMENTS)
 
 
-def is_docstring_statement(statement: cst.BaseStatement) -> bool:
-    if not isinstance(statement, cst.SimpleStatementLine):
-        return False
-
-    if len(statement.body) != 1:
-        return False
-
-    expression = statement.body[0]
-    if not isinstance(expression, cst.Expr):
-        return False
-
-    return isinstance(expression.value, DOCSTRING_VALUE_NODES)
-
-
 def assignment_small_statement(statement: cst.BaseStatement) -> cst.BaseSmallStatement | None:
     if not isinstance(statement, cst.SimpleStatementLine):
         return None
@@ -216,47 +203,35 @@ def target_reference_names(target: cst.BaseExpression) -> set[str]:
     return collect_names(target)
 
 
-def assigned_names(statement: cst.BaseStatement) -> set[str]:
-    assignment = assignment_small_statement(statement)
-    if assignment is None:
-        return set()
-
-    names: list[str] = []
-    if isinstance(assignment, cst.Assign):
-        for assign_target in assignment.targets:
-            names.extend(extract_target_names(assign_target.target))
-    elif isinstance(assignment, (cst.AnnAssign, cst.AugAssign)):
-        names.extend(extract_target_names(assignment.target))
-
-    return set(names)
-
-
-def ordered_assigned_names(statement: cst.BaseStatement) -> list[str]:
+def assigned_targets(statement: cst.BaseStatement) -> list[cst.BaseExpression]:
     assignment = assignment_small_statement(statement)
     if assignment is None:
         return []
 
-    names: list[str] = []
     if isinstance(assignment, cst.Assign):
-        for assign_target in assignment.targets:
-            names.extend(extract_target_names(assign_target.target))
-    elif isinstance(assignment, (cst.AnnAssign, cst.AugAssign)):
-        names.extend(extract_target_names(assignment.target))
+        return [assign_target.target for assign_target in assignment.targets]
+    if isinstance(assignment, (cst.AnnAssign, cst.AugAssign)):
+        return [assignment.target]
+
+    return []
+
+
+def assigned_names(statement: cst.BaseStatement) -> set[str]:
+    return {name for target in assigned_targets(statement) for name in extract_target_names(target)}
+
+
+def ordered_assigned_names(statement: cst.BaseStatement) -> list[str]:
+    names: list[str] = []
+    for target in assigned_targets(statement):
+        names.extend(extract_target_names(target))
 
     return names
 
 
 def ordered_assigned_target_expressions(statement: cst.BaseStatement) -> list[cst.BaseExpression]:
-    assignment = assignment_small_statement(statement)
-    if assignment is None:
-        return []
-
     expressions: list[cst.BaseExpression] = []
-    if isinstance(assignment, cst.Assign):
-        for assign_target in assignment.targets:
-            expressions.extend(extract_target_expressions(assign_target.target))
-    elif isinstance(assignment, (cst.AnnAssign, cst.AugAssign)):
-        expressions.extend(extract_target_expressions(assignment.target))
+    for target in assigned_targets(statement):
+        expressions.extend(extract_target_expressions(target))
 
     return expressions
 
@@ -972,6 +947,7 @@ __all__ = [
     "NameCollector",
     "NestedNameCollector",
     "assigned_names",
+    "assigned_targets",
     "assignment_consumed_names",
     "assignment_reference_names",
     "assignment_small_statement",
