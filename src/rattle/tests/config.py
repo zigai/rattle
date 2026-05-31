@@ -754,6 +754,11 @@ class ConfigTest(TestCase):
         assert gamma_resolution.rules == (Gamma,)
         assert gamma_resolution.concrete
 
+    def test_parse_rule_accepts_blank_lines_pack(self) -> None:
+        assert config.parse_rule("blank_lines", self.tdp) == QualifiedRule(
+            "rattle.rules.blank_lines"
+        )
+
     def test_rule_registry_rejects_ambiguous_short_selector(self) -> None:
         first_rule = type("DuplicateRule", (LintRule,), {"__module__": "first.rules"})
         second_rule = type("DuplicateRule", (LintRule,), {"__module__": "second.rules"})
