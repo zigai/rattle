@@ -14,6 +14,7 @@ from libcst.metadata import (
 )
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import is_docstring_statement
 
 _REMOVE_IMPORT = object()
 
@@ -221,14 +222,6 @@ class NoNamedTuple(LintRule):
         return (namedtuple_base, new_bases)
 
 
-def _is_docstring_statement(statement: cst.BaseStatement) -> bool:
-    if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
-        return False
-
-    expr = statement.body[0]
-    return isinstance(expr, cst.Expr) and isinstance(expr.value, cst.SimpleString)
-
-
 def _is_future_import_statement(statement: cst.BaseStatement) -> bool:
     if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
         return False
@@ -285,7 +278,7 @@ def _insert_dataclasses_import(module: cst.Module) -> cst.Module:
         )
     )
     body = list(module.body)
-    insert_at = 1 if body and _is_docstring_statement(body[0]) else 0
+    insert_at = 1 if body and is_docstring_statement(body[0]) else 0
     while insert_at < len(body) and _is_future_import_statement(body[insert_at]):
         insert_at += 1
     body.insert(insert_at, dataclasses_import)
