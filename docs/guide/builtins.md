@@ -354,19 +354,11 @@ def f(items: list[int]) -> None:
 
 ### ExplicitFrozenDataclass
 
-Encourages the use of frozen dataclass objects by telling users to specify the
-kwarg.
-
-Without this lint rule, most users of dataclass won't know to use the kwarg, and
-may unintentionally end up with mutable objects.
+Requires dataclass mutability to be explicit.
 
 #### MESSAGE
 
-When using dataclasses, explicitly specify a frozen keyword argument. Example: `@dataclass(frozen=True)` or `@dataclass(frozen=False)`. Docs: https://docs.python.org/3/library/dataclasses.html
-
-#### AUTOFIX
-
-Yes
+Dataclass mutability must be explicit. Add `frozen=True` for immutable value objects or `frozen=False` when instances are intentionally mutable.
 
 
 #### VALID
@@ -389,25 +381,11 @@ from dataclasses import dataclass
 @dataclass  # not called as a function
 @another_unrelated_decorator
 class Cls: pass
-
-# suggested fix
-from dataclasses import dataclass
-@some_unrelated_decorator
-@dataclass(frozen=True)  # not called as a function
-@another_unrelated_decorator
-class Cls: pass
-
 ```
 ```python
 from dataclasses import dataclass
 @dataclass()  # called as a function, no kwargs
 class Cls: pass
-
-# suggested fix
-from dataclasses import dataclass
-@dataclass(frozen=True)  # called as a function, no kwargs
-class Cls: pass
-
 ```
 ### NoNamedTuple
 
