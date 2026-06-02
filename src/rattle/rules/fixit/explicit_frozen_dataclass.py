@@ -10,9 +10,7 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
 
 class ExplicitFrozenDataclass(LintRule):
-    """
-    Requires dataclass mutability to be explicit.
-    """
+    """Requires dataclass mutability to be explicit."""
 
     MESSAGE: str = (
         "Dataclass mutability must be explicit. Add `frozen=True` for immutable "
@@ -165,10 +163,7 @@ class ExplicitFrozenDataclass(LintRule):
                 decorator,
                 QualifiedName(name="dataclasses.dataclass", source=QualifiedNameSource.IMPORT),
             ):
-                if isinstance(decorator, cst.Call):
-                    args = decorator.args
-                else:  # decorator is either cst.Name or cst.Attribute
-                    args = ()
+                args = decorator.args if isinstance(decorator, cst.Call) else ()
 
                 if not any(
                     isinstance(arg.keyword, cst.Name) and arg.keyword.value == "frozen"
