@@ -1,8 +1,12 @@
+---
+orphan: true
+---
+
 (user-guide)=
 
 # User Guide
 
-Use the guide pages below for installation, usage, configuration, integrations, and the built-in rule catalog.
+Use the guide pages below for installation, usage, configuration, integrations, and the rule catalog.
 
 ```{toctree}
 :maxdepth: 1

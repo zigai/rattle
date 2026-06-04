@@ -108,37 +108,5 @@ Now, the VS Code Python module should be able to find and offer the local
 be aware of what libraries are available, and enable "Go To Definition" for
 those packages.
 
-
-## git-branchless
-
-[git-branchless](https://github.com/arxanas/git-branchless) is a useful tool
-for improving your local git CLI workflow, especially within a stack of commits.
-It provides a "smartlog" command (`git sl`) to help visual the hierarchy of
-commits and branches in your checkout, as well as `next`/`prev` commands to
-make moving through your stacks even easier:
-
-```shell-session
-amethyst@luxray ~/workspace/Rattle docs  » git sl
-⋮
-◇ a80603c 226d (0.x) Update 'master' (branch) references to 'main' (#220)
-⋮
-◆ c3f8ff9 52d (main, ᐅ docs) Include scripts dir in linters
-┃
-◯ 33863f4 52d (local-rules) Simple example of local rule for copyright headers
-```
-
-git-branchless is a Rust package, and can be installed with cargo:
-
-```shell-session
-$ cargo install --locked git-branchless
-```
-
-Once installed to your system, it must be enabled on each git repo that you
-want to use it with, so that it can install hooks and new commands:
-
-```shell-session
-$ git branchless init
-```
-
 [gh]: https://cli.github.com/
 [uv]: https://docs.astral.sh/uv/

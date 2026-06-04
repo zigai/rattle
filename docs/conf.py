@@ -21,9 +21,14 @@
 
 # -- Patch python domain signature regex to allow "foo-bar" style names ------
 
+import os
 import re
+import sys
+from pathlib import Path
 
 from sphinx.domains import python
+
+sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
 # modified from sphinx/domains/python.py
 py_sig_re = re.compile(
@@ -53,6 +58,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
     "myst_parser",
+    "sphinx_copybutton",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -64,7 +70,8 @@ templates_path = ["_templates"]
 exclude_patterns: list[str] = []
 
 source_suffix = {
-    ".md": "markdown",
+    ".rst": "restructuredtext",
+    ".md": "myst",
 }
 
 myst_heading_anchors = 3
@@ -76,6 +83,13 @@ autodoc_default_options = {
 autodoc_member_order = "groupwise"
 autodoc_typehints = "description"
 autodoc_typehints_format = "short"
+
+pygments_style = "github-light"
+pygments_dark_style = "rattle_pygments.DarkerModernStyle"
+
+copybutton_prompt_text = r"^((>>> |\.\.\. |\$ |# )|((\(.+\) )?\$ ))"
+copybutton_prompt_is_regexp = True
+copybutton_remove_prompts = True
 
 # highlight_language = "python3"
 intersphinx_mapping = {
@@ -90,34 +104,21 @@ master_doc = "index"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "alabaster"
+html_theme = "furo"
+html_title = project
+html_show_sourcelink = False
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
 html_theme_options = {
-    "description": "Advanced linting framework",
-    "fixed_sidebar": True,
-    "badge_branch": "main",
-    "github_button": False,
-    "github_user": "zigai",
-    "github_repo": "rattle",
-    "show_powered_by": False,
-    "sidebar_collapse": False,
-    "extra_nav_links": {
-        "Project Roadmap": "https://github.com/zigai/rattle/milestones",
-        "Report Issues": "https://github.com/zigai/rattle/issues",
-    },
+    "top_of_page_buttons": "",
 }
 
-html_sidebars = {
-    "**": [
-        "about.html",
-        "badges.html",
-        "navigation.html",
-        "relations.html",
-        "searchbox.html",
-        "meta.html",
-    ],
-}
+html_context = {}
+if os.environ.get("READTHEDOCS"):
+    html_context["READTHEDOCS"] = True
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
+html_js_files = ["copy_as_markdown.js"]

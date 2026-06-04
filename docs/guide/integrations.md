@@ -22,10 +22,6 @@ Examples of client setup:
 - VS Code:
   [Generic LSP Client](https://github.com/llllvvuu/vscode-glspc) via GitHub,
   which requires configuration.
-- VS Code:
-  [Rattle (Unofficial)](https://marketplace.visualstudio.com/items?itemName=llllvvuu.fixit-unofficial)
-  via the VS Code Marketplace. This is built from Generic LSP Client with a
-  preset configuration for Rattle.
 - Neovim:
   [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig).
 
