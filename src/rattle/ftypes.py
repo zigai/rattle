@@ -64,18 +64,33 @@ class Valid:
 
 LintIgnoreRegex = re.compile(
     r"""
-    \#\s*                   # leading hash and whitespace
-    (lint-(?:ignore|fixme)) # directive
+    \#\s*                         # leading hash and whitespace
+    rattle:\s*ignore              # directive
+    (?!\w)(?!\s+\w)              # do not accept bare rule names without brackets
     (?:
-        (?::\s*|\s+)        # separator
-        (
-            \w+             # first rule name
-            (?:,\s*\w+)*    # subsequent rule names
-        )
-    )?                      # rule names are optional
+        \s*\[
+            (?P<rattle_names>
+                \w+               # first rule name
+                (?:,\s*\w+)*      # subsequent rule names
+            )
+        \]
+    )?                            # rule names are optional
     """,
     re.VERBOSE,
 )
+
+
+@dataclass(frozen=True)
+class LintIgnoreDirective:
+    names: str | None
+
+
+def parse_lint_ignore_comment(comment: str) -> LintIgnoreDirective | None:
+    match = LintIgnoreRegex.search(comment)
+    if match is None:
+        return None
+
+    return LintIgnoreDirective(names=match.group("rattle_names"))
 
 
 QualifiedRuleRegex = re.compile(

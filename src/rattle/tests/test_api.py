@@ -516,7 +516,7 @@ class TestApi:
 
         rule = CacheRule()
         fingerprint = rule_cache_fingerprint(rule)
-        runner = LintRunner(Path("ignored.py"), b"pass  # lint-ignore\n")
+        runner = LintRunner(Path("ignored.py"), b"pass  # rattle: ignore\n")
 
         assert list(runner.collect_violations([rule], Config(path=Path("ignored.py")))) == []
         assert type(rule) is CacheRule

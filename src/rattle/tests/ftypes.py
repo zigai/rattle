@@ -33,30 +33,28 @@ class TypesTest(TestCase):
 
     def test_ignore_comment_regex(self) -> None:
         for value, expected_names in (
-            ("#lint-ignore", None),
-            ("# lint-ignore", None),
-            ("# lint-ignore:FakeRule", "FakeRule"),
-            ("# lint-ignore: Fake", "Fake"),
-            ("# lint-fixme: Fake,Another", "Fake,Another"),
-            ("#lint-fixme:Fake,Another", "Fake,Another"),
-            ("#lint-fixme Fake, Another, Name", "Fake, Another, Name"),
+            ("# rattle: ignore", None),
+            ("# rattle: ignore[FakeRule]", "FakeRule"),
+            ("#rattle:ignore[Fake,Another]", "Fake,Another"),
+            ("# rattle: ignore [Fake, Another, Name]", "Fake, Another, Name"),
         ):
             with self.subTest("match " + value):
-                match = ftypes.LintIgnoreRegex.match(value)
-                assert match is not None, "value did not match lint-ignore regex"
-                if match:
-                    _style, names = match.groups()
-                    assert expected_names == names, "regex captured unexpected names"
+                directive = ftypes.parse_lint_ignore_comment(value)
+                assert directive is not None, "value did not match rattle ignore regex"
+                assert expected_names == directive.names, "regex captured unexpected names"
 
         for value in (
             "# something else",
             "# noqa",
-            "# this is not a lint-ignore",
-            "# fake lint-fixme: something here",
+            "# rattle-ignore",
+            "# rattle: disable[FakeRule]",
+            "# rattle: ignore FakeRule",
+            "# this is not a rattle ignore",
+            "# rattle: fixme[FakeRule]",
         ):
             with self.subTest("no match " + value):
                 assert not re.search(ftypes.LintIgnoreRegex, value), (
-                    "value unexpectedly matches lint-ignore regex"
+                    "value unexpectedly matches rattle ignore regex"
                 )
 
     def test_qualified_rule(self) -> None:

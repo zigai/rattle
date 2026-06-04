@@ -24,6 +24,7 @@ from typing import (
 from libcst import (
     BatchableCSTVisitor,
     Comma,
+    Comment,
     CSTNode,
     Decorator,
     EmptyLine,
@@ -42,12 +43,12 @@ from libcst.metadata import (
 from .ftypes import (
     FileContent,
     Invalid,
-    LintIgnoreRegex,
     LintViolation,
     NodeReplacement,
     Valid,
     VisitHook,
     VisitorMethod,
+    parse_lint_ignore_comment,
 )
 
 SourcePattern = str | bytes
@@ -455,6 +456,9 @@ class LintRule(BatchableCSTVisitor):
                 yield line.comment.value
 
     def _yield_direct_node_comments(self, node: CSTNode) -> Generator[str, None, None]:
+        if isinstance(node, Comment):
+            yield node.value
+
         yield from self._yield_comment_value(self._node_trailing_whitespace(node))
 
         comma = getattr(node, "comma", None)
@@ -513,26 +517,25 @@ class LintRule(BatchableCSTVisitor):
         """
         Whether to ignore a violation for a given node.
 
-        Returns true if any ``# lint-ignore`` or ``# lint-fixme`` directives match the
-        current rule by name, or if the directives have no rule names listed.
+        Returns true if any ``# rattle: ignore[...]`` directive matches the current
+        rule by name, or if the directive has no rule names listed.
         """
         if not self._lint_ignore_enabled:
             return False
 
         rule_names = (self.name, self.name.lower())
         for comment in self.node_comments(node):
-            if match := LintIgnoreRegex.search(comment):
-                _style, names = match.groups()
+            directive = parse_lint_ignore_comment(comment)
+            if directive is None:
+                continue
 
-                # directive
-                if names is None:
+            if directive.names is None:
+                return True
+
+            for name in (n.strip() for n in directive.names.split(",")):
+                name = name.removesuffix("Rule")
+                if name in rule_names:
                     return True
-
-                # directive: RuleName
-                for name in (n.strip() for n in names.split(",")):
-                    name = name.removesuffix("Rule")
-                    if name in rule_names:
-                        return True
 
         return False
 

@@ -199,7 +199,7 @@ class LintRunner:
         active_rules: list[LintRule] = []
         resolved_config_path: Path | None = None
 
-        lint_ignore_enabled = b"lint-ignore" in self.source or b"lint-fixme" in self.source
+        lint_ignore_enabled = b"rattle:" in self.source
 
         visit_timing_enabled = metrics_hook is not None or LOG.isEnabledFor(logging.DEBUG)
 

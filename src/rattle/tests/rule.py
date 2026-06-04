@@ -229,31 +229,24 @@ class RuleTest(TestCase):
             (
                 ("pass  # random comment\n", "I pass", (1, 0)),
                 ("pass\n", "I pass", (1, 0)),
-                ("pass  # lint-fixme\n", None, None),
-                ("pass  # lint-ignore\n", None, None),
-                ("pass  # lint-fixme: ExerciseReport\n", None, None),
-                ("pass  # lint-ignore: ExerciseReport\n", None, None),
-                ("pass  # lint-fixme: SomethingElse, ExerciseReport\n", None, None),
-                ("pass  # lint-ignore: SomethingElse, ExerciseReport\n", None, None),
-                ("pass  # lint-fixme: SomethingElse\n", "I pass", (1, 0)),
-                ("pass  # lint-ignore: SomethingElse\n", "I pass", (1, 0)),
+                ("pass  # rattle: ignore\n", None, None),
+                ("pass  # rattle: ignore[ExerciseReport]\n", None, None),
+                ("pass  # rattle: ignore[ExerciseReportRule]\n", None, None),
+                ("pass  # rattle: ignore[SomethingElse, ExerciseReport]\n", None, None),
+                ("pass  # rattle: ignore[SomethingElse]\n", "I pass", (1, 0)),
                 ("# random comment\npass\n", "I pass", (2, 0)),
-                ("# lint-fixme\npass\n", None, None),
-                ("# lint-ignore\npass\n", None, None),
-                ("# lint-fixme: ExerciseReport\npass\n", None, None),
-                ("# lint-ignore: ExerciseReport\npass\n", None, None),
-                ("# lint-fixme: SomethingElse, ExerciseReport\npass\n", None, None),
-                ("# lint-ignore: SomethingElse, ExerciseReport\npass\n", None, None),
-                ("# lint-fixme: SomethingElse\npass\n", "I pass", (2, 0)),
-                ("# lint-ignore: SomethingElse\npass\n", "I pass", (2, 0)),
+                ("# rattle: ignore\npass\n", None, None),
+                ("# rattle: ignore[ExerciseReport]\npass\n", None, None),
+                ("# rattle: ignore[SomethingElse, ExerciseReport]\npass\n", None, None),
+                ("# rattle: ignore[SomethingElse]\npass\n", "I pass", (2, 0)),
                 ("def foo(bar): pass\n", "I pass", (1, 14)),
-                ("def foo(bar): pass  # lint-ignore\n", None, None),
-                ("# lint-ignore\ndef foo(bar): pass\n", None, None),
-                ("import sys\n# lint-ignore\ndef foo(bar): pass\n", None, None),
+                ("def foo(bar): pass  # rattle: ignore\n", None, None),
+                ("# rattle: ignore\ndef foo(bar): pass\n", None, None),
+                ("import sys\n# rattle: ignore\ndef foo(bar): pass\n", None, None),
                 ("class bar(object): value = 1\n", "class def", (1, 0)),
-                ("class bar(object): value = 1  # lint-fixme\n", None, None),
-                ("# lint-fixme\nclass bar(object): value = 1\n", None, None),
-                ("import sys\n# lint-fixme\nclass bar(object): value = 1\n", None, None),
+                ("class bar(object): value = 1  # rattle: ignore\n", None, None),
+                ("# rattle: ignore\nclass bar(object): value = 1\n", None, None),
+                ("import sys\n# rattle: ignore\nclass bar(object): value = 1\n", None, None),
                 (
                     """
                     import sys
@@ -278,7 +271,7 @@ class RuleTest(TestCase):
                     """
                     import sys
 
-                    class Foo(object):  # type: ignore # lint-ignore
+                    class Foo(object):  # type: ignore # rattle: ignore
                         value = 1
                 """,
                     None,
@@ -288,7 +281,7 @@ class RuleTest(TestCase):
                     """
                     import sys
 
-                    class Foo(object):  # lint-ignore ExerciseReport
+                    class Foo(object):  # rattle: ignore[ExerciseReport]
                         value = 1
                 """,
                     None,
@@ -298,7 +291,7 @@ class RuleTest(TestCase):
                     """
                     import sys
 
-                    # type:ignore  # lint-fixme  # justification
+                    # type:ignore  # rattle: ignore  # justification
                     class Foo(object):
                         value = 1
                 """,
@@ -309,7 +302,7 @@ class RuleTest(TestCase):
                     """
                     import sys
 
-                    # lint-fixme: UnrelatedRule
+                    # rattle: ignore[UnrelatedRule]
                     class Foo(object):
                         value = 1
                 """,
@@ -321,7 +314,7 @@ class RuleTest(TestCase):
                     """
                     import sys
 
-                    # lint-fixme: ExerciseReport
+                    # rattle: ignore[ExerciseReport]
                     @contextmanager
                     def problem():
                         yield True
@@ -335,7 +328,7 @@ class RuleTest(TestCase):
                     import sys
 
                     @contextmanager
-                    # lint-fixme: ExerciseReport
+                    # rattle: ignore[ExerciseReport]
                     def problem():
                         yield True
                 """,
@@ -347,7 +340,7 @@ class RuleTest(TestCase):
                     """
                     import dataclasses
 
-                    # lint-fixme: ExerciseReport
+                    # rattle: ignore[ExerciseReport]
                     @dataclasses.dataclass
                     class C:
                         value = 1
@@ -361,7 +354,7 @@ class RuleTest(TestCase):
                     import dataclasses
 
                     @dataclasses.dataclass
-                    # lint-fixme: ExerciseReport
+                    # rattle: ignore[ExerciseReport]
                     class C:
                         value = 1
                 """,
@@ -371,7 +364,7 @@ class RuleTest(TestCase):
                 (
                     # above comprehension
                     """
-                    # lint-fixme: ExerciseReport
+                    # rattle: ignore[ExerciseReport]
                     [... for _ in range(1)]
                 """,
                     None,
@@ -381,7 +374,7 @@ class RuleTest(TestCase):
                     # inside comprehension
                     """
                     [
-                        # lint-fixme: ExerciseReport
+                        # rattle: ignore[ExerciseReport]
                         ... for _ in range(1)
                     ]
                 """,
@@ -391,7 +384,7 @@ class RuleTest(TestCase):
                 (
                     # after comprehension
                     """
-                    [... for _ in range(1)]  # lint-fixme: ExerciseReport
+                    [... for _ in range(1)]  # rattle: ignore[ExerciseReport]
                 """,
                     None,
                     None,
@@ -400,7 +393,7 @@ class RuleTest(TestCase):
                     # trailing inline comprehension
                     """
                     [
-                        ... for _ in range(1)  # lint-fixme: ExerciseReport
+                        ... for _ in range(1)  # rattle: ignore[ExerciseReport]
                     ]
                 """,
                     None,
@@ -410,7 +403,7 @@ class RuleTest(TestCase):
                     # before list element
                     """
                     [
-                        # lint-fixme: ExerciseReport
+                        # rattle: ignore[ExerciseReport]
                         ...,
                         None,
                     ]
@@ -422,7 +415,7 @@ class RuleTest(TestCase):
                     # trailing list element
                     """
                     [
-                        ...,  # lint-fixme: ExerciseReport
+                        ...,  # rattle: ignore[ExerciseReport]
                         None,
                     ]
                 """,
