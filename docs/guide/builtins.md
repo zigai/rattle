@@ -348,7 +348,7 @@ def f(items: list[int]) -> None:
 - `NoNamedTuple`
 - `NoStaticIfCondition`
 - `SortedAttributes`
-- `UseLintFixmeComment`
+- `UseRattleIgnoreComment`
 - `UseTypesFromTyping`
 - `VariadicCallableSyntax`
 
@@ -541,31 +541,28 @@ class MyUnsortedConstants:
         return "some random thing"
 
 ```
-### UseLintFixmeComment
+### UseRattleIgnoreComment
 
-To silence a lint warning, use ``lint-fixme`` (when plans to fix the issue later) or ``lint-ignore``
-(when the lint warning is not valid) comments.
-The comment requires to be in a standalone comment line and follows the format ``lint-fixme: RULE_NAMES EXTRA_COMMENTS``.
-It suppresses the lint warning with the RULE_NAMES in the next line.
-RULE_NAMES can be one or more lint rule names separated by comma.
-``noqa`` is deprecated and not supported because explicitly providing lint rule names to be suppressed
-in lint-fixme comment is preferred over implicit noqa comments. Implicit noqa suppression comments
-sometimes accidentally silence warnings unexpectedly.
+To silence a lint warning, use ``rattle: ignore[RuleName]`` comments.
+The comment may be a trailing inline comment or a standalone comment line above the code.
+Rule names are optional, but explicitly listing one or more comma-separated rule names avoids
+accidentally silencing unrelated warnings.
+``noqa`` is deprecated and not supported because it is shared by other Python linters and can
+accidentally silence warnings unexpectedly.
 
 #### MESSAGE
 
-noqa is deprecated. Use `lint-fixme` or `lint-ignore` instead.
+noqa is deprecated. Use `rattle: ignore[RuleName]` instead.
 
 
 #### VALID
 
 ```python
-# lint-fixme: UseFstringRule
+# rattle: ignore[UseFstringRule]
 "%s" % "hi"
 ```
 ```python
-# lint-ignore: UsePlusForStringConcatRule
-'ab' 'cd'
+'ab' 'cd'  # rattle: ignore[UsePlusForStringConcatRule]
 ```
 
 #### INVALID

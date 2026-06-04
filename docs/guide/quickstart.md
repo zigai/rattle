@@ -105,15 +105,15 @@ help: Apply the available autofix
 ## Silencing Errors
 
 For lint rules without autofixes, it may still be useful to silence individual
-errors. A simple `# lint-ignore` or `# lint-fixme` comment, either as a
-trailing inline comment or as a dedicated comment line above the code, will
-silence the matching violation:
+errors. A `# rattle: ignore[...]` comment, either as a trailing inline comment
+or as a dedicated comment line above the code, will silence the matching
+violation:
 
 ```python
-class Foo(NamedTuple):  # lint-fixme: NoNamedTuple
+class Foo(NamedTuple):  # rattle: ignore[NoNamedTuple]
     ...
 
-# lint-ignore: NoNamedTuple
+# rattle: ignore[NoNamedTuple]
 class Bar(NamedTuple):
     ...
 ```
@@ -126,23 +126,9 @@ If no rule name is listed, Rattle will silence all rules associated with that
 comment:
 
 ```python
-class Foo(object):  # lint-ignore
+class Foo(object):  # rattle: ignore
     ...
 ```
-
-### "ignore" vs "fixme"
-
-Both comment directives achieve the same result: silencing errors for a
-particular statement of code. The choice between them is left to the user, but
-they are intended to carry different meanings:
-
-- `# lint-fixme` is for errors that need to be corrected or reviewed later,
-  but should be silenced temporarily for CI or similar circumstances.
-- `# lint-ignore` is for false positives or intentionally structured code where
-  the lint error cannot be avoided.
-
-Future versions of Rattle may offer reporting or similar tools that treat
-`fixme` directives differently from `ignore` directives.
 
 ## Custom Rules
 

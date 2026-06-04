@@ -64,7 +64,7 @@ python-version = "3.10"
 output-format = "rattle"
 disable = [
     "NoStaticIfCondition",
-    "UseLintFixmeComment",
+    "UseRattleIgnoreComment",
 ]
 per-file-disable = {"tests/generated.py" = ["NoNamedTuple"]}
 
