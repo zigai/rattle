@@ -38,7 +38,7 @@ Rules from parent configs are inherited and this list adds to them.
 
 Rattle accepts three selector forms:
 
-- built-in rule packs, currently `fixit` and `fixit_extra`
+- built-in rule packs, currently `blank_lines`, `fixit`, and `fixit_extra`
 - import selectors, using Python module syntax, for packages, modules, or one
   concrete rule (`module:ClassName`)
 - exact built-in rule class names such as `UseFstring`

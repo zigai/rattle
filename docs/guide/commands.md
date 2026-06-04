@@ -68,7 +68,7 @@ forms as {attr}`enable <rattle.Config.enable>` and
 {attr}`disable <rattle.Config.disable>`:
 
 - import selectors such as `rattle.rules.fixit_extra:UseFstring`
-- built-in rule packs such as `fixit` or `fixit_extra`
+- built-in rule packs such as `blank_lines`, `fixit`, or `fixit_extra`
 - exact built-in rule class names such as `UseFstring`
 
 For example:
