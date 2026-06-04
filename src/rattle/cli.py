@@ -282,7 +282,7 @@ def _update_fix_state(
 
 
 def _version() -> str:
-    return f"rattle, version {__version__}"
+    return f"rattle {__version__}"
 
 
 def _find_uv_project_root(path: Path) -> Path | None:

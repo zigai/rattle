@@ -23,7 +23,7 @@ class SmokeTest(TestCase):
 
     def test_cli_version(self) -> None:
         result = self.runner.invoke(main, ["--version"])
-        expected = rf"rattle, version {__version__}"
+        expected = rf"rattle {__version__}"
         assert expected in result.stdout
 
     def test_file_with_formatting(self) -> None:
