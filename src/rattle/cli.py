@@ -10,7 +10,7 @@ import sys
 import unittest
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from interfacy import ExecutableFlag, Interfacy
@@ -106,6 +106,7 @@ def _submit_result(
     output_format: OutputFormat,
     output_template: str,
     brief: bool,
+    brief_rule_width: int | None = None,
 ) -> bool:
     rendered = render_console_result(
         result,
@@ -114,6 +115,7 @@ def _submit_result(
         output_format=output_format,
         output_template=output_template,
         brief=brief,
+        brief_rule_width=brief_rule_width,
     )
     if rendered is None:
         return False
@@ -151,11 +153,79 @@ def _print_stats(console: AsyncConsole, stats: Counter[str]) -> None:
 
 
 @dataclass
+class LintState:
+    exit_code: int = 0
+    violations: int = 0
+    autofixes: int = 0
+    visited: set[Path] = field(default_factory=set)
+    violation_files: set[Path] = field(default_factory=set)
+    error_files: set[Path] = field(default_factory=set)
+    violation_stats: Counter[str] = field(default_factory=Counter)
+    diagnostics: list[tuple[Result, Config]] = field(default_factory=list)
+
+
+@dataclass
 class FixState:
     exit_code: int = 0
     violations: int = 0
     autofixes: int = 0
     fixed: int = 0
+
+
+def _record_lint_result(
+    result: Result,
+    config: Config,
+    *,
+    state: LintState,
+    stats: bool,
+) -> None:
+    state.diagnostics.append((result, config))
+    if result.violation:
+        state.violation_files.add(result.path)
+        state.violations += 1
+        if stats:
+            state.violation_stats[_stats_path(result.path)] += 1
+        state.exit_code |= 1
+        if result.violation.autofixable:
+            state.autofixes += 1
+    if result.error:
+        state.error_files.add(result.path)
+        state.exit_code |= 2
+
+
+def _brief_rule_width(diagnostics: list[tuple[Result, Config]], *, brief: bool) -> int | None:
+    if not brief:
+        return None
+
+    rule_names = [
+        result.violation.rule_name
+        for result, config in diagnostics
+        if result.violation and config.output_format == OutputFormat.rattle
+    ]
+    if not rule_names:
+        return None
+
+    return max(len(rule_name) for rule_name in rule_names)
+
+
+def _submit_lint_diagnostics(
+    console: AsyncConsole,
+    diagnostics: list[tuple[Result, Config]],
+    *,
+    diff: bool,
+    brief: bool,
+) -> None:
+    brief_rule_width = _brief_rule_width(diagnostics, brief=brief)
+    for result, config in diagnostics:
+        _submit_result(
+            console,
+            result,
+            show_diff=diff,
+            output_format=config.output_format,
+            output_template=config.output_template,
+            brief=brief,
+            brief_rule_width=brief_rule_width,
+        )
 
 
 def _prompt_for_fix(generator: capture, state: FixState) -> bool:
@@ -390,13 +460,7 @@ def lint(
         output_template=output_template,
         print_metrics=print_metrics,
     )
-    exit_code = 0
-    visited: set[Path] = set()
-    violation_files: set[Path] = set()
-    error_files: set[Path] = set()
-    violations = 0
-    autofixes = 0
-    violation_stats: Counter[str] = Counter()
+    state = LintState()
     console = AsyncConsole()
     try:
         for result in rattle_paths(
@@ -406,39 +470,29 @@ def lint(
             options=runtime_options,
             metrics_hook=_metrics_hook(console, runtime_options.print_metrics),
         ):
-            visited.add(result.path)
+            state.visited.add(result.path)
             if not result.violation and not result.error:
                 continue
             config = result.config or _output_config_for_path(result.path, runtime_options)
-            if _submit_result(
-                console,
-                result,
-                show_diff=diff,
-                output_format=config.output_format,
-                output_template=config.output_template,
-                brief=brief,
-            ):
-                if result.violation:
-                    violation_files.add(result.path)
-                    violations += 1
-                    if stats:
-                        violation_stats[_stats_path(result.path)] += 1
-                    exit_code |= 1
-                    if result.violation.autofixable:
-                        autofixes += 1
-                if result.error:
-                    error_files.add(result.path)
-                    exit_code |= 2
+            _record_lint_result(result, config, state=state, stats=stats)
 
+        _submit_lint_diagnostics(console, state.diagnostics, diff=diff, brief=brief)
         console.submit(
-            splash(visited, violation_files, error_files, violations, autofixes), err=True
+            splash(
+                state.visited,
+                state.violation_files,
+                state.error_files,
+                state.violations,
+                state.autofixes,
+            ),
+            err=True,
         )
         if stats:
-            _print_stats(console, violation_stats)
+            _print_stats(console, state.violation_stats)
     finally:
         console.close()
-    if exit_code:
-        raise SystemExit(exit_code)
+    if state.exit_code:
+        raise SystemExit(state.exit_code)
 
 
 def fix(

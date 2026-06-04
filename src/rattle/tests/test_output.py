@@ -116,6 +116,27 @@ class OutputTest(TestCase):
             "remove redundant f-string.  --> src/example.py:12:5"
         )
 
+    def test_render_rattle_brief_violation_pads_rule_name_to_width(self) -> None:
+        violation = LintViolation(
+            rule_name="ShortRule",
+            range=CodeRange(
+                start=CodePosition(line=12, column=4),
+                end=CodePosition(line=12, column=8),
+            ),
+            message="Short message.",
+            node=libcst.Name("value"),
+            replacement=libcst.Name("fixed"),
+        )
+
+        rendered = render_rattle_result(
+            Result(Path("src/example.py"), violation),
+            path=Path("src/example.py"),
+            brief=True,
+            brief_rule_width=len("LongerRuleName"),
+        )
+
+        assert rendered == "ShortRule      [*] Short message.  --> src/example.py:12:5"
+
     def test_render_rattle_parser_syntax_error(self) -> None:
         source = b"print)\nvalue = 1\n"
         with pytest.raises(libcst.ParserSyntaxError) as caught:

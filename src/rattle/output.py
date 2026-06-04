@@ -15,11 +15,23 @@ _PARSER_LOCATION_PREFIX = re.compile(r"^error at \d+:\d+:\s*", re.IGNORECASE)
 
 
 def render_rattle_result(
-    result: Result, *, path: Path, color: bool = False, brief: bool = False
+    result: Result,
+    *,
+    path: Path,
+    color: bool = False,
+    brief: bool = False,
+    brief_rule_width: int | None = None,
 ) -> str | None:
     """Render a result using the default terminal presentation."""
     if result.violation:
-        return _render_violation(path, result.violation, result.source, color=color, brief=brief)
+        return _render_violation(
+            path,
+            result.violation,
+            result.source,
+            color=color,
+            brief=brief,
+            brief_rule_width=brief_rule_width,
+        )
 
     if result.error:
         error, _ = result.error
@@ -37,6 +49,7 @@ def render_console_result(
     output_format: OutputFormat = OutputFormat.rattle,
     output_template: str = "",
     brief: bool = False,
+    brief_rule_width: int | None = None,
 ) -> str | None:
     if result.violation:
         return _render_console_violation(
@@ -46,6 +59,7 @@ def render_console_result(
             output_format=output_format,
             output_template=output_template,
             brief=brief,
+            brief_rule_width=brief_rule_width,
         )
 
     if result.error:
@@ -67,13 +81,20 @@ def _render_console_violation(
     output_format: OutputFormat,
     output_template: str,
     brief: bool,
+    brief_rule_width: int | None,
 ) -> str:
     violation = result.violation
     assert violation is not None
     assert violation.range is not None
 
     if output_format == OutputFormat.rattle:
-        rendered = render_rattle_result(result, path=path, color=True, brief=brief)
+        rendered = render_rattle_result(
+            result,
+            path=path,
+            color=True,
+            brief=brief,
+            brief_rule_width=brief_rule_width,
+        )
         if rendered is None:
             raise NotImplementedError("missing rattle renderer for lint violation")
         lines = [rendered]
@@ -136,9 +157,13 @@ def _render_violation(
     *,
     color: bool,
     brief: bool,
+    brief_rule_width: int | None = None,
 ) -> str:
     assert violation.range is not None
-    header = _error_style(violation.rule_name, color=color)
+    rule_name = violation.rule_name
+    if brief and brief_rule_width is not None:
+        rule_name = f"{rule_name:<{brief_rule_width}}"
+    header = _error_style(rule_name, color=color)
     if violation.autofixable:
         header += f" {_fix_marker(color=color)}"
     header += f" {violation.message}"
