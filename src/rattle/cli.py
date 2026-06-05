@@ -15,6 +15,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from interfacy import ExecutableFlag, Interfacy
+from interfacy.naming import AbbreviationGenerator
+from interfacy.plugins import InterfacyPlugin, PluginContext
+from interfacy.schema.schema import ArgumentKind, ParserSchema
 from stdl.st import colored
 
 from rattle.__version__ import __version__
@@ -40,7 +43,6 @@ from .ftypes import (
     OutputFormat,
     Result,
     RuleSelector,
-    Tags,
 )
 from .output import render_console_result
 from .rule import LintRule
@@ -55,8 +57,52 @@ else:
 
 UV_REEXEC_ENV = "RATTLE_UV_RUN_REEXEC"
 UV_REEXEC_DISABLE_ENV = "RATTLE_NO_UV_RUN_REEXEC"
+DEBUG_ENV = "RATTLE_DEBUG"
+METRICS_ENV = "RATTLE_METRICS"
 UV_PROJECT_MARKERS = ("uv.lock",)
 UV_REEXEC_COMMANDS = frozenset({"lint", "fix", "rules", "validate", "lsp", "explain"})
+TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
+class RattleAbbreviationGenerator(AbbreviationGenerator):
+    SHORT_FLAGS = {
+        "config": "c",
+        "diff": "d",
+        "exclude": "e",
+        "interactive": "i",
+        "jobs": "j",
+        "quiet": "q",
+        "rules": "r",
+    }
+
+    def generate(self, value: str, taken: list[str]) -> str | None:
+        flag = self.SHORT_FLAGS.get(value)
+        if flag is None or flag in taken:
+            return None
+        taken.append(flag)
+        return flag
+
+
+class ValidateConfigPositionalPlugin(InterfacyPlugin):
+    def transform_schema(
+        self,
+        _context: PluginContext,
+        schema: ParserSchema,
+    ) -> ParserSchema:
+        validate_command = schema.commands.get("validate")
+        if validate_command is None or not validate_command.parameters:
+            return schema
+
+        config_argument = validate_command.parameters[0]
+        if config_argument.name != "config":
+            return schema
+
+        config_argument.kind = ArgumentKind.POSITIONAL
+        config_argument.flags = ("CONFIG",)
+        config_argument.required = False
+        config_argument.nargs = "?"
+        config_argument.metavar = "CONFIG"
+        return schema
 
 
 def _display_path(path: Path) -> Path:
@@ -143,23 +189,14 @@ def _output_config_for_path(path: Path, options: Options) -> Config:
     return generate_config(path, options=options)
 
 
-def _stats_path(path: Path) -> str:
-    directory = path.resolve().parent
-    try:
-        directory = directory.relative_to(Path.cwd())
-    except ValueError:
-        pass
-    return directory.as_posix() or "."
-
-
 def _print_stats(console: AsyncConsole, stats: Counter[str]) -> None:
     if not stats:
         return
 
-    console.submit("Violation stats by directory:", err=True)
-    width = max(len(path) for path in stats)
-    for path, count in sorted(stats.items()):
-        console.submit(f"  {path:<{width}}  {count}", err=True)
+    console.submit("Violation stats by rule:", err=True)
+    width = max(len(rule_name) for rule_name in stats)
+    for rule_name, count in sorted(stats.items()):
+        console.submit(f"  {rule_name:<{width}}  {count}", err=True)
 
 
 @dataclass
@@ -180,6 +217,7 @@ class FixState:
     violations: int = 0
     autofixes: int = 0
     fixed: int = 0
+    violation_stats: Counter[str] = field(default_factory=Counter)
 
 
 @dataclass
@@ -187,7 +225,8 @@ class LintReport:
     console: AsyncConsole
     options: Options
     diff: bool
-    brief: bool
+    compact: bool
+    quiet: bool
     stats: bool
     state: LintState = field(default_factory=LintState)
 
@@ -204,12 +243,13 @@ class LintReport:
         _record_lint_result(result, config, state=self.state, stats=self.stats)
 
     def submit(self) -> None:
-        _submit_lint_diagnostics(
-            self.console,
-            self.state.diagnostics,
-            diff=self.diff,
-            brief=self.brief,
-        )
+        if not self.quiet:
+            _submit_lint_diagnostics(
+                self.console,
+                self.state.diagnostics,
+                diff=self.diff,
+                compact=self.compact,
+            )
         self.console.submit(
             splash(
                 self.state.visited,
@@ -236,7 +276,7 @@ def _record_lint_result(
         state.violation_files.add(result.path)
         state.violations += 1
         if stats:
-            state.violation_stats[_stats_path(result.path)] += 1
+            state.violation_stats[result.violation.rule_name] += 1
         state.exit_code |= 1
         if result.violation.autofixable:
             state.autofixes += 1
@@ -245,8 +285,8 @@ def _record_lint_result(
         state.exit_code |= 2
 
 
-def _brief_rule_width(diagnostics: list[tuple[Result, Config]], *, brief: bool) -> int | None:
-    if not brief:
+def _compact_rule_width(diagnostics: list[tuple[Result, Config]], *, compact: bool) -> int | None:
+    if not compact:
         return None
 
     rule_names = [
@@ -265,9 +305,9 @@ def _submit_lint_diagnostics(
     diagnostics: list[tuple[Result, Config]],
     *,
     diff: bool,
-    brief: bool,
+    compact: bool,
 ) -> None:
-    brief_rule_width = _brief_rule_width(diagnostics, brief=brief)
+    compact_rule_width = _compact_rule_width(diagnostics, compact=compact)
     for result, config in diagnostics:
         _submit_result(
             console,
@@ -275,9 +315,67 @@ def _submit_lint_diagnostics(
             show_diff=diff,
             output_format=config.output_format,
             output_template=config.output_template,
-            brief=brief,
-            brief_rule_width=brief_rule_width,
+            brief=compact,
+            brief_rule_width=compact_rule_width,
         )
+
+
+def _validate_fix_options(
+    paths: tuple[Path, ...],
+    *,
+    quiet: bool,
+    diff: bool,
+    stats: bool,
+    interactive: bool,
+) -> bool:
+    if quiet and diff:
+        usage_error("--quiet and --diff cannot be used together")
+    if quiet and stats:
+        usage_error("--quiet and --stats cannot be used together")
+    if quiet and interactive:
+        usage_error("--quiet and --interactive cannot be used together")
+
+    is_stdin = bool(paths[0] and str(paths[0]) == "-")
+    if is_stdin and interactive:
+        usage_error("--interactive cannot be used with stdin")
+
+    return is_stdin
+
+
+def _record_fix_output(
+    console: AsyncConsole,
+    result: Result,
+    *,
+    config: Config,
+    is_stdin: bool,
+    quiet: bool,
+    interactive: bool,
+    diff: bool,
+    compact: bool,
+    stats: bool,
+    state: FixState,
+    violation_files: set[Path],
+    error_files: set[Path],
+) -> None:
+    if result.violation:
+        violation_files.add(result.path)
+        if stats:
+            state.violation_stats[result.violation.rule_name] += 1
+    if result.error:
+        error_files.add(result.path)
+
+    if quiet:
+        return
+
+    _submit_result(
+        console,
+        result,
+        show_diff=interactive or diff,
+        stderr=is_stdin,
+        output_format=config.output_format,
+        output_template=config.output_template,
+        brief=compact,
+    )
 
 
 def _prompt_for_fix(generator: capture, state: FixState) -> bool:
@@ -335,6 +433,15 @@ def _update_fix_state(
 
 def _version() -> str:
     return f"rattle {__version__}"
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").lower() in TRUTHY_ENV_VALUES
+
+
+def _configure_logging() -> None:
+    level = logging.DEBUG if _env_flag(DEBUG_ENV) else logging.WARNING
+    logging.basicConfig(level=level, stream=sys.stderr)
 
 
 def _find_uv_project_root(path: Path) -> Path | None:
@@ -406,6 +513,8 @@ def _resolve_input_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
     if not paths:
         return (Path.cwd(),)
     if paths[0] == STDIN:
+        if len(paths) != 2:
+            usage_error('stdin mode requires exactly "- PATH"')
         return paths
     return tuple(require_existing_path(path, argument="path") for path in paths)
 
@@ -418,106 +527,77 @@ def parse_rules(rules: str | None) -> list[RuleSelector]:
 def build_options(
     *,
     rules: str | None = None,
-    tags: str | None = None,
     jobs: int | None = None,
-    config_file: Path | None = None,
+    config: Path | None = None,
     exclude: list[str] | None = None,
     extend_exclude: list[str] | None = None,
-    output_format: OutputFormat | None = None,
-    output_template: str | None = None,
-    print_metrics: bool = False,
-    no_format: bool = False,
-    quiet: bool = False,
-    debug: bool = False,
 ) -> Options:
-    if debug and quiet:
-        usage_error("--debug and --quiet cannot be used together")
     if jobs is not None and jobs < 1:
         usage_error("--jobs must be an integer greater than or equal to 1")
 
-    debug_option = True if debug else False if quiet else None
-    level = logging.WARNING
-    if debug_option is not None:
-        level = logging.DEBUG if debug_option else logging.ERROR
-    logging.basicConfig(level=level, stream=sys.stderr)
+    _configure_logging()
 
     return Options(
-        debug=debug_option,
-        config_file=(
-            require_existing_file(config_file, option="--config-file") if config_file else None
-        ),
+        debug=True if _env_flag(DEBUG_ENV) else None,
+        config_file=(require_existing_file(config, option="--config") if config else None),
         exclude=tuple(exclude or ()),
         extend_exclude=tuple(extend_exclude or ()),
         jobs=jobs,
-        tags=Tags.parse(tags),
         rules=parse_rules(rules),
-        output_format=output_format,
-        output_template=output_template,
-        print_metrics=print_metrics,
-        no_format=no_format,
+        print_metrics=_env_flag(METRICS_ENV),
     )
 
 
 def lint(
     *paths: Path,
     rules: str | None = None,
-    tags: str | None = None,
     jobs: int | None = None,
-    config_file: Path | None = None,
+    config: Path | None = None,
     exclude: list[str] | None = None,
     extend_exclude: list[str] | None = None,
-    output_format: OutputFormat | None = None,
-    output_template: str | None = None,
     diff: bool = False,
-    brief: bool = False,
+    compact: bool = False,
     stats: bool = False,
     quiet: bool = False,
-    print_metrics: bool = False,
-    debug: bool = False,
 ) -> None:
     """
-    Lint one or more paths and return suggestions.
+    Check files for Rattle violations.
 
     Args:
-        paths: Files or directories to lint. Use "- <FILENAME>" to lint stdin as a file.
-        debug: Increase logging verbosity.
-        quiet: Decrease logging verbosity.
-        config_file: Override default config file search behavior.
-        exclude: Override configured file excludes with glob patterns.
-        extend_exclude: Add glob patterns to configured file excludes.
+        paths: Files or directories to check. Use "- PATH" to check code from stdin as PATH.
+        quiet: Print only the final summary.
+        config: Use this config file instead of discovered configuration.
+        exclude: Replace configured exclude patterns.
+        extend_exclude: Add exclude patterns.
         jobs: Number of worker processes to use when linting multiple files.
-        tags: Select or filter rules by comma-separated tags.
         rules: Override configured rules with comma-separated selectors.
-        output_format: Select output format type.
-        output_template: Python format template to use with custom output.
-        print_metrics: Print metrics for this run.
-        brief: Print each diagnostic on one line.
-        diff: Show diffs for suggested changes.
-        stats: Print violation counts by directory.
+        compact: Print compact diagnostics.
+        diff: Show available fixes as unified diffs.
+        stats: Print violation counts by rule.
 
-    pass "- <FILENAME>" for STDIN representing <FILENAME>
+    pass "- PATH" to read stdin and treat it as PATH
     """
+    if quiet and diff:
+        usage_error("--quiet and --diff cannot be used together")
+    if quiet and stats:
+        usage_error("--quiet and --stats cannot be used together")
+
     paths = _resolve_input_paths(paths)
 
     runtime_options = build_options(
-        debug=debug,
-        quiet=quiet,
-        config_file=config_file,
+        config=config,
         exclude=exclude,
         extend_exclude=extend_exclude,
         jobs=jobs,
-        tags=tags,
         rules=rules,
-        output_format=output_format,
-        output_template=output_template,
-        print_metrics=print_metrics,
     )
     console = AsyncConsole()
     report = LintReport(
         console=console,
         options=runtime_options,
         diff=diff,
-        brief=brief,
+        compact=compact,
+        quiet=quiet,
         stats=stats,
     )
     try:
@@ -540,68 +620,50 @@ def lint(
 def fix(
     *paths: Path,
     rules: str | None = None,
-    tags: str | None = None,
     quiet: bool = False,
     jobs: int | None = None,
-    output_format: OutputFormat | None = None,
-    output_template: str | None = None,
-    config_file: Path | None = None,
+    config: Path | None = None,
     exclude: list[str] | None = None,
     extend_exclude: list[str] | None = None,
     diff: bool = False,
-    automatic: bool = False,
     interactive: bool = False,
-    print_metrics: bool = False,
-    no_format: bool = False,
-    brief: bool = False,
-    debug: bool = False,
+    compact: bool = False,
+    stats: bool = False,
 ) -> None:
     """
-    Lint and autofix one or more files and return results.
+    Apply available autofixes to files.
 
     Args:
-        paths: Files or directories to lint and fix. Use "- <FILENAME>" to fix stdin.
-        debug: Increase logging verbosity.
-        quiet: Decrease logging verbosity.
-        config_file: Override default config file search behavior.
-        exclude: Override configured file excludes with glob patterns.
-        extend_exclude: Add glob patterns to configured file excludes.
+        paths: Files or directories to fix. Use "- PATH" to fix code from stdin as PATH and write to stdout.
+        quiet: Print only the final summary.
+        config: Use this config file instead of discovered configuration.
+        exclude: Replace configured exclude patterns.
+        extend_exclude: Add exclude patterns.
         jobs: Number of worker processes to use when linting multiple files.
-        tags: Select or filter rules by comma-separated tags.
         rules: Override configured rules with comma-separated selectors.
-        output_format: Select output format type.
-        output_template: Python format template to use with custom output.
-        print_metrics: Print metrics for this run.
-        no_format: Skip configured post-fix formatting.
         interactive: Prompt before applying each autofix.
-        automatic: Apply autofixes without prompting.
-        brief: Print each diagnostic on one line.
-        diff: Show diffs even when applying fixes automatically.
+        compact: Print compact diagnostics.
+        diff: Show applied fixes as unified diffs.
+        stats: Print violation counts by rule.
 
-    pass "- <FILENAME>" for STDIN representing <FILENAME>;
-    this will ignore "--interactive" and always use "--automatic"
+    pass "- PATH" to read stdin, treat it as PATH, and write fixed code to stdout
     """
-    if interactive and automatic:
-        usage_error("--interactive and --automatic cannot be used together")
-
     paths = _resolve_input_paths(paths)
+    is_stdin = _validate_fix_options(
+        paths,
+        quiet=quiet,
+        diff=diff,
+        stats=stats,
+        interactive=interactive,
+    )
 
     runtime_options = build_options(
-        debug=debug,
-        quiet=quiet,
-        config_file=config_file,
+        config=config,
         exclude=exclude,
         extend_exclude=extend_exclude,
         jobs=jobs,
-        tags=tags,
         rules=rules,
-        output_format=output_format,
-        output_template=output_template,
-        print_metrics=print_metrics,
-        no_format=no_format,
     )
-    is_stdin = bool(paths[0] and str(paths[0]) == "-")
-    interactive = interactive and not is_stdin
     autofix = not interactive
     state = FixState()
 
@@ -625,22 +687,23 @@ def fix(
             visited.add(result.path)
             if not result.violation and not result.error:
                 continue
-            config = result.config or _output_config_for_path(result.path, runtime_options)
+            result_config = result.config or _output_config_for_path(result.path, runtime_options)
             # for STDIN, we need STDOUT to equal the fixed content, so
             # move everything else to STDERR
-            if _submit_result(
+            _record_fix_output(
                 console,
                 result,
-                show_diff=interactive or diff,
-                stderr=is_stdin,
-                output_format=config.output_format,
-                output_template=config.output_template,
-                brief=brief,
-            ):
-                if result.violation:
-                    violation_files.add(result.path)
-                if result.error:
-                    error_files.add(result.path)
+                config=result_config,
+                is_stdin=is_stdin,
+                quiet=quiet,
+                interactive=interactive,
+                diff=diff,
+                compact=compact,
+                stats=stats,
+                state=state,
+                violation_files=violation_files,
+                error_files=error_files,
+            )
             if interactive:
                 console.flush()
             if _update_fix_state(
@@ -663,6 +726,8 @@ def fix(
             ),
             err=True,
         )
+        if stats:
+            _print_stats(console, state.violation_stats)
     finally:
         console.close()
     if state.exit_code:
@@ -671,35 +736,30 @@ def fix(
 
 def lsp(
     *,
-    rules: str | None = None,
-    config_file: Path | None = None,
-    exclude: list[str] | None = None,
-    extend_exclude: list[str] | None = None,
-    tags: str | None = None,
+    config: Path | None = None,
     ws: int | None = None,
     tcp: int | None = None,
     debounce_interval: float = LSPOptions.debounce_interval,
     no_stdio: bool = False,
-    debug: bool = False,
-    quiet: bool = False,
 ) -> None:
     """Start the language server.
 
     https://microsoft.github.io/language-server-protocol/.
 
     Args:
-        debug: Increase logging verbosity.
-        quiet: Decrease logging verbosity.
-        config_file: Override default config file search behavior.
-        exclude: Override configured file excludes with glob patterns.
-        extend_exclude: Add glob patterns to configured file excludes.
-        tags: Select or filter rules by comma-separated tags.
-        rules: Override configured rules with comma-separated selectors.
+        config: Use this config file instead of discovered configuration.
         no_stdio: Disable stdio transport when using TCP or WebSocket.
         tcp: Port to serve LSP over TCP.
         ws: Port to serve LSP over WebSocket.
-        debounce_interval: Delay in seconds for server-side debounce.
+        debounce_interval: Delay diagnostics after document changes, in seconds.
     """
+    if tcp is not None and ws is not None:
+        usage_error("--tcp and --ws cannot be used together")
+    if no_stdio and tcp is None and ws is None:
+        usage_error("--no-stdio requires --tcp or --ws")
+    if debounce_interval < 0:
+        usage_error("--debounce-interval must be greater than or equal to 0")
+
     from .lsp import LSP
 
     lsp_options = LSPOptions(
@@ -710,13 +770,7 @@ def lsp(
     )
     LSP(
         build_options(
-            debug=debug,
-            quiet=quiet,
-            config_file=config_file,
-            exclude=exclude,
-            extend_exclude=extend_exclude,
-            tags=tags,
-            rules=rules,
+            config=config,
         ),
         lsp_options,
     ).start()
@@ -761,42 +815,28 @@ def _parse_explain_selector(selector: str, config_path: Path) -> RuleSelector:
 
 
 def explain_command(
-    selector: str,
+    rule: str,
     *,
-    path: Path = Path(),
-    rules: str | None = None,
-    tags: str | None = None,
-    config_file: Path | None = None,
+    config: Path | None = None,
     json: bool = False,
-    debug: bool = False,
-    quiet: bool = False,
 ) -> None:
     """Display detailed information about one lint rule.
 
     Args:
-        selector: Rule selector to explain.
-        path: File or directory whose config should be used.
-        debug: Increase logging verbosity.
-        quiet: Decrease logging verbosity.
-        config_file: Override default config file search behavior.
-        tags: Select or filter rules by comma-separated tags.
-        rules: Override configured rules with comma-separated selectors.
+        rule: Rule name or selector to explain.
+        config: Use this config file instead of discovered configuration.
         json: Print rule information as JSON.
     """
-    target_path = require_existing_path(path, argument="path").resolve()
     runtime_options = build_options(
-        debug=debug,
-        quiet=quiet,
-        config_file=config_file,
-        tags=tags,
-        rules=rules,
+        config=config,
     )
-    config = generate_config(target_path, options=runtime_options)
-    parsed_selector = _parse_explain_selector(selector, config.root)
+    target_path = runtime_options.config_file or Path.cwd()
+    materialized_config = generate_config(target_path, options=runtime_options)
+    parsed_selector = _parse_explain_selector(rule, materialized_config.root)
 
     try:
-        rule_type = resolve_rule_type(config, parsed_selector)
-        enabled_rule_types = set(collect_rule_types(config))
+        rule_type = resolve_rule_type(materialized_config, parsed_selector)
+        enabled_rule_types = set(collect_rule_types(materialized_config))
     except CollectionError as error:
         echo(str(error), err=True)
         raise SystemExit(2) from error
@@ -814,26 +854,14 @@ def explain_command(
 
 def rules_command(
     *paths: Path,
-    rules: str | None = None,
-    tags: str | None = None,
-    config_file: Path | None = None,
-    exclude: list[str] | None = None,
-    extend_exclude: list[str] | None = None,
+    config: Path | None = None,
     test: bool = False,
-    debug: bool = False,
-    quiet: bool = False,
 ) -> None:
     """Display or test currently enabled lint rules.
 
     Args:
         paths: Files or directories whose rules should be shown.
-        debug: Increase logging verbosity.
-        quiet: Decrease logging verbosity.
-        config_file: Override default config file search behavior.
-        exclude: Override configured file excludes with glob patterns.
-        extend_exclude: Add glob patterns to configured file excludes.
-        tags: Select or filter rules by comma-separated tags.
-        rules: Override configured rules with comma-separated selectors.
+        config: Use this config file instead of discovered configuration.
         test: Test lint rules and their VALID/INVALID cases.
     """
     resolved_paths = tuple(require_existing_path(path, argument="path") for path in paths) or (
@@ -841,20 +869,14 @@ def rules_command(
     )
 
     runtime_options = build_options(
-        debug=debug,
-        quiet=quiet,
-        config_file=config_file,
-        exclude=exclude,
-        extend_exclude=extend_exclude,
-        tags=tags,
-        rules=rules,
+        config=config,
     )
 
     if test:
         lint_rules_by_name: dict[str, LintRule] = {}
         for path in resolved_paths:
-            config = generate_config(path.resolve(), options=runtime_options)
-            for rule in collect_rules(config):
+            path_config = generate_config(path.resolve(), options=runtime_options)
+            for rule in collect_rules(path_config):
                 lint_rules_by_name[rule.qualified_name()] = rule
         _run_rule_tests(
             [
@@ -869,9 +891,9 @@ def rules_command(
 
     for index, path in enumerate(resolved_paths):
         path = path.resolve()
-        config = generate_config(path, options=runtime_options)
+        path_config = generate_config(path, options=runtime_options)
         disabled: dict[type[LintRule], str] = {}
-        enabled = collect_rules(config, debug_reasons=disabled)
+        enabled = collect_rules(path_config, debug_reasons=disabled)
         if index:
             echo()
 
@@ -891,26 +913,28 @@ def rules_command(
                 echo(f"  {rule_type.name} {colored(f'({reason})', color='gray')}")
 
 
-def validate_command(*paths: Path) -> None:
-    """Validate config.
+def validate_command(config: Path | None = None) -> None:
+    """Validate Rattle configuration.
 
     Args:
-        paths: Config file to validate. Defaults to pyproject.toml.
+        config: Config file to validate. Defaults to pyproject.toml.
     """
-    if len(paths) > 1:
-        usage_error("validate accepts at most one path")
-    config_path = paths[0] if paths else Path("pyproject.toml")
+    config_path = config or Path("pyproject.toml")
     exceptions = validate_config(require_existing_file(config_path, option="path"))
 
     if exceptions:
         for e in exceptions:
             echo(e, err=True)
-        raise SystemExit(255)
+        raise SystemExit(1)
 
 
 def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
     app = Interfacy(
         sys_exit_enabled=sys_exit_enabled,
+        abbreviation_gen=RattleAbbreviationGenerator(),
+        bool_negative_prefix=None,
+        help_flags=("-h", "--help"),
+        plugins=[ValidateConfigPositionalPlugin()],
         executable_flags=[
             ExecutableFlag(
                 ("--version", "-V"),
@@ -919,7 +943,6 @@ def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
             )
         ],
     )
-    app.add_type_parser(OutputFormat, lambda value: OutputFormat(value.lower()))
     app.add_command(lint)
     app.add_command(fix)
     app.add_command(lsp)

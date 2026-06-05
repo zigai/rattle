@@ -34,6 +34,18 @@ def assert_brief_diagnostic(stdout: str, path: Path) -> None:
     assert (line_number, column) == ("1", "9")
 
 
+def write_config(path: Path, *, enable: str) -> Path:
+    config_path = path / "pyproject.toml"
+    config_path.write_text(f'[tool.rattle]\nroot = true\nenable = ["{enable}"]\n')
+    return config_path
+
+
+def write_clean_file(path: Path) -> Path:
+    file_path = path / "clean.py"
+    file_path.write_text("value = 1\n")
+    return file_path
+
+
 class CliTest(TestCase):
     def setUp(self) -> None:
         self.runner = make_cli_runner()
@@ -43,20 +55,29 @@ class CliTest(TestCase):
         assert result.exit_code == 2
         assert "invalid choice: 'upgrade'" in result.stderr
 
-    def test_rules_test_accepts_rule_name_selector(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["rules", "--test", "-r", "use-f-string"],
-            catch_exceptions=False,
-        )
+    def test_rules_test_uses_enabled_rules_from_config(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            config = write_config(root, enable="use-f-string")
+            path = write_clean_file(root)
+            result = self.runner.invoke(
+                main,
+                ["rules", "--test", "--config", config.as_posix(), path.as_posix()],
+                catch_exceptions=False,
+            )
+
         assert result.exit_code == 0
 
     def test_rules_test_displays_canonical_rule_name(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["rules", "--test", "-r", "use-f-string"],
-            catch_exceptions=False,
-        )
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            config = write_config(root, enable="use-f-string")
+            path = write_clean_file(root)
+            result = self.runner.invoke(
+                main,
+                ["rules", "--test", "--config", config.as_posix(), path.as_posix()],
+                catch_exceptions=False,
+            )
 
         output = result.stdout + result.stderr
         assert result.exit_code == 0
@@ -64,12 +85,17 @@ class CliTest(TestCase):
         assert "rattle.testing.UseFstring" not in output
 
     def test_rules_test_returns_nonzero_for_missing_rule(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["rules", "--test", "-r", "definitely-missing-rule"],
-            catch_exceptions=False,
-        )
-        assert result.exit_code == 1
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            config = write_config(root, enable="definitely-missing-rule")
+            path = write_clean_file(root)
+            result = self.runner.invoke(
+                main,
+                ["rules", "--test", "--config", config.as_posix(), path.as_posix()],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code != 0
 
     def test_test_command_removed(self) -> None:
         result = self.runner.invoke(main, ["test", "use-f-string"], catch_exceptions=False)
@@ -77,8 +103,35 @@ class CliTest(TestCase):
         assert result.exit_code == 2
         assert "invalid choice: 'test'" in result.stderr
 
+    def test_help_is_supported_for_commands(self) -> None:
+        short_result = self.runner.invoke(main, ["lint", "-h"], catch_exceptions=False)
+        long_result = self.runner.invoke(main, ["lint", "--help"], catch_exceptions=False)
+
+        assert short_result.exit_code == 0
+        assert "-h, --help" in short_result.stdout
+        assert long_result.exit_code == 0
+        assert "-h, --help" in long_result.stdout
+
+    def test_lsp_does_not_expose_stdio_alias(self) -> None:
+        help_result = self.runner.invoke(main, ["lsp", "--help"], catch_exceptions=False)
+        alias_result = self.runner.invoke(main, ["lsp", "--stdio"], catch_exceptions=False)
+
+        assert help_result.exit_code == 0
+        assert "--no-stdio" in help_result.stdout
+        assert "--stdio" not in help_result.stdout
+        assert alias_result.exit_code == 2
+        assert "unrecognized arguments: --stdio" in alias_result.stderr
+
     def test_rules_command_displays_enabled_rules(self) -> None:
-        result = self.runner.invoke(main, ["rules", "-r", "use-f-string"], catch_exceptions=False)
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            config = write_config(root, enable="use-f-string")
+            path = write_clean_file(root)
+            result = self.runner.invoke(
+                main,
+                ["rules", "--config", config.as_posix(), path.as_posix()],
+                catch_exceptions=False,
+            )
 
         assert result.exit_code == 0
         assert "Rules for " in result.stdout
@@ -103,11 +156,13 @@ class CliTest(TestCase):
         assert "UseTypesFromTyping" not in result.stdout
 
     def test_explain_command_displays_builtin_rule_info(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["explain", "-r", "use-f-string", "use-f-string"],
-            catch_exceptions=False,
-        )
+        with TemporaryDirectory() as td:
+            config = write_config(Path(td), enable="use-f-string")
+            result = self.runner.invoke(
+                main,
+                ["explain", "--config", config.as_posix(), "use-f-string"],
+                catch_exceptions=False,
+            )
 
         assert result.exit_code == 0
         first_line = result.stdout.splitlines()[0]
@@ -121,16 +176,18 @@ class CliTest(TestCase):
         assert "Metadata" not in result.stdout
 
     def test_explain_command_accepts_qualified_selector(self) -> None:
-        result = self.runner.invoke(
-            main,
-            [
-                "explain",
-                "-r",
-                "use-f-string",
-                "rattle.rules.fixit_extra.use_fstring:use-f-string",
-            ],
-            catch_exceptions=False,
-        )
+        with TemporaryDirectory() as td:
+            config = write_config(Path(td), enable="use-f-string")
+            result = self.runner.invoke(
+                main,
+                [
+                    "explain",
+                    "--config",
+                    config.as_posix(),
+                    "rattle.rules.fixit_extra.use_fstring:use-f-string",
+                ],
+                catch_exceptions=False,
+            )
 
         assert result.exit_code == 0
         assert "use-f-string [*]  Enabled" in result.stdout
@@ -173,11 +230,13 @@ class CliTest(TestCase):
         assert "\n@dataclass(frozen=False)" not in result.stdout
 
     def test_explain_command_displays_settings_references_and_examples(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["explain", "-r", "use-f-string", "use-f-string"],
-            catch_exceptions=False,
-        )
+        with TemporaryDirectory() as td:
+            config = write_config(Path(td), enable="use-f-string")
+            result = self.runner.invoke(
+                main,
+                ["explain", "--config", config.as_posix(), "use-f-string"],
+                catch_exceptions=False,
+            )
 
         assert result.exit_code == 0
         assert "Settings" in result.stdout
@@ -190,11 +249,13 @@ class CliTest(TestCase):
         assert '"%s" % "hi"  ->  f"{\'hi\'}"' in result.stdout
 
     def test_explain_command_json_output(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["explain", "--json", "-r", "use-f-string", "use-f-string"],
-            catch_exceptions=False,
-        )
+        with TemporaryDirectory() as td:
+            config = write_config(Path(td), enable="use-f-string")
+            result = self.runner.invoke(
+                main,
+                ["explain", "--json", "--config", config.as_posix(), "use-f-string"],
+                catch_exceptions=False,
+            )
 
         assert result.exit_code == 0
         data = json.loads(result.stdout)
@@ -378,12 +439,10 @@ class CliTest(TestCase):
             assert result.exit_code == 0
             assert path.read_text() == 'value = "hello"\n'
 
-    def test_fix_no_format_overrides_configured_formatter(self) -> None:
+    def test_fix_no_format_flag_removed(self) -> None:
         with TemporaryDirectory() as td:
-            root = Path(td)
-            (root / "pyproject.toml").write_text("[tool.rattle]\nformatter='ruff'\n")
-            path = root / "fstring.py"
-            path.write_text("def f( ):\n    value = f'hello'\n")
+            path = Path(td) / "fstring.py"
+            path.write_text("value = f'hello'\n")
 
             result = self.runner.invoke(
                 main,
@@ -391,22 +450,66 @@ class CliTest(TestCase):
                 catch_exceptions=False,
             )
 
-            assert result.exit_code == 0
-            assert path.read_text() == "def f( ):\n    value = 'hello'\n"
+        assert result.exit_code == 2
+        assert "unrecognized arguments: -n" in result.stderr
 
-    def test_lint_brief_prints_one_line_diagnostics(self) -> None:
+    def test_lint_compact_prints_one_line_diagnostics(self) -> None:
         with TemporaryDirectory() as td:
             path = Path(td) / "fstring.py"
             path.write_text('value = f"hello"\n')
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "no-redundant-f-string", "-b", path.as_posix()],
+                ["lint", "-r", "no-redundant-f-string", "--compact", path.as_posix()],
                 catch_exceptions=False,
             )
 
             assert result.exit_code == 1
             assert_brief_diagnostic(result.stdout, path)
+
+    def test_lint_quiet_prints_only_summary(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('value = f"hello"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "no-redundant-f-string", "--quiet", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 1
+        assert result.stdout == ""
+        assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_lint_quiet_rejects_diff(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('value = f"hello"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "no-redundant-f-string", "--quiet", "--diff", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 2
+        assert "--quiet and --diff cannot be used together" in result.stderr
+
+    def test_lint_stats_prints_violations_by_rule(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('first = f"hello"\nsecond = f"world"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "no-redundant-f-string", "--stats", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 1
+        assert "Violation stats by rule:" in result.stderr
+        assert "no-redundant-f-string  2" in result.stderr
 
     def test_lint_accepts_jobs_option(self) -> None:
         seen_jobs: list[int | None] = []
@@ -430,13 +533,14 @@ class CliTest(TestCase):
         assert result.exit_code == 0
         assert seen_jobs == [2]
 
-    def test_lint_print_metrics_uses_cli_output_path(self) -> None:
+    def test_lint_metrics_env_uses_cli_output_path(self) -> None:
         def rattle_paths_stub(*_args: object, **kwargs: object) -> object:
             metrics_hook = cast(Callable[[Metrics], None], kwargs["metrics_hook"])
             metrics_hook({"Count.Total": 1})
             return iter(())
 
         with (
+            patch.dict(os.environ, {"RATTLE_METRICS": "1"}),
             patch("rattle.cli.rattle_paths", side_effect=rattle_paths_stub),
             TemporaryDirectory() as td,
         ):
@@ -444,7 +548,7 @@ class CliTest(TestCase):
             path.write_text("value = 1\n")
             result = self.runner.invoke(
                 main,
-                ["lint", "--print-metrics", path.as_posix()],
+                ["lint", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -452,20 +556,49 @@ class CliTest(TestCase):
         assert "{'Count.Total': 1}" in result.stdout
         assert result.stderr == "0 files clean\n"
 
-    def test_fix_brief_prints_one_line_diagnostics(self) -> None:
+    def test_fix_compact_prints_one_line_diagnostics(self) -> None:
         with TemporaryDirectory() as td:
             path = Path(td) / "fstring.py"
             path.write_text('value = f"hello"\n')
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "no-redundant-f-string", "--brief", path.as_posix()],
+                ["fix", "-r", "no-redundant-f-string", "--compact", path.as_posix()],
                 catch_exceptions=False,
             )
 
             assert result.exit_code == 0
             assert_brief_diagnostic(result.stdout, path)
             assert path.read_text() == 'value = "hello"\n'
+
+    def test_fix_stats_prints_violations_by_rule(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('first = f"hello"\nsecond = f"world"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["fix", "-r", "no-redundant-f-string", "--stats", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 0
+        assert "Violation stats by rule:" in result.stderr
+        assert "no-redundant-f-string  2" in result.stderr
+
+    def test_fix_quiet_rejects_interactive(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('value = f"hello"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["fix", "-r", "no-redundant-f-string", "--quiet", "--interactive", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 2
+        assert "--quiet and --interactive cannot be used together" in result.stderr
 
     def test_fix_logs_missing_rule_collection_once(self) -> None:
         with TemporaryDirectory() as td:

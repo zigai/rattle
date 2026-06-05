@@ -1077,27 +1077,6 @@ class ConfigTest(TestCase):
                 result = runner.invoke(main, ["fix", filepath.as_posix()], catch_exceptions=False)
                 assert re.search(custom_output_format_regex, result.output)
 
-            with self.subTest("override output-format"):
-                result = runner.invoke(
-                    main,
-                    ["lint", "-o", "vscode", filepath.as_posix()],
-                    catch_exceptions=True,
-                )
-                assert re.search(output_format_regex, result.output)
-
-            with self.subTest("override output-template"):
-                result = runner.invoke(
-                    main,
-                    [
-                        "lint",
-                        "--output-template",
-                        "file {path} line {start_line} rule {rule_name}",
-                        filepath.as_posix(),
-                    ],
-                    catch_exceptions=True,
-                )
-                assert re.search(r"file .*f_string\.py line \d+ rule use-f-string", result.output)
-
             with self.subTest("per-file output-format"):
                 nested = self.tdp / "nested"
                 nested.mkdir()

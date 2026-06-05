@@ -391,7 +391,7 @@ class SmokeTest(TestCase):
             assert result.exit_code == 1
             assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
 
-    def test_lint_stats_groups_violations_by_directory(self) -> None:
+    def test_lint_stats_groups_violations_by_rule(self) -> None:
         with TemporaryDirectory() as td:
             tdp = Path(td).resolve()
             nested = tdp / "pkg"
@@ -412,9 +412,8 @@ class SmokeTest(TestCase):
                 os.chdir(original_cwd)
 
             assert result.exit_code == 1
-            assert "Violation stats by directory:" in result.stderr
-            assert f"  {tdp.name}      1" in result.stderr
-            assert f"  {tdp.name}/pkg  2" in result.stderr
+            assert "Violation stats by rule:" in result.stderr
+            assert "use-f-string  3" in result.stderr
 
     def test_directory_with_errors(self) -> None:
         with TemporaryDirectory() as td:
