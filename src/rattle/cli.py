@@ -784,9 +784,9 @@ def rules_command(
             echo(colored("Disabled", style="bold"))
             for rule_type, reason in sorted(
                 disabled.items(),
-                key=lambda item: item[0].__name__,
+                key=lambda item: item[0].name,
             ):
-                echo(f"  {rule_type.__name__} {colored(f'({reason})', color='gray')}")
+                echo(f"  {rule_type.name} {colored(f'({reason})', color='gray')}")
 
 
 def validate_command(*paths: Path) -> None:
