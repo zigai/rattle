@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json as json_module
 import logging
 import os
 import shutil
@@ -19,8 +20,17 @@ from stdl.st import colored
 from rattle.__version__ import __version__
 
 from .api import rattle_paths
-from .config import collect_rules, generate_config, parse_rule, validate_config
+from .config import (
+    CollectionError,
+    collect_rule_types,
+    collect_rules,
+    generate_config,
+    parse_rule,
+    resolve_rule_type,
+    validate_config,
+)
 from .console import AsyncConsole, echo, getchar
+from .explain import RuleInfo, render_console_rule_info
 from .ftypes import (
     STDIN,
     Config,
@@ -46,7 +56,7 @@ else:
 UV_REEXEC_ENV = "RATTLE_UV_RUN_REEXEC"
 UV_REEXEC_DISABLE_ENV = "RATTLE_NO_UV_RUN_REEXEC"
 UV_PROJECT_MARKERS = ("uv.lock",)
-UV_REEXEC_COMMANDS = frozenset({"lint", "fix", "rules", "validate", "lsp"})
+UV_REEXEC_COMMANDS = frozenset({"lint", "fix", "rules", "validate", "lsp", "explain"})
 
 
 def _display_path(path: Path) -> Path:
@@ -170,6 +180,48 @@ class FixState:
     violations: int = 0
     autofixes: int = 0
     fixed: int = 0
+
+
+@dataclass
+class LintReport:
+    console: AsyncConsole
+    options: Options
+    diff: bool
+    brief: bool
+    stats: bool
+    state: LintState = field(default_factory=LintState)
+
+    @property
+    def exit_code(self) -> int:
+        return self.state.exit_code
+
+    def record(self, result: Result) -> None:
+        self.state.visited.add(result.path)
+        if not result.violation and not result.error:
+            return
+
+        config = result.config or _output_config_for_path(result.path, self.options)
+        _record_lint_result(result, config, state=self.state, stats=self.stats)
+
+    def submit(self) -> None:
+        _submit_lint_diagnostics(
+            self.console,
+            self.state.diagnostics,
+            diff=self.diff,
+            brief=self.brief,
+        )
+        self.console.submit(
+            splash(
+                self.state.visited,
+                self.state.violation_files,
+                self.state.error_files,
+                self.state.violations,
+                self.state.autofixes,
+            ),
+            err=True,
+        )
+        if self.stats:
+            _print_stats(self.console, self.state.violation_stats)
 
 
 def _record_lint_result(
@@ -460,8 +512,14 @@ def lint(
         output_template=output_template,
         print_metrics=print_metrics,
     )
-    state = LintState()
     console = AsyncConsole()
+    report = LintReport(
+        console=console,
+        options=runtime_options,
+        diff=diff,
+        brief=brief,
+        stats=stats,
+    )
     try:
         for result in rattle_paths(
             paths,
@@ -470,29 +528,13 @@ def lint(
             options=runtime_options,
             metrics_hook=_metrics_hook(console, runtime_options.print_metrics),
         ):
-            state.visited.add(result.path)
-            if not result.violation and not result.error:
-                continue
-            config = result.config or _output_config_for_path(result.path, runtime_options)
-            _record_lint_result(result, config, state=state, stats=stats)
+            report.record(result)
 
-        _submit_lint_diagnostics(console, state.diagnostics, diff=diff, brief=brief)
-        console.submit(
-            splash(
-                state.visited,
-                state.violation_files,
-                state.error_files,
-                state.violations,
-                state.autofixes,
-            ),
-            err=True,
-        )
-        if stats:
-            _print_stats(console, state.violation_stats)
+        report.submit()
     finally:
         console.close()
-    if state.exit_code:
-        raise SystemExit(state.exit_code)
+    if report.exit_code:
+        raise SystemExit(report.exit_code)
 
 
 def fix(
@@ -710,6 +752,66 @@ def _rule_description(rule: LintRule) -> str:
     return description
 
 
+def _parse_explain_selector(selector: str, config_path: Path) -> RuleSelector:
+    try:
+        return parse_rule(selector, config_path)
+    except Exception as error:
+        usage_error(str(error))
+        raise AssertionError("unreachable") from error
+
+
+def explain_command(
+    selector: str,
+    *,
+    path: Path = Path(),
+    rules: str | None = None,
+    tags: str | None = None,
+    config_file: Path | None = None,
+    json: bool = False,
+    debug: bool = False,
+    quiet: bool = False,
+) -> None:
+    """Display detailed information about one lint rule.
+
+    Args:
+        selector: Rule selector to explain.
+        path: File or directory whose config should be used.
+        debug: Increase logging verbosity.
+        quiet: Decrease logging verbosity.
+        config_file: Override default config file search behavior.
+        tags: Select or filter rules by comma-separated tags.
+        rules: Override configured rules with comma-separated selectors.
+        json: Print rule information as JSON.
+    """
+    target_path = require_existing_path(path, argument="path").resolve()
+    runtime_options = build_options(
+        debug=debug,
+        quiet=quiet,
+        config_file=config_file,
+        tags=tags,
+        rules=rules,
+    )
+    config = generate_config(target_path, options=runtime_options)
+    parsed_selector = _parse_explain_selector(selector, config.root)
+
+    try:
+        rule_type = resolve_rule_type(config, parsed_selector)
+        enabled_rule_types = set(collect_rule_types(config))
+    except CollectionError as error:
+        echo(str(error), err=True)
+        raise SystemExit(2) from error
+    except Exception as error:
+        echo(str(error), err=True)
+        raise SystemExit(2) from error
+
+    info = RuleInfo.from_rule(rule_type, enabled=rule_type in enabled_rule_types)
+    if json:
+        echo(json_module.dumps(info.to_json_data(), ensure_ascii=False, indent=2))
+        return
+
+    render_console_rule_info(info)
+
+
 def rules_command(
     *paths: Path,
     rules: str | None = None,
@@ -821,6 +923,7 @@ def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
     app.add_command(lint)
     app.add_command(fix)
     app.add_command(lsp)
+    app.add_command(explain_command, name="explain")
     app.add_command(rules_command, name="rules")
     app.add_command(validate_command, name="validate")
     return app
