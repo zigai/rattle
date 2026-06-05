@@ -49,6 +49,121 @@ class ConfiguredPathBatchResult:
 
 
 @dataclass
+class ConfiguredFileCacheSession:
+    path: Path
+    config: Config
+    stat: os.stat_result
+    rules: Collection[LintRule]
+    autofix: bool = False
+    include_diff: bool = False
+    allow_cached_dirty_results: bool = False
+    options: Options | None = None
+    explicit_path: bool = False
+    cache: ResultCache | None = None
+    cache_key: str = ""
+    cached_results: list[Result] | None = None
+    cached_autofix_rule_names: set[str] = field(default_factory=set)
+    cached_passthrough: list[Result] = field(default_factory=list)
+
+    @classmethod
+    def from_environment(
+        cls,
+        *,
+        path: Path,
+        config: Config,
+        stat: os.stat_result,
+        rules: Collection[LintRule],
+        autofix: bool,
+        include_diff: bool,
+        allow_cached_dirty_results: bool,
+        options: Options | None,
+        explicit_path: bool,
+    ) -> "ConfiguredFileCacheSession":
+        return cls(
+            path=path,
+            config=config,
+            stat=stat,
+            rules=rules,
+            autofix=autofix,
+            include_diff=include_diff,
+            allow_cached_dirty_results=allow_cached_dirty_results,
+            options=options,
+            explicit_path=explicit_path,
+            cache=ResultCache.from_environment(),
+        )
+
+    def read_complete_entry(self) -> bool:
+        if self.cache is None:
+            return False
+
+        self.cache_key = self.cache.result_key(
+            self.path,
+            self.stat,
+            self.config,
+            include_diff=self.include_diff,
+        )
+        self.cached_results, self.cached_autofix_rule_names, cached_result_is_complete = (
+            self.cache.read_configured_file(
+                self.cache_key,
+                self.stat,
+                path=self.path,
+                config=self.config,
+                rules=self.rules,
+                autofix=self.autofix,
+                allow_cached_dirty_results=self.allow_cached_dirty_results,
+            )
+        )
+        return cached_result_is_complete
+
+    def cached_results_or_empty(self) -> list[Result]:
+        return self.cached_results or []
+
+    def prepare_autofix_passthrough(self) -> list[Result]:
+        if not self.cached_autofix_rule_names:
+            return []
+
+        self.cached_passthrough = [
+            result
+            for result in self.cached_results or ()
+            if result.violation is not None
+            and result.violation.rule_name not in self.cached_autofix_rule_names
+        ]
+        self.rules = [rule for rule in self.rules if rule.name in self.cached_autofix_rule_names]
+        return self.cached_passthrough
+
+    def write_result(
+        self,
+        content: FileContent,
+        clean: bool,
+        cacheable: bool,
+        cache_violations: list[LintViolation],
+    ) -> None:
+        if self.cache is None:
+            return
+
+        if clean and not self.cached_passthrough:
+            self.cache.write_result(self.cache_key, self.stat, rules=self.rules)
+            self.cache.write_clean_status(
+                self.path,
+                self.stat,
+                options=self.options,
+                explicit_path=self.explicit_path,
+                include_diff=self.include_diff,
+                rules=self.rules,
+            )
+            return
+
+        if cacheable and cache_violations:
+            self.cache.write_result(
+                self.cache_key,
+                self.stat,
+                source=content,
+                violations=cache_violations,
+                rules=self.rules,
+            )
+
+
+@dataclass
 class ConfiguredFileRun:
     path: Path
     config: Config
@@ -62,11 +177,7 @@ class ConfiguredFileRun:
     content: FileContent | None = None
     stat: os.stat_result | None = None
     rules: Collection[LintRule] = ()
-    cache: ResultCache | None = None
-    cache_key: str = ""
-    cached_results: list[Result] | None = None
-    cached_autofix_rule_names: set[str] = field(default_factory=set)
-    cached_passthrough: list[Result] = field(default_factory=list)
+    cache_session: ConfiguredFileCacheSession | None = None
 
     def run(self) -> Generator[Result, bool, None]:
         self.path = self.path.resolve()
@@ -74,11 +185,25 @@ class ConfiguredFileRun:
         try:
             self.stat = self.path.stat()
             self.rules = collect_rules(self.config)
-            if self._read_complete_cache_entry():
-                yield from self.cached_results or ()
-                return
+            if self.metrics_hook is None:
+                self.cache_session = ConfiguredFileCacheSession.from_environment(
+                    path=self.path,
+                    config=self.config,
+                    stat=self.stat,
+                    rules=self.rules,
+                    autofix=self.autofix,
+                    include_diff=self.include_diff,
+                    allow_cached_dirty_results=self.allow_cached_dirty_results,
+                    options=self.options,
+                    explicit_path=self.explicit_path,
+                )
+                if self.cache_session.read_complete_entry():
+                    yield from self.cache_session.cached_results_or_empty()
+                    return
 
-            yield from self._prepare_cached_autofix_passthrough()
+                yield from self.cache_session.prepare_autofix_passthrough()
+                self.rules = self.cache_session.rules
+
             if not self.rules:
                 self.content = self.path.read_bytes()
                 yield Result(
@@ -123,44 +248,6 @@ class ConfiguredFileRun:
             and self.config.formatter == "ruff"
         )
 
-    def _read_complete_cache_entry(self) -> bool:
-        self.cache = ResultCache.from_environment() if self.metrics_hook is None else None
-        if self.cache is None:
-            return False
-
-        assert self.stat is not None
-        self.cache_key = self.cache.result_key(
-            self.path,
-            self.stat,
-            self.config,
-            include_diff=self.include_diff,
-        )
-        self.cached_results, self.cached_autofix_rule_names, cached_result_is_complete = (
-            self.cache.read_configured_file(
-                self.cache_key,
-                self.stat,
-                path=self.path,
-                config=self.config,
-                rules=self.rules,
-                autofix=self.autofix,
-                allow_cached_dirty_results=self.allow_cached_dirty_results,
-            )
-        )
-        return cached_result_is_complete
-
-    def _prepare_cached_autofix_passthrough(self) -> Generator[Result, bool, None]:
-        if not self.cached_autofix_rule_names:
-            return
-
-        self.cached_passthrough = [
-            result
-            for result in self.cached_results or ()
-            if result.violation is not None
-            and result.violation.rule_name not in self.cached_autofix_rule_names
-        ]
-        yield from self.cached_passthrough
-        self.rules = [rule for rule in self.rules if rule.name in self.cached_autofix_rule_names]
-
     def _store_result(
         self,
         updated: FileContent | None,
@@ -176,26 +263,12 @@ class ConfiguredFileRun:
                 self.deferred_format_paths.append(self.path)
             return
 
-        if clean and not self.cached_passthrough and self.cache is not None:
-            self.cache.write_result(self.cache_key, self.stat, rules=self.rules)
-            self.cache.write_clean_status(
-                self.path,
-                self.stat,
-                options=self.options,
-                explicit_path=self.explicit_path,
-                include_diff=self.include_diff,
-                rules=self.rules,
-            )
-            return
-
-        if cacheable and self.cache is not None and cache_violations:
-            assert self.content is not None
-            self.cache.write_result(
-                self.cache_key,
-                self.stat,
-                source=self.content,
-                violations=cache_violations,
-                rules=self.rules,
+        if self.content is not None and self.cache_session is not None:
+            self.cache_session.write_result(
+                self.content,
+                clean=clean,
+                cacheable=cacheable,
+                cache_violations=cache_violations,
             )
 
 
