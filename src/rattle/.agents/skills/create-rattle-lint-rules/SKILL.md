@@ -56,13 +56,13 @@ Common commands:
 
 ```bash
 rattle lint <path>
-rattle lint --brief <path>
+rattle lint --compact <path>
 rattle lint --diff <path>
 rattle fix <path>
 rattle fix --diff <path>
 rattle fix --interactive <path>
 rattle rules
-rattle rules --test -r <rule-selector>
+rattle rules --test --config pyproject.toml <path>
 rattle validate pyproject.toml
 ```
 
@@ -170,7 +170,7 @@ Important class attributes:
 
 - `MESSAGE`: conventional default message to pass to `self.report(...)`
 - `NAME`: optional explicit kebab-case public rule name; defaults to kebab-case generated from the class name
-- `TAGS`: optional tags for CLI filtering
+- `TAGS`: optional tags for configuration filtering
 - `PYTHON_VERSION`: optional PEP 440 version specifier
 - `SETTINGS`: optional typed config settings using `RuleSetting`
 - `REFERENCES`: optional documentation references as URLs or `(label, URL)` pairs
@@ -263,7 +263,7 @@ Use this sequence:
 
 ```bash
 rattle validate pyproject.toml
-rattle rules --test -r .rules.my_rule
+rattle rules --test --config pyproject.toml .
 rattle lint --diff .
 ```
 
@@ -273,7 +273,7 @@ If the user wants autofixes applied across the repo:
 rattle fix .
 ```
 
-Use `rattle rules --debug <path>` when config inheritance, enabled rules, disabled rules, or resolved settings are unclear.
+Use `rattle rules <path>` when config inheritance, enabled rules, disabled rules, or resolved settings are unclear.
 
 ### 5. Tighten false positives
 

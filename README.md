@@ -69,7 +69,6 @@ rattle explain --json use-f-string
 root = true
 enable = ["fixit"]
 python-version = "3.10"
-output-format = "rattle"
 disable = [
     "no-static-if-condition",
     "use-rattle-ignore-comment",

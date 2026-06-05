@@ -6,62 +6,39 @@
 $ rattle COMMAND [OPTIONS] ...
 ```
 
-The following runtime options are available on commands that lint code,
-autofix code, or materialize lint configuration.
+Use `-h` or `--help` on any command to print its supported options.
 
-## `--debug`, `--quiet / -q`
+## Shared lint/fix options
 
-Raise or lower the level of output and logging.
+The following options are available on commands that check or fix code.
 
-## `--config-file / -c PATH`
+### `--config / -c CONFIG`
 
-Override the normal hierarchical configuration and use the configuration from
-the specified path, ignoring all other configuration files entirely.
+Use a specific config file instead of discovered configuration.
 
-## `--exclude PATTERN`
+### `--exclude / -e PATTERN`
 
-Override configured file exclusions with a glob pattern. This option may be
-passed more than once. Like Ruff's `--exclude`, direct path arguments are also
-excluded when they match the pattern.
+Replace configured exclude patterns. This option may be passed more than once.
+Like Ruff's `--exclude`, direct path arguments are also excluded when they match
+the pattern.
 
 ```console
 $ rattle lint . --exclude "generated/**"
 ```
 
-## `--extend-exclude PATTERN`
+### `--extend-exclude PATTERN`
 
-Add a glob pattern to the configured file exclusions. This option may be passed
-more than once. Direct path arguments are still checked unless they are excluded
-by configuration with `force-exclude`.
+Add exclude patterns. This option may be passed more than once. Direct path
+arguments are still checked unless they are excluded by configuration with
+`force-exclude`.
 
 ```console
 $ rattle lint . --extend-exclude "docs/_build/**"
 ```
 
-## `--tags / -t TAGS`
+### `--rules / -r RULES`
 
-Select or filter the set of lint rules to apply based on their tags.
-
-This takes a comma-separated list of tag names, optionally prefixed with `!`,
-`^`, or `-`. Tags without one of those prefixes are treated as include tags.
-Tags with one of those prefixes are treated as exclude tags.
-
-Lint rules are enabled if and only if they have at least one tag in the include
-list and no tags in the exclude list.
-
-For example:
-
-```console
-$ rattle lint --tags "hello,world,^cats" ...
-```
-
-The command above filters the enabled lint rules to ones that have either the
-`hello` or `world` tag, and excludes any rules with the `cats` tag, even if
-they would otherwise have been selected.
-
-## `--rules / -r RULES`
-
-Override the configured set of lint rules entirely.
+Run only the given rules or rule collections.
 
 This takes a comma-separated list of rule selectors, with the same accepted
 forms as {attr}`enable <rattle.Config.enable>` and
@@ -78,67 +55,50 @@ $ rattle lint --rules "use-f-string" path/to/file.py
 $ rattle lint --rules "fixit,fixit-extra" path/to/file.py
 ```
 
-## `--output-format / -o FORMAT_TYPE`
+### `--jobs / -j JOBS`
 
-Override how Rattle prints violations to the terminal.
+Number of worker processes to use when checking multiple files.
 
-See {attr}`output-format <rattle.Config.output_format>` for available formats.
+### `--compact`
 
-## `--output-template TEMPLATE`
+Print compact diagnostics.
 
-Override the Python formatting template used with `output-format = "custom"`.
+### `--quiet / -q`
 
-## `lint`
-
-Lint one or more paths and print a list of lint errors. If `-` is given as the
-first path, then the second path is used for configuration lookup and error
-messages, and the input is read from standard input.
-
-```console
-$ rattle lint [OPTIONS] [--brief] [--diff] [--stats] [PATH ...]
-```
-
-### `--brief / -b`
-
-Print each diagnostic on one line, without source snippets or help text.
+Print only the final summary. `--quiet` cannot be used with `--diff`, `--stats`,
+or `fix --interactive`.
 
 ### `--diff / -d`
 
-Show suggested fixes, in unified diff format, when available.
+Show fixes as unified diffs.
 
 ### `--stats`
 
-Print violation counts grouped by containing directory.
+Print violation counts by rule.
+
+## `lint`
+
+Check files for Rattle violations. Use `- PATH` to check code from standard
+input as `PATH`.
+
+```console
+$ rattle lint [OPTIONS] [PATH ...]
+```
 
 ## `fix`
 
-Lint one or more paths and apply suggested fixes. If `-` is given as the first
-path, then the second path is used for configuration lookup, the input is read
-from standard input, and the fixed output is printed to standard output,
-ignoring `--interactive`.
+Apply available autofixes to files. Use `- PATH` to fix code from standard
+input as `PATH` and write the fixed code to standard output.
 
 ```console
-$ rattle fix [OPTIONS] [--interactive | --automatic] [--brief] [--diff] [PATH ...]
+$ rattle fix [OPTIONS] [--interactive] [PATH ...]
 ```
 
 ### `--interactive / -i`
 
-Interactively prompt the user to apply or decline each available autofix.
-Press `y` to apply, `n` to skip, or `q` to stop prompting and leave the
-remaining fixes unapplied.
-
-### `--automatic / -a`
-
-Automatically apply suggested fixes for all lint errors when available.
-This is the default behavior.
-
-### `--brief / -b`
-
-Print each diagnostic on one line, without source snippets or help text.
-
-### `--diff / -d`
-
-Show applied fixes in unified diff format when applied automatically.
+Prompt before applying each autofix. Press `y` to apply, `n` to skip, or `q` to
+stop prompting and leave the remaining fixes unapplied. This option cannot be
+used with standard input.
 
 (lsp_command)=
 
@@ -154,21 +114,25 @@ details.
 $ rattle lsp [--no-stdio] [--tcp PORT | --ws PORT]
 ```
 
-### `--no-stdio / -n`
+### `--config / -c CONFIG`
+
+Use a specific config file instead of discovered configuration.
+
+### `--no-stdio`
 
 Disable the default stdio transport when serving over TCP or WebSocket.
 
-### `--tcp`
+### `--tcp PORT`
 
 Serve LSP over TCP on `PORT`.
 
-### `--ws / -w`
+### `--ws PORT`
 
 Serve LSP over WebSocket on `PORT`.
 
-### `--debounce-interval / -d`
+### `--debounce-interval SECONDS`
 
-Delay in seconds for server-side debounce. Default: `0.5`.
+Delay diagnostics after document changes, in seconds. Default: `0.5`.
 
 ## `rules`
 
@@ -176,44 +140,50 @@ Display the lint rules enabled for the current configuration. Pass paths to see
 the rules resolved for those files or directories.
 
 ```console
-$ rattle rules [PATH ...]
+$ rattle rules [OPTIONS] [PATH ...]
 ```
+
+### `--config / -c CONFIG`
+
+Use a specific config file instead of discovered configuration.
 
 ### `--test`
 
 Test enabled lint rules using their {attr}`~rattle.LintRule.VALID` and
-{attr}`~rattle.LintRule.INVALID` test cases. Use `--rules` to select the rules
-to test.
+{attr}`~rattle.LintRule.INVALID` test cases.
 
-Rule selectors use the same forms as
-{attr}`enable <rattle.Config.enable>` and
-{attr}`disable <rattle.Config.disable>`.
+## `explain`
 
-Example:
+Display detailed information about one lint rule.
 
 ```console
-$ rattle rules --test -r .examples.teambread.rules
-test_INVALID_0 (rattle.testing.hollywood-name-rule) ... ok
-test_INVALID_1 (rattle.testing.hollywood-name-rule) ... ok
-test_VALID_0 (rattle.testing.hollywood-name-rule) ... ok
-test_VALID_1 (rattle.testing.hollywood-name-rule) ... ok
-
-----------------------------------------------------------------------
-Ran 4 tests in 0.024s
-
-OK
+$ rattle explain [OPTIONS] RULE
 ```
 
-```console
-$ rattle rules --test -r use-f-string
-```
+### `--config / -c CONFIG`
+
+Use a specific config file instead of discovered configuration.
+
+### `--json`
+
+Print rule information as JSON.
 
 ## `validate`
 
-Validate config. When no path is provided, Rattle validates `pyproject.toml`
-from the current directory.
+Validate Rattle configuration. When no path is provided, Rattle validates
+`pyproject.toml` from the current directory.
 
 ```console
 $ rattle validate
 $ rattle validate pyproject.toml
 ```
+
+## Environment variables
+
+### `RATTLE_DEBUG=1`
+
+Enable debug logging.
+
+### `RATTLE_METRICS=1`
+
+Print internal run metrics for `lint` and `fix`.
