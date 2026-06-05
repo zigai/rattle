@@ -34,6 +34,20 @@ Install editor/LSP support too:
 pip install "rattle-lint[lsp]"
 ```
 
+## Agent Skill
+
+The official AI agent skill can be installed from this repo.
+
+```bash
+npx skills add https://github.com/zigai/rattle/tree/main/src/rattle/.agents/skills/create-rattle-lint-rules
+```
+
+or
+
+```bash
+uvx library-skills
+```
+
 ## Basic Usage
 
 Rattle runs with no enabled rules until a project enables them in
