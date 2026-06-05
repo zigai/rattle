@@ -54,6 +54,13 @@ Apply available autofixes:
 rattle fix
 ```
 
+Explain rule metadata, examples, and settings:
+
+```bash
+rattle explain use-f-string
+rattle explain --json use-f-string
+```
+
 ## Example Configuration
 
 

@@ -428,6 +428,31 @@ def _build_rule_registry(
     return registry
 
 
+def resolve_rule_type(config: Config, selector: RuleSelector) -> type[LintRule]:
+    """Resolve one rule selector against built-ins and configured/imported rules."""
+    registry = _build_rule_registry(
+        (*config.enable, *config.disable, selector),
+        root=config.root,
+        enable_root_import=config.enable_root_import,
+        strict=False,
+    )
+    resolution = registry.resolve(selector)
+    rules = resolution.rules
+    if resolution.concrete and len(rules) == 1:
+        return rules[0]
+
+    if not rules:
+        raise CollectionError(f"could not find rule {selector}", selector)
+
+    options = ", ".join(
+        _rule_key_for_type(rule_type) for rule_type in sorted(rules, key=_rule_key_for_type)
+    )
+    raise CollectionError(
+        f"rule selector {selector!s} matched {len(rules)} rules; use one of: {options}",
+        selector,
+    )
+
+
 def collect_rule_types(
     config: Config,
     *,

@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -100,6 +101,116 @@ class CliTest(TestCase):
         assert "ExplicitFrozenDataclass" not in result.stdout
         assert "UseRattleIgnoreComment" not in result.stdout
         assert "UseTypesFromTyping" not in result.stdout
+
+    def test_explain_command_displays_builtin_rule_info(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["explain", "-r", "use-f-string", "use-f-string"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        first_line = result.stdout.splitlines()[0]
+        assert "use-f-string [*]  Enabled" in first_line
+        assert "rattle.rules.fixit_extra.use_fstring" in first_line
+        assert "Do not use printf style formatting or .format()." in result.stdout
+        assert "Selector:" not in result.stdout
+        assert "module:" not in result.stdout
+        assert "Python: Any" in result.stdout
+        assert "Patterns: .format, %" in result.stdout
+        assert "Metadata" not in result.stdout
+
+    def test_explain_command_accepts_qualified_selector(self) -> None:
+        result = self.runner.invoke(
+            main,
+            [
+                "explain",
+                "-r",
+                "use-f-string",
+                "rattle.rules.fixit_extra.use_fstring:use-f-string",
+            ],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "use-f-string [*]  Enabled" in result.stdout
+        assert "Selector:" not in result.stdout
+
+    def test_explain_command_reports_missing_rule(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["explain", "definitely-missing-rule"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 2
+        assert "could not find rule definitely-missing-rule" in result.stderr
+
+    def test_explain_command_displays_disabled_status(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["explain", "explicit-frozen-dataclass"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        first_line = result.stdout.splitlines()[0]
+        assert "explicit-frozen-dataclass  Disabled" in first_line
+        assert "rattle.rules.fixit.explicit_frozen_dataclass" in first_line
+        assert "Python: Any" in result.stdout
+
+    def test_explain_command_indents_multiline_examples(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["explain", "explicit-frozen-dataclass"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "    from dataclasses import dataclass" in result.stdout
+        assert "\nfrom dataclasses import dataclass" not in result.stdout
+        assert "    @dataclass(frozen=False)" in result.stdout
+        assert "\n@dataclass(frozen=False)" not in result.stdout
+
+    def test_explain_command_displays_settings_references_and_examples(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["explain", "-r", "use-f-string", "use-f-string"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        assert "Settings" in result.stdout
+        assert "simple_expression_max_length  int  default: 30" in result.stdout
+        assert "References" in result.stdout
+        assert "PEP 498: https://www.python.org/dev/peps/pep-0498/" in result.stdout
+        assert "Examples" in result.stdout
+        assert "Valid:" in result.stdout
+        assert "Invalid:" in result.stdout
+        assert '"%s" % "hi"  ->  f"{\'hi\'}"' in result.stdout
+
+    def test_explain_command_json_output(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["explain", "--json", "-r", "use-f-string", "use-f-string"],
+            catch_exceptions=False,
+        )
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["name"] == "use-f-string"
+        assert data["status"] == "Enabled"
+        assert data["selector"] == "rattle.rules.fixit_extra.use_fstring:use-f-string"
+        assert data["autofix"] is True
+        assert data["settings"][0]["name"] == "simple_expression_max_length"
+        assert data["settings"][0]["type"] == "int"
+        assert data["settings"][0]["default"] == 30
+        assert data["references"] == [
+            {"label": "PEP 498", "url": "https://www.python.org/dev/peps/pep-0498/"}
+        ]
+        assert data["examples"]["invalid"][1]["replacement"] == "f\"{'hi'}\""
+        assert "Invalid(" not in result.stdout
+        assert "Valid(" not in result.stdout
 
     def test_rule_line_omits_rule_tags(self) -> None:
         class TaggedRule(LintRule):
