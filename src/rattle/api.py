@@ -48,6 +48,277 @@ class ConfiguredPathBatchResult:
     metrics: list[Metrics] = field(default_factory=list)
 
 
+@dataclass
+class ConfiguredFileRun:
+    path: Path
+    config: Config
+    autofix: bool = False
+    include_diff: bool = False
+    allow_cached_dirty_results: bool = False
+    deferred_format_paths: list[Path] | None = None
+    options: Options | None = None
+    explicit_path: bool = False
+    metrics_hook: MetricsHook | None = None
+    content: FileContent | None = None
+    stat: os.stat_result | None = None
+    rules: Collection[LintRule] = ()
+    cache: ResultCache | None = None
+    cache_key: str = ""
+    cached_results: list[Result] | None = None
+    cached_autofix_rule_names: set[str] = field(default_factory=set)
+    cached_passthrough: list[Result] = field(default_factory=list)
+
+    def run(self) -> Generator[Result, bool, None]:
+        self.path = self.path.resolve()
+
+        try:
+            self.stat = self.path.stat()
+            self.rules = collect_rules(self.config)
+            if self._read_complete_cache_entry():
+                yield from self.cached_results or ()
+                return
+
+            yield from self._prepare_cached_autofix_passthrough()
+            if not self.rules:
+                self.content = self.path.read_bytes()
+                yield Result(
+                    self.path,
+                    violation=None,
+                    source=self.content,
+                    config=self.config,
+                )
+                return
+
+            self.content = self.path.read_bytes()
+            lint_config = replace(self.config, formatter=None) if self.defer_format else self.config
+            runner = rattle_bytes(
+                self.path,
+                self.content,
+                config=lint_config,
+                autofix=self.autofix,
+                include_diff=self.include_diff,
+                rules=self.rules,
+                metrics_hook=self.metrics_hook,
+            )
+            updated, clean, cacheable, cache_violations = yield from _drive_rattle_bytes(
+                runner,
+                cacheable=not self.autofix,
+            )
+            self._store_result(updated, clean, cacheable, cache_violations)
+
+        except Exception as error:  # noqa: BLE001 - file boundary
+            LOG.debug("Exception while rattle_configured_file", exc_info=error)
+            yield Result.from_exception(
+                self.path,
+                error,
+                source=self.content,
+                config=self.config,
+            )
+
+    @property
+    def defer_format(self) -> bool:
+        return (
+            self.deferred_format_paths is not None
+            and self.autofix
+            and self.config.formatter == "ruff"
+        )
+
+    def _read_complete_cache_entry(self) -> bool:
+        self.cache = ResultCache.from_environment() if self.metrics_hook is None else None
+        if self.cache is None:
+            return False
+
+        assert self.stat is not None
+        self.cache_key = self.cache.result_key(
+            self.path,
+            self.stat,
+            self.config,
+            include_diff=self.include_diff,
+        )
+        self.cached_results, self.cached_autofix_rule_names, cached_result_is_complete = (
+            self.cache.read_configured_file(
+                self.cache_key,
+                self.stat,
+                path=self.path,
+                config=self.config,
+                rules=self.rules,
+                autofix=self.autofix,
+                allow_cached_dirty_results=self.allow_cached_dirty_results,
+            )
+        )
+        return cached_result_is_complete
+
+    def _prepare_cached_autofix_passthrough(self) -> Generator[Result, bool, None]:
+        if not self.cached_autofix_rule_names:
+            return
+
+        self.cached_passthrough = [
+            result
+            for result in self.cached_results or ()
+            if result.violation is not None
+            and result.violation.rule_name not in self.cached_autofix_rule_names
+        ]
+        yield from self.cached_passthrough
+        self.rules = [rule for rule in self.rules if rule.name in self.cached_autofix_rule_names]
+
+    def _store_result(
+        self,
+        updated: FileContent | None,
+        clean: bool,
+        cacheable: bool,
+        cache_violations: list[LintViolation],
+    ) -> None:
+        assert self.stat is not None
+        if updated and updated != self.content:
+            LOG.info("%s: writing changes to file", self.path)
+            self.path.write_bytes(updated)
+            if self.defer_format and self.deferred_format_paths is not None:
+                self.deferred_format_paths.append(self.path)
+            return
+
+        if clean and not self.cached_passthrough and self.cache is not None:
+            self.cache.write_result(self.cache_key, self.stat, rules=self.rules)
+            self.cache.write_clean_status(
+                self.path,
+                self.stat,
+                options=self.options,
+                explicit_path=self.explicit_path,
+                include_diff=self.include_diff,
+                rules=self.rules,
+            )
+            return
+
+        if cacheable and self.cache is not None and cache_violations:
+            assert self.content is not None
+            self.cache.write_result(
+                self.cache_key,
+                self.stat,
+                source=self.content,
+                violations=cache_violations,
+                rules=self.rules,
+            )
+
+
+@dataclass
+class PathLintRun:
+    paths: Iterable[Path]
+    autofix: bool = False
+    include_diff: bool = False
+    allow_cached_dirty_results: bool = False
+    options: Options | None = None
+    parallel: bool = True
+    metrics_hook: MetricsHook | None = None
+    expanded_paths: list[tuple[Path, bool]] = field(default_factory=list)
+    included_paths: list[ConfiguredPath] = field(default_factory=list)
+    deferred_format_paths: list[Path] = field(default_factory=list)
+
+    def run(self) -> Generator[Result, bool, None]:
+        paths = tuple(self.paths)
+        if not paths:
+            return
+
+        self.expanded_paths, is_stdin, stdin_path = _expand_paths(paths)
+        if is_stdin:
+            yield from rattle_stdin(
+                stdin_path,
+                autofix=self.autofix,
+                include_diff=self.include_diff,
+                options=self.options,
+                metrics_hook=self.metrics_hook,
+            )
+            return
+
+        self.included_paths = _configured_paths(
+            self._pending_paths(),
+            options=self.options,
+        )
+        if len(self.included_paths) == 1 or not self.parallel:
+            yield from self.run_serial()
+            return
+
+        yield from self.run_parallel()
+
+    def run_configured_group(self, group: list[ConfiguredPath]) -> Generator[Result, bool, None]:
+        self.included_paths = group
+        yield from self.run_parallel()
+
+    def run_serial(self) -> Generator[Result, bool, None]:
+        for path, config, explicit_path in self.included_paths:
+            yield from rattle_configured_file(
+                path,
+                config=config,
+                autofix=self.autofix,
+                include_diff=self.include_diff,
+                allow_cached_dirty_results=self.allow_cached_dirty_results,
+                deferred_format_paths=self.deferred_format_paths,
+                options=self.options,
+                explicit_path=explicit_path,
+                metrics_hook=self.metrics_hook,
+            )
+        self._format_deferred_paths()
+
+    def run_parallel(self) -> Generator[Result, bool, None]:
+        concurrency = self._concurrency()
+        if concurrency <= 1:
+            yield from self.run_serial()
+            return
+
+        fn = partial(
+            _rattle_configured_file_batch_wrapper,
+            autofix=self.autofix,
+            include_diff=self.include_diff,
+            allow_cached_dirty_results=self.allow_cached_dirty_results,
+            options=self.options,
+            collect_metrics=self.metrics_hook is not None,
+        )
+        context = _process_context()
+        if context is not None:
+            _preload_rules_for_fork(self.included_paths)
+        batches = _configured_path_batches(self.included_paths, concurrency=concurrency)
+        runner = trailrunner.Trailrunner(concurrency=concurrency, context=context)
+        batch_results = cast(
+            Iterable[tuple[ConfiguredPathBatch, ConfiguredPathBatchResult | list[Result]]],
+            cast(Any, runner).run_iter(batches, fn),
+        )
+        for _, batch_result in batch_results:
+            if isinstance(batch_result, ConfiguredPathBatchResult):
+                self.deferred_format_paths.extend(batch_result.deferred_format_paths)
+                if self.metrics_hook is not None:
+                    for metrics in batch_result.metrics:
+                        self.metrics_hook(metrics)
+                yield from batch_result.results
+            else:
+                yield from batch_result
+
+        self._format_deferred_paths()
+
+    def _pending_paths(self) -> list[tuple[Path, bool]]:
+        cache = ResultCache.from_environment() if self.metrics_hook is None else None
+        if cache is None:
+            return [(path.resolve(), explicit_path) for path, explicit_path in self.expanded_paths]
+
+        return cache.collect_pending_paths(
+            self.expanded_paths,
+            include_diff=self.include_diff,
+            options=self.options,
+        )
+
+    def _concurrency(self) -> int:
+        configured_jobs = self.options.jobs if self.options is not None else None
+        worker_count = (
+            configured_jobs
+            if configured_jobs is not None
+            else _default_worker_count(
+                file_count=len(self.included_paths),
+                total_bytes=_configured_path_total_bytes(self.included_paths),
+            )
+        )
+        return min(len(self.included_paths), worker_count)
+
+    def _format_deferred_paths(self) -> None:
+        _format_deferred_paths(self.deferred_format_paths)
+
+
 def _available_cpu_count() -> int:
     try:
         return len(os.sched_getaffinity(0))
@@ -506,98 +777,17 @@ def rattle_configured_file(
     explicit_path: bool = False,
     metrics_hook: MetricsHook | None = None,
 ) -> Generator[Result, bool, None]:
-    path = path.resolve()
-    content: FileContent | None = None
-
-    try:
-        stat = path.stat()
-        rules = collect_rules(config)
-        cache = ResultCache.from_environment() if metrics_hook is None else None
-        cache_key = cache.result_key(path, stat, config, include_diff=include_diff) if cache else ""
-        cached_results: list[Result] | None = None
-        cached_autofix_rule_names: set[str] = set()
-        if cache is not None:
-            cached_results, cached_autofix_rule_names, cached_result_is_complete = (
-                cache.read_configured_file(
-                    cache_key,
-                    stat,
-                    path=path,
-                    config=config,
-                    rules=rules,
-                    autofix=autofix,
-                    allow_cached_dirty_results=allow_cached_dirty_results,
-                )
-            )
-            if cached_result_is_complete:
-                yield from cached_results or ()
-                return
-
-        defer_format = bool(
-            deferred_format_paths is not None and autofix and config.formatter == "ruff"
-        )
-        lint_config = replace(config, formatter=None) if defer_format else config
-        cached_passthrough: list[Result] = []
-        if cached_autofix_rule_names:
-            cached_passthrough = [
-                result
-                for result in cached_results or ()
-                if result.violation is not None
-                and result.violation.rule_name not in cached_autofix_rule_names
-            ]
-            yield from cached_passthrough
-            rules = [rule for rule in rules if rule.name in cached_autofix_rule_names]
-        if not rules:
-            content = path.read_bytes()
-            yield Result(path, violation=None, source=content, config=config)
-            return
-
-        content = path.read_bytes()
-        runner = rattle_bytes(
-            path,
-            content,
-            config=lint_config,
-            autofix=autofix,
-            include_diff=include_diff,
-            rules=rules,
-            metrics_hook=metrics_hook,
-        )
-        updated, clean, cacheable, cache_violations = yield from _drive_rattle_bytes(
-            runner,
-            cacheable=not autofix,
-        )
-
-        if updated and updated != content:
-            LOG.info("%s: writing changes to file", path)
-            path.write_bytes(updated)
-            if defer_format and deferred_format_paths is not None:
-                deferred_format_paths.append(path)
-        elif clean and not cached_passthrough and cache is not None:
-            cache.write_result(cache_key, stat, rules=rules)
-            cache.write_clean_status(
-                path,
-                stat,
-                options=options,
-                explicit_path=explicit_path,
-                include_diff=include_diff,
-                rules=rules,
-            )
-        elif cacheable and cache is not None and cache_violations:
-            cache.write_result(
-                cache_key,
-                stat,
-                source=content,
-                violations=cache_violations,
-                rules=rules,
-            )
-
-    except Exception as error:  # noqa: BLE001 - file boundary
-        LOG.debug("Exception while rattle_configured_file", exc_info=error)
-        yield Result.from_exception(
-            path,
-            error,
-            source=content,
-            config=config,
-        )
+    yield from ConfiguredFileRun(
+        path,
+        config,
+        autofix=autofix,
+        include_diff=include_diff,
+        allow_cached_dirty_results=allow_cached_dirty_results,
+        deferred_format_paths=deferred_format_paths,
+        options=options,
+        explicit_path=explicit_path,
+        metrics_hook=metrics_hook,
+    ).run()
 
 
 def _rattle_file_wrapper(
@@ -722,61 +912,14 @@ def _rattle_paths_group(
     options: Options | None,
     metrics_hook: MetricsHook | None,
 ) -> Generator[Result, bool, None]:
-    deferred_format_paths: list[Path] = []
-    configured_jobs = options.jobs if options is not None else None
-    worker_count = (
-        configured_jobs
-        if configured_jobs is not None
-        else _default_worker_count(
-            file_count=len(group),
-            total_bytes=_configured_path_total_bytes(group),
-        )
-    )
-    concurrency = min(len(group), worker_count)
-    if concurrency <= 1:
-        for path, config, explicit_path in group:
-            yield from rattle_configured_file(
-                path,
-                config=config,
-                autofix=autofix,
-                include_diff=include_diff,
-                allow_cached_dirty_results=allow_cached_dirty_results,
-                deferred_format_paths=deferred_format_paths,
-                options=options,
-                explicit_path=explicit_path,
-                metrics_hook=metrics_hook,
-            )
-        _format_deferred_paths(deferred_format_paths)
-        return
-
-    fn = partial(
-        _rattle_configured_file_batch_wrapper,
+    yield from PathLintRun(
+        (),
         autofix=autofix,
         include_diff=include_diff,
         allow_cached_dirty_results=allow_cached_dirty_results,
         options=options,
-        collect_metrics=metrics_hook is not None,
-    )
-    context = _process_context()
-    if context is not None:
-        _preload_rules_for_fork(group)
-    batches = _configured_path_batches(group, concurrency=concurrency)
-    runner = trailrunner.Trailrunner(concurrency=concurrency, context=context)
-    batch_results = cast(
-        Iterable[tuple[ConfiguredPathBatch, ConfiguredPathBatchResult | list[Result]]],
-        cast(Any, runner).run_iter(batches, fn),
-    )
-    for _, batch_result in batch_results:
-        if isinstance(batch_result, ConfiguredPathBatchResult):
-            deferred_format_paths.extend(batch_result.deferred_format_paths)
-            if metrics_hook is not None:
-                for metrics in batch_result.metrics:
-                    metrics_hook(metrics)
-            yield from batch_result.results
-        else:
-            yield from batch_result
-
-    _format_deferred_paths(deferred_format_paths)
+        metrics_hook=metrics_hook,
+    ).run_configured_group(group)
 
 
 def _format_deferred_paths(paths: list[Path]) -> None:
@@ -834,57 +977,15 @@ def rattle_paths(
         Setting ``parallel=False`` will enable interactive fixes.
         Setting ``autofix=True`` will always apply fixes automatically during linting.
     """
-    if not paths:
-        return
-
-    expanded_paths, is_stdin, stdin_path = _expand_paths(paths)
-
-    if is_stdin:
-        yield from rattle_stdin(
-            stdin_path,
-            autofix=autofix,
-            include_diff=include_diff,
-            options=options,
-            metrics_hook=metrics_hook,
-        )
-        return
-
-    cache = ResultCache.from_environment() if metrics_hook is None else None
-    if cache is None:
-        pending_paths = [(path.resolve(), explicit_path) for path, explicit_path in expanded_paths]
-    else:
-        pending_paths = cache.collect_pending_paths(
-            expanded_paths,
-            include_diff=include_diff,
-            options=options,
-        )
-    included_paths = _configured_paths(pending_paths, options=options)
-
-    if len(included_paths) == 1 or not parallel:
-        deferred_format_paths: list[Path] = []
-        for path, config, explicit_path in included_paths:
-            yield from rattle_configured_file(
-                path,
-                config=config,
-                autofix=autofix,
-                include_diff=include_diff,
-                allow_cached_dirty_results=allow_cached_dirty_results,
-                deferred_format_paths=deferred_format_paths,
-                options=options,
-                explicit_path=explicit_path,
-                metrics_hook=metrics_hook,
-            )
-        _format_deferred_paths(deferred_format_paths)
-        return
-
-    yield from _rattle_paths_group(
-        included_paths,
+    yield from PathLintRun(
+        paths,
         autofix=autofix,
         include_diff=include_diff,
         allow_cached_dirty_results=allow_cached_dirty_results,
         options=options,
+        parallel=parallel,
         metrics_hook=metrics_hook,
-    )
+    ).run()
 
 
 __all__ = [
