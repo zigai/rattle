@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+import keyword
+from collections.abc import Iterator
+
+from pygments.lexers.python import PythonLexer
 from pygments.style import Style
 from pygments.token import (
     Comment,
@@ -11,7 +17,97 @@ from pygments.token import (
     Punctuation,
     String,
     Text,
+    Token,
 )
+
+PYTHON_RESERVED_KEYWORDS = set(keyword.kwlist) - {"False", "None", "True"}
+
+BUILTIN_TYPES = {
+    "bool",
+    "bytes",
+    "complex",
+    "dict",
+    "float",
+    "frozenset",
+    "int",
+    "list",
+    "object",
+    "set",
+    "str",
+    "tuple",
+    "type",
+}
+
+TokenItem = tuple[int, Token, str]
+
+
+def _is_whitespace(token: Token, value: str) -> bool:
+    return token in Text and not value.strip()
+
+
+def _next_significant(tokens: list[TokenItem], start: int) -> TokenItem | None:
+    for item in tokens[start:]:
+        if not _is_whitespace(item[1], item[2]):
+            return item
+    return None
+
+
+def _previous_significant(tokens: list[TokenItem], start: int) -> TokenItem | None:
+    for item in reversed(tokens[:start]):
+        if not _is_whitespace(item[1], item[2]):
+            return item
+    return None
+
+
+def _is_capitalized_name(value: str) -> bool:
+    return bool(value) and value[0].isupper()
+
+
+def _darker_modern_token(
+    token: Token,
+    value: str,
+    *,
+    previous_value: str,
+    next_value: str,
+) -> Token:
+    resolved = token
+    if (token in Keyword or token is Operator.Word) and value in PYTHON_RESERVED_KEYWORDS:
+        resolved = Keyword.Reserved
+    elif token is Name.Namespace:
+        resolved = Name
+    elif token in Name.Builtin and value in BUILTIN_TYPES:
+        resolved = Name.Class
+    elif token in Name.Builtin and next_value == "(":
+        resolved = Name.Function
+    elif token is Name and _is_capitalized_name(value):
+        resolved = Name.Class
+    elif token is Name and (next_value == "(" or (previous_value == "." and next_value == "(")):
+        resolved = Name.Function
+    return resolved
+
+
+class DarkerModernPythonLexer(PythonLexer):
+    """Python lexer tuned to VS Code's Darker Modern semantic colors."""
+
+    name = "Darker Modern Python"
+    aliases = ["python", "py", "python3", "py3"]
+
+    def get_tokens_unprocessed(self, text: str) -> Iterator[TokenItem]:
+        tokens = list(super().get_tokens_unprocessed(text))
+
+        for position, (index, token, value) in enumerate(tokens):
+            previous_token = _previous_significant(tokens, position)
+            next_token = _next_significant(tokens, position + 1)
+            yield (
+                index,
+                _darker_modern_token(
+                    token,
+                    value,
+                    previous_value=previous_token[2] if previous_token else "",
+                    next_value=next_token[2] if next_token else "",
+                ),
+                value,
+            )
 
 
 class DarkerModernStyle(Style):

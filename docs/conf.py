@@ -26,9 +26,14 @@ import re
 import sys
 from pathlib import Path
 
+from bs4 import BeautifulSoup
+from docutils.nodes import document
+from sphinx.application import Sphinx
 from sphinx.domains import python
+from sphinx.highlighting import lexers as sphinx_lexers
 
 sys.path.insert(0, str(Path(__file__).parent / "_ext"))
+from rattle_pygments import DarkerModernPythonLexer
 
 # modified from sphinx/domains/python.py
 py_sig_re = re.compile(
@@ -46,7 +51,7 @@ python.py_sig_re = py_sig_re
 # -- Project information -----------------------------------------------------
 
 project = "Rattle"
-project_copyright = " Copyright © contributors"
+project_copyright = "contributors"
 globals()["copyright"] = project_copyright
 author = ""
 # -- General configuration ---------------------------------------------------
@@ -86,6 +91,9 @@ autodoc_typehints_format = "short"
 
 pygments_style = "github-light"
 pygments_dark_style = "rattle_pygments.DarkerModernStyle"
+sphinx_lexers["python"] = DarkerModernPythonLexer()
+sphinx_lexers["python3"] = DarkerModernPythonLexer()
+sphinx_lexers["py"] = DarkerModernPythonLexer()
 
 copybutton_prompt_text = r"^((>>> |\.\.\. |\$ |# )|((\(.+\) )?\$ ))"
 copybutton_prompt_is_regexp = True
@@ -115,6 +123,36 @@ html_theme_options = {
 html_context = {}
 if os.environ.get("READTHEDOCS"):
     html_context["READTHEDOCS"] = True
+
+
+def _expand_rules_sidebar_section(
+    _app: Sphinx,
+    _pagename: str,
+    _templatename: str,
+    context: dict[str, object],
+    _doctree: document | None,
+) -> None:
+    navigation_tree = context.get("furo_navigation_tree")
+    if not isinstance(navigation_tree, str):
+        return
+
+    soup = BeautifulSoup(navigation_tree, "html.parser")
+    for item in soup.select("li.has-children"):
+        link = item.find("a", recursive=False)
+        if link is None or link.get_text(strip=True) != "Rules":
+            continue
+
+        checkbox = item.find("input", class_="toctree-checkbox", recursive=False)
+        if checkbox is not None:
+            checkbox["checked"] = ""
+
+    context["furo_navigation_tree"] = str(soup)
+
+
+def setup(app: Sphinx) -> dict[str, bool]:
+    app.connect("html-page-context", _expand_rules_sidebar_section, priority=900)
+    return {"parallel_read_safe": True, "parallel_write_safe": True}
+
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
