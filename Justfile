@@ -57,9 +57,10 @@ docs: _require-uv
   uv run --extra docs python scripts/document_rules.py
   uv run --extra docs sphinx-build -ab html docs html
 
-# check source headers
-headers: _require-uv
-  uv run --extra dev python scripts/check_copyright.py
+# regenerate rule docs, commit generated changes, and build the docs
+docs-commit: _require-uv
+  uv run --extra docs python scripts/document_rules.py --commit
+  uv run --extra docs sphinx-build -ab html docs html
 
 # clean build artifacts and caches
 clean:
@@ -75,7 +76,7 @@ spell: _require-uv
   uv run --extra dev codespell
 
 # run all quality checks
-check: lint coverage typecheck spell headers
+check: lint coverage typecheck spell
 
 # run the main local workflow
 all: install test lint docs

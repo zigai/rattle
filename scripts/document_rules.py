@@ -10,19 +10,22 @@ import html
 import inspect
 import re
 import shutil
+import subprocess
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent, indent
 from typing import TypeVar
 
+from interfacy import Interfacy
 from jinja2 import Template
 
 from rattle.config import BUILTIN_RULE_COLLECTIONS, find_rules
 from rattle.ftypes import Invalid, QualifiedRule, Valid
 from rattle.rule import LintRule, RuleReference, RuleSetting
 
-DOCS_DIR = Path(__file__).parent.parent / "docs"
+PROJECT_ROOT = Path(__file__).parent.parent
+DOCS_DIR = PROJECT_ROOT / "docs"
 RULES_INDEX_DOC = DOCS_DIR / "guide" / "builtins.md"
 RULES_CATEGORY_DIR = DOCS_DIR / "guide" / "rule-collections"
 RULES_DETAIL_DIR = DOCS_DIR / "guide" / "rules"
@@ -534,12 +537,62 @@ def render_rule_details(rules: Iterable[RuleDoc]) -> None:
         (RULES_DETAIL_DIR / f"{rule.slug}.md").write_text(rendered.rstrip() + "\n")
 
 
-def main() -> None:
+def generated_paths() -> tuple[Path, ...]:
+    return (RULES_INDEX_DOC, RULES_CATEGORY_DIR, RULES_DETAIL_DIR)
+
+
+def git_path(path: Path) -> str:
+    return path.relative_to(PROJECT_ROOT).as_posix()
+
+
+def git_executable() -> str:
+    git = shutil.which("git")
+    if git is None:
+        raise RuntimeError("git executable not found")
+    return git
+
+
+def commit_generated_docs(message: str) -> None:
+    git = git_executable()
+    paths = [git_path(path) for path in generated_paths()]
+    subprocess.run([git, "add", "--", *paths], cwd=PROJECT_ROOT, check=True)  # noqa: S603
+    diff = subprocess.run(  # noqa: S603
+        [git, "diff", "--cached", "--quiet", "--", *paths],
+        cwd=PROJECT_ROOT,
+        check=False,
+    )
+    if diff.returncode == 0:
+        return
+    if diff.returncode != 1:
+        raise subprocess.CalledProcessError(diff.returncode, diff.args)
+
+    subprocess.run(  # noqa: S603
+        [git, "commit", "-m", message, "--", *paths], cwd=PROJECT_ROOT, check=True
+    )
+
+
+def generate_rule_docs(
+    *,
+    commit: bool = False,
+    message: str = "docs: regenerate rule documentation",
+) -> None:
+    """Generate rule documentation.
+
+    Args:
+        commit: Commit generated documentation changes with a Conventional Commit message.
+        message: Commit message to use when commit is enabled.
+    """
     categories = build_categories()
     render_rule_categories(categories)
     render_rule_details(rule for category in categories for rule in category.rules)
     rendered = INDEX_TPL.render(categories=categories)
     RULES_INDEX_DOC.write_text(rendered.rstrip() + "\n")
+    if commit:
+        commit_generated_docs(message)
+
+
+def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> object:
+    return Interfacy(sys_exit_enabled=sys_exit_enabled).run(generate_rule_docs, args=args)
 
 
 if __name__ == "__main__":
