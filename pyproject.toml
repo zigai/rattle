@@ -5,9 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "rattle-lint"
 readme = "README.md"
-authors = [
-    {name="zigai"},
-]
+authors = [{ name = "zigai" }]
 license = "MIT"
 license-files = ["LICENSE", "NOTICE"]
 classifiers = [
@@ -56,12 +54,8 @@ dev = [
     "usort == 1.0.8.post1",
     "ruff==0.15.15",
 ]
-lsp = [
-    "pygls[ws] ~= 2.0.0",
-]
-pretty = [
-    "rich >= 12.6.0",
-]
+lsp = ["pygls[ws] ~= 2.0.0"]
+pretty = ["rich >= 12.6.0"]
 
 [project.scripts]
 rattle = "rattle.cli:main"
@@ -94,11 +88,7 @@ enable = [".examples.noop"]
 source = "vcs"
 
 [tool.hatch.build]
-exclude = [
-    "/.github",
-    "/examples",
-    "/legacy",
-]
+exclude = ["/.github", "/examples", "/legacy"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rattle"]
@@ -130,16 +120,10 @@ python_files = [
 ]
 
 [tool.coverage.run]
-omit = [
-    "/tmp/*",
-    "*/tmp/*",
-]
+omit = ["/tmp/*", "*/tmp/*"]
 
 [tool.coverage.report]
-omit = [
-    "/tmp/*",
-    "*/tmp/*",
-]
+omit = ["/tmp/*", "*/tmp/*"]
 
 [tool.ruff]
 line-length = 100
