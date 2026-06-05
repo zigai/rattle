@@ -18,26 +18,26 @@ from typing import TypeVar
 
 from jinja2 import Template
 
-from rattle.config import BUILTIN_RULE_PACKS, find_rules
+from rattle.config import BUILTIN_RULE_COLLECTIONS, find_rules
 from rattle.ftypes import Invalid, QualifiedRule, Valid
 from rattle.rule import LintRule, RuleSetting
 
 DOCS_DIR = Path(__file__).parent.parent / "docs"
 RULES_INDEX_DOC = DOCS_DIR / "guide" / "builtins.md"
-RULES_CATEGORY_DIR = DOCS_DIR / "guide" / "rule-packs"
+RULES_CATEGORY_DIR = DOCS_DIR / "guide" / "rule-collections"
 RULES_DETAIL_DIR = DOCS_DIR / "guide" / "rules"
 EXAMPLE_LINE_BUDGET = 6
 T = TypeVar("T")
 
 CATEGORY_TITLES = {
-    "blank_lines": "Blank-line rules",
+    "blank-lines": "Blank-line rules",
     "fixit": "Core Fixit rules",
-    "fixit_extra": "Additional Fixit rules",
+    "fixit-extra": "Additional Fixit rules",
 }
 CATEGORY_DESCRIPTIONS = {
-    "blank_lines": "Whitespace and statement-separation rules.",
+    "blank-lines": "Whitespace and statement-separation rules.",
     "fixit": "Core lint rules inherited from Fixit.",
-    "fixit_extra": "Additional Fixit-derived rules that can be enabled separately.",
+    "fixit-extra": "Additional Fixit-derived rules that can be enabled separately.",
 }
 
 INDEX_TPL = Template(
@@ -52,9 +52,9 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # Rules
 
-Rattle's built-in rules are grouped by rule pack. Enable a pack by adding its
-name to {attr}`enable <rattle.Config.enable>`, or enable a single rule by its
-class name.
+Rattle's built-in rules are grouped by collection. Enable a collection by adding
+its name to {attr}`enable <rattle.Config.enable>`, or enable a single rule by its
+kebab-case name.
 
 {% for category in categories %}
 ## {{ category.title }}
@@ -64,7 +64,7 @@ class name.
 Enable with:
 
 ```toml
-enable = ["{{ category.pack }}"]
+enable = ["{{ category.collection }}"]
 ```
 
 | Rule | Message | Python | Autofix |
@@ -98,7 +98,7 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-pack-{{ category.slug }})=
+(rule-collection-{{ category.slug }})=
 
 # {{ category.title }}
 
@@ -107,7 +107,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 Enable with:
 
 ```toml
-enable = ["{{ category.pack }}"]
+enable = ["{{ category.collection }}"]
 ```
 
 | Rule | Message | Python | Autofix |
@@ -136,8 +136,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 # {{ rule.name }}
 
 <p class="rule-metadata">
-  <span>Pack: <code>{{ rule.pack }}</code></span>
-  <span>Module: <code>{{ rule.module }}</code></span>
+  <span>Collection: <code>{{ rule.collection }}</code></span>
   <span>Autofix: {{ rule.autofix }}</span>
   <span>Python: {{ rule.python_version }}</span>
   {% if rule.tags -%}<span>Tags: {{ rule.tags }}</span>{% endif %}
@@ -157,7 +156,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th></tr>
+    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
 {% for setting in rule.settings -%}
@@ -165,6 +164,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
       <td><span class="rule-setting-name">{{ setting.name }}</span></td>
       <td><span class="rule-setting-type">{{ setting.value_type }}</span></td>
       <td><span class="rule-setting-default {{ setting.default_class }}">{{ setting.default }}</span></td>
+      <td>{{ setting.description }}</td>
     </tr>
 {% endfor -%}
   </tbody>
@@ -259,6 +259,7 @@ class SettingDoc:
     value_type: str
     default: str
     default_class: str
+    description: str
 
 
 @dataclass(frozen=True)
@@ -272,7 +273,7 @@ class RuleDoc:
     name: str
     slug: str
     module: str
-    pack: str
+    collection: str
     selector: str
     path: str
     toctree_path: str
@@ -292,7 +293,7 @@ class RuleDoc:
 
 @dataclass(frozen=True)
 class CategoryDoc:
-    pack: str
+    collection: str
     module: str
     title: str
     description: str
@@ -403,9 +404,9 @@ def html_text(value: str) -> str:
     return html.escape(value, quote=True)
 
 
-def build_rule_doc(rule: type[LintRule], *, pack: str) -> RuleDoc:
-    name = rule.__name__
-    slug = slugify(name)
+def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
+    name = rule.name
+    slug = name
     description = redent(rule_doc(rule))
     message = redent(str(getattr(rule, "MESSAGE", "")))
     message_short = markdown_table_cell(message or "—")
@@ -419,6 +420,7 @@ def build_rule_doc(rule: type[LintRule], *, pack: str) -> RuleDoc:
                 value_type=html_text(type_name(setting.value_type)),
                 default=html_text(default),
                 default_class=setting_default_class(default),
+                description=html_text(setting.description) or "—",
             )
         )
     valid_examples = [example_code(case) for case in getattr(rule, "VALID", ())]
@@ -442,7 +444,7 @@ def build_rule_doc(rule: type[LintRule], *, pack: str) -> RuleDoc:
         name=name,
         slug=slug,
         module=rule.__module__,
-        pack=pack,
+        collection=collection,
         selector=f"{rule.__module__}:{name}",
         path=f"rules/{slug}.md",
         toctree_path=f"rules/{slug}",
@@ -463,21 +465,24 @@ def build_rule_doc(rule: type[LintRule], *, pack: str) -> RuleDoc:
 
 def build_categories() -> list[CategoryDoc]:
     categories: list[CategoryDoc] = []
-    for pack, module in BUILTIN_RULE_PACKS.items():
+    for collection, module in BUILTIN_RULE_COLLECTIONS.items():
         rules = sorted(
-            (build_rule_doc(rule, pack=pack) for rule in find_rules(QualifiedRule(module))),
+            (
+                build_rule_doc(rule, collection=collection)
+                for rule in find_rules(QualifiedRule(module))
+            ),
             key=lambda rule: rule.name,
         )
-        title = CATEGORY_TITLES.get(pack, pack.replace("_", " ").title())
-        slug = slugify(pack)
+        title = CATEGORY_TITLES.get(collection, collection.replace("-", " ").title())
+        slug = slugify(collection)
         categories.append(
             CategoryDoc(
-                pack=pack,
+                collection=collection,
                 module=module,
                 title=title,
-                description=CATEGORY_DESCRIPTIONS.get(pack, "Built-in Rattle rules."),
+                description=CATEGORY_DESCRIPTIONS.get(collection, "Built-in Rattle rules."),
                 slug=slug,
-                toctree_path=f"rule-packs/{slug}",
+                toctree_path=f"rule-collections/{slug}",
                 rules=rules,
             )
         )
