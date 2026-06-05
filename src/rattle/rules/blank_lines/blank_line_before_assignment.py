@@ -39,14 +39,24 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             int,
             default=3,
             validator=validate_non_negative_int,
+            description="Maximum short control-flow size allowed before a following assignment.",
         ),
         "related_use_lookahead": RuleSetting(
             int,
             default=2,
             validator=validate_non_negative_int,
+            description="Number of following statements inspected for assignment-related usage.",
         ),
-        "allow_local_helper_capture": RuleSetting(bool, default=True),
-        "allow_post_guard_continuation": RuleSetting(bool, default=False),
+        "allow_local_helper_capture": RuleSetting(
+            bool,
+            default=True,
+            description="Allow local helper assignments that capture values from preceding code.",
+        ),
+        "allow_post_guard_continuation": RuleSetting(
+            bool,
+            default=False,
+            description="Allow assignments that continue immediately after a guard statement.",
+        ),
     }
 
     VALID = [

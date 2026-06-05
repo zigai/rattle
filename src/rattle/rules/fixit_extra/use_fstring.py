@@ -111,6 +111,7 @@ class UseFstring(LintRule):
         "simple_expression_max_length": RuleSetting(
             int,
             default=USE_FSTRING_SIMPLE_EXPRESSION_MAX_LENGTH,
+            description="Maximum expression length to autofix inline in an f-string.",
         ),
     }
 

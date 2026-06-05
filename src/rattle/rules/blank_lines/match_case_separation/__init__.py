@@ -18,6 +18,7 @@ class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
             int,
             default=2,
             validator=validate_non_negative_int,
+            description="Minimum non-empty case body size before the next case requires spacing.",
         ),
     }
 

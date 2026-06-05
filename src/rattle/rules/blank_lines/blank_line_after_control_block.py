@@ -35,10 +35,23 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             int,
             default=2,
             validator=validate_non_negative_int,
+            description="Number of following statements inspected for related value usage.",
         ),
-        "allow_compact_guard_ladders": RuleSetting(bool, default=True),
-        "allow_pytest_raises_clusters": RuleSetting(bool, default=True),
-        "allow_with_immediate_inspection": RuleSetting(bool, default=True),
+        "allow_compact_guard_ladders": RuleSetting(
+            bool,
+            default=True,
+            description="Allow compact guard-ladder control-flow blocks without an extra blank line.",
+        ),
+        "allow_pytest_raises_clusters": RuleSetting(
+            bool,
+            default=True,
+            description="Allow adjacent pytest.raises blocks that form one test cluster.",
+        ),
+        "allow_with_immediate_inspection": RuleSetting(
+            bool,
+            default=True,
+            description="Allow a with block followed immediately by inspection of its bound value.",
+        ),
     }
 
     VALID = [

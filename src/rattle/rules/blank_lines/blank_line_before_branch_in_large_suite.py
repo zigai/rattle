@@ -34,14 +34,24 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             int,
             default=2,
             validator=validate_non_negative_int,
+            description="Minimum non-empty suite size before branch statements require spacing.",
         ),
         "compact_tail_max_statements": RuleSetting(
             int,
             default=2,
             validator=validate_non_negative_int,
+            description="Maximum compact tail size allowed before a final branch statement.",
         ),
-        "allow_related_return_tails": RuleSetting(bool, default=True),
-        "allow_guard_ladder_final_branch": RuleSetting(bool, default=True),
+        "allow_related_return_tails": RuleSetting(
+            bool,
+            default=True,
+            description="Allow compact returns that immediately return a just-created value.",
+        ),
+        "allow_guard_ladder_final_branch": RuleSetting(
+            bool,
+            default=True,
+            description="Allow compact final branches in guard-ladder control flow.",
+        ),
     }
 
     VALID = [

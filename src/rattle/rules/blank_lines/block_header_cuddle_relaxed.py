@@ -18,13 +18,19 @@ class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
             int,
             default=4,
             validator=validate_non_negative_int,
+            description="Number of following statements inspected for setup-value usage.",
         ),
         "setup_run_lookback": RuleSetting(
             int,
             default=3,
             validator=validate_non_negative_int,
+            description="Number of preceding setup statements that may stay attached to a block.",
         ),
-        "allow_setup_before_compact_guard_ladder": RuleSetting(bool, default=True),
+        "allow_setup_before_compact_guard_ladder": RuleSetting(
+            bool,
+            default=True,
+            description="Allow setup statements before compact guard-ladder branches.",
+        ),
     }
     MESSAGE = (
         "Illegal cuddle before block header. "
