@@ -54,6 +54,11 @@ from .ftypes import (
 SourcePattern = str | bytes
 
 
+def rule_name_from_class_name(class_name: str) -> str:
+    words = re.sub(r"(?<!^)(?=[A-Z])", "-", class_name).lower()
+    return re.sub(r"[^a-z0-9]+", "-", words).strip("-")
+
+
 def _normalize_source_pattern(pattern: SourcePattern) -> bytes:
     return pattern.encode("utf-8") if isinstance(pattern, str) else pattern
 
@@ -84,6 +89,11 @@ def _source_pattern_matches(source: FileContent, pattern: SourcePattern) -> bool
 
 class RuleConfigurationError(ValueError):
     pass
+
+
+class _RuleNameDescriptor:
+    def __get__(self, instance: object, owner: type[LintRule]) -> str:
+        return rule_name_from_class_name(owner.__name__)
 
 
 _RULE_SETTING_MISSING = object()
@@ -280,6 +290,7 @@ class RuleSetting:
     value_type: object
     default: object = _RULE_SETTING_MISSING
     validator: Callable[[object], object] | None = None
+    description: str = ""
 
     def _validate_type(
         self,
@@ -367,17 +378,15 @@ class LintRule(BatchableCSTVisitor):
     test case that provides an expected replacement.
     """
 
-    name: str
+    name = _RuleNameDescriptor()
     """
-    Friendly name of this lint rule class, without any "Rule" suffix.
+    Canonical kebab-case name of this lint rule.
     """
 
     def __init__(self) -> None:
         self._violations: list[LintViolation] = []
         self._lint_ignore_enabled = True
         self.settings: Mapping[str, Any] = MappingProxyType({})
-        self.name = self.__class__.__name__
-        self.name = self.name.removesuffix("Rule")
 
     def __init_subclass__(cls) -> None:
         invalid: list[str | Invalid] = getattr(cls, "INVALID", [])
@@ -391,7 +400,7 @@ class LintRule(BatchableCSTVisitor):
 
     @classmethod
     def qualified_name(cls) -> str:
-        return f"{cls.__module__}:{cls.__name__}"
+        return f"{cls.__module__}:{cls.name}"
 
     def should_lint_file(self, source: FileContent, _path: Path) -> bool:
         return not self.SOURCE_PATTERNS or any(
@@ -523,7 +532,7 @@ class LintRule(BatchableCSTVisitor):
         if not self._lint_ignore_enabled:
             return False
 
-        rule_names = (self.name, self.name.lower())
+        rule_names = (self.name,)
         for comment in self.node_comments(node):
             directive = parse_lint_ignore_comment(comment)
             if directive is None:
@@ -533,7 +542,6 @@ class LintRule(BatchableCSTVisitor):
                 return True
 
             for name in (n.strip() for n in directive.names.split(",")):
-                name = name.removesuffix("Rule")
                 if name in rule_names:
                     return True
 
@@ -615,9 +623,7 @@ class LintRule(BatchableCSTVisitor):
 
             return wrapper
 
-        return {
-            name: _wrap(f"{type(self).__name__}.{name}", visitors[name]) for name in visitor_names
-        }
+        return {name: _wrap(f"{self.name}.{name}", visitors[name]) for name in visitor_names}
 
 
 __all__ = [

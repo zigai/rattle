@@ -66,15 +66,16 @@ LintIgnoreRegex = re.compile(
     r"""
     \#\s*                         # leading hash and whitespace
     rattle:\s*ignore              # directive
-    (?!\w)(?!\s+\w)              # do not accept bare rule names without brackets
     (?:
         \s*\[
             (?P<rattle_names>
-                \w+               # first rule name
-                (?:,\s*\w+)*      # subsequent rule names
+                [a-z][a-z0-9]*(?:-[a-z0-9]+)*          # first rule name
+                (?:,\s*[a-z][a-z0-9]*(?:-[a-z0-9]+)*)* # subsequent rule names
             )
         \]
-    )?                            # rule names are optional
+        |
+        (?!\w)(?!\s+\w)(?!\s*\[) # do not accept bare names or invalid brackets
+    )
     """,
     re.VERBOSE,
 )
@@ -98,15 +99,15 @@ QualifiedRuleRegex = re.compile(
     ^
     (?P<module>
         (?P<local>\.)?
-        [a-zA-Z0-9_]+(\.[a-zA-Z0-9_-]+)*
+        [a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)*
     )
-    (?::(?P<name>[a-zA-Z0-9_-]+))?
+    (?::(?P<name>[a-z][a-z0-9]*(?:-[a-z0-9]+)*))?
     $
     """,
     re.VERBOSE,
 )
 
-RuleNameSelectorRegex = re.compile(r"^[A-Z][A-Za-z0-9_]*$")
+RuleNameSelectorRegex = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 
 
 class QualifiedRuleRegexResult(TypedDict):
