@@ -23,31 +23,32 @@ Allow cuddling when the setup remains part of the same control-flow step.
 
 Illegal cuddle before block header. The preceding setup must directly feed the upcoming block.
 
+
 ## Settings
 
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><th>Setting</th><th>Description</th><th>Type</th><th>Default</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_setup_before_compact_guard_ladder</span></td>
+      <td>Allow setup statements before compact guard-ladder branches.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
-      <td>Allow setup statements before compact guard-ladder branches.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">body_usage_lookahead</span></td>
+      <td>Number of following statements inspected for setup-value usage.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">4</span></td>
-      <td>Number of following statements inspected for setup-value usage.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">setup_run_lookback</span></td>
+      <td>Number of preceding setup statements that may stay attached to a block.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">3</span></td>
-      <td>Number of preceding setup statements that may stay attached to a block.</td>
     </tr>
 </tbody>
 </table>

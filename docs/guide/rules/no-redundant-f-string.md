@@ -23,6 +23,7 @@ Remove redundant f-string without placeholders.
 
 f-string doesn't have placeholders, remove redundant f-string.
 
+
 ## Valid examples
 
 ```python

@@ -25,6 +25,7 @@ These ABCs are import errors starting in Python 3.10.
 
 ABCs must be imported from collections.abc
 
+
 ## Valid examples
 
 ```python

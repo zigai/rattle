@@ -17,14 +17,17 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``
-as it is deprecated (https://docs.python.org/3.8/library/unittest.html#deprecated-aliases).
-Use ``assertIn(x, y)`` and ``assertNotIn(x, y)``) instead.
+Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``.
+Use ``assertIn(x, y)`` and ``assertNotIn(x, y)`` instead.
 
 ## Message
 
 Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check.
-See https://docs.python.org/3/library/unittest.html#unittest.TestCase.assertIn)
+
+## References
+
+- [unittest deprecated aliases](https://docs.python.org/3.8/library/unittest.html#deprecated-aliases)
+- [unittest assertIn](https://docs.python.org/3/library/unittest.html#unittest.TestCase.assertIn)
 
 ## Valid examples
 

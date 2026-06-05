@@ -37,21 +37,25 @@ Following two cases not covered:
 
 ## Message
 
-Do not use printf style formatting or .format(). Use f-string instead to be more readable and efficient. See https://www.python.org/dev/peps/pep-0498/
+Do not use printf style formatting or .format(). Use f-string instead to be more readable and efficient.
+
+## References
+
+- [PEP 498](https://www.python.org/dev/peps/pep-0498/)
 
 ## Settings
 
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><th>Setting</th><th>Description</th><th>Type</th><th>Default</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">simple_expression_max_length</span></td>
+      <td>Maximum expression length to autofix inline in an f-string.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">30</span></td>
-      <td>Maximum expression length to autofix inline in an f-string.</td>
     </tr>
 </tbody>
 </table>

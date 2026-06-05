@@ -9,7 +9,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-collection-blank-lines)=
 
-# Blank-line rules
+# Blank Lines
 
 Whitespace and statement-separation rules.
 

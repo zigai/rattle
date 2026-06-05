@@ -19,11 +19,15 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Enforces the use of `is` and `is not` in comparisons to singleton primitives (None, True, False) rather than == and !=.
 The == operator checks equality, when in this scenario, we want to check identity.
-See Flake8 rules E711 (https://www.flake8rules.com/rules/E711.html) and E712 (https://www.flake8rules.com/rules/E712.html).
 
 ## Message
 
 Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity. Use `is` or `is not` instead.
+
+## References
+
+- [Flake8 E711](https://www.flake8rules.com/rules/E711.html)
+- [Flake8 E712](https://www.flake8rules.com/rules/E712.html)
 
 ## Valid examples
 

@@ -20,6 +20,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 A derivative of flake8-comprehensions's C407 rule.
 
 
+
 ## Valid examples
 
 ```python

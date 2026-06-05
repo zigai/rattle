@@ -22,6 +22,7 @@ of ``builtins.{builtin_type}`` since the type system doesn't recognize the latte
 as a valid type before Python ``3.10``.
 
 
+
 ## Valid examples
 
 ```python

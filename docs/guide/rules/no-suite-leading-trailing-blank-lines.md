@@ -20,6 +20,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 Disallow leading/trailing empty lines at suite boundaries.
 
 
+
 ## Valid examples
 
 ```python

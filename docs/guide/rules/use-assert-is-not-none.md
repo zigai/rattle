@@ -17,13 +17,16 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Discourages use of ``assertTrue(x is not None)`` and ``assertFalse(x is not None)`` as it is deprecated (https://docs.python.org/3.8/library/unittest.html#deprecated-aliases).
-Use ``assertIsNotNone(x)`` and ``assertIsNone(x)``) instead.
+Discourages use of ``assertTrue(x is not None)`` and ``assertFalse(x is not None)``.
+Use ``assertIsNotNone(x)`` and ``assertIsNone(x)`` instead.
 
 ## Message
 
 "assertTrue" and "assertFalse" are deprecated. Use "assertIsNotNone" and "assertIsNone" instead.
-See https://docs.python.org/3.8/library/unittest.html#deprecated-aliases
+
+## References
+
+- [unittest deprecated aliases](https://docs.python.org/3.8/library/unittest.html#deprecated-aliases)
 
 ## Valid examples
 

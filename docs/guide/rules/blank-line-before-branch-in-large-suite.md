@@ -23,37 +23,38 @@ Require branch statements to be visually separated in large suites.
 
 Missing blank line before return/raise/break/continue in a large suite.
 
+
 ## Settings
 
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><th>Setting</th><th>Description</th><th>Type</th><th>Default</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_guard_ladder_final_branch</span></td>
+      <td>Allow compact final branches in guard-ladder control flow.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
-      <td>Allow compact final branches in guard-ladder control flow.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_related_return_tails</span></td>
+      <td>Allow compact returns that immediately return a just-created value.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
-      <td>Allow compact returns that immediately return a just-created value.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">compact_tail_max_statements</span></td>
+      <td>Maximum compact tail size allowed before a final branch statement.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
-      <td>Maximum compact tail size allowed before a final branch statement.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">max_suite_non_empty_lines</span></td>
+      <td>Minimum non-empty suite size before branch statements require spacing.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
-      <td>Minimum non-empty suite size before branch statements require spacing.</td>
     </tr>
 </tbody>
 </table>

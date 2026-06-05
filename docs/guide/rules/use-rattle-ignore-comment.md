@@ -28,6 +28,7 @@ accidentally silence warnings unexpectedly.
 
 noqa is deprecated. Use `rattle: ignore[rule-name]` instead.
 
+
 ## Valid examples
 
 ```python

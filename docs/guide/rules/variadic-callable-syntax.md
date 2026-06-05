@@ -20,6 +20,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 Callable types with arbitrary parameters should be written as `Callable[..., T]`.
 
 
+
 ## Valid examples
 
 ```python

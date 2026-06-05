@@ -22,6 +22,7 @@ passing all it is arguments to another callable can
 be safely replaced by that callable.
 
 
+
 ## Valid examples
 
 ```python

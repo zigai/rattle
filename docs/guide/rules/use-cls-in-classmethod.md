@@ -23,6 +23,7 @@ Enforces using ``cls`` as the first argument in a ``@classmethod``.
 
 When using @classmethod, the first argument must be `cls`.
 
+
 ## Valid examples
 
 ```python

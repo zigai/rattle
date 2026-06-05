@@ -23,6 +23,7 @@ Requires dataclass mutability to be explicit.
 
 Dataclass mutability must be explicit. Add `frozen=True` for immutable value objects or `frozen=False` when instances are intentionally mutable.
 
+
 ## Valid examples
 
 ```python

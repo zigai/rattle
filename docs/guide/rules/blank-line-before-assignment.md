@@ -23,37 +23,38 @@ Require separators before assignments that do not continue the local flow.
 
 Missing blank line before assignment statement that follows a non-assignment statement.
 
+
 ## Settings
 
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><th>Setting</th><th>Description</th><th>Type</th><th>Default</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_local_helper_capture</span></td>
+      <td>Allow local helper assignments that capture values from preceding code.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
-      <td>Allow local helper assignments that capture values from preceding code.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_post_guard_continuation</span></td>
+      <td>Allow assignments that continue immediately after a guard statement.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">False</span></td>
-      <td>Allow assignments that continue immediately after a guard statement.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">related_use_lookahead</span></td>
+      <td>Number of following statements inspected for assignment-related usage.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
-      <td>Number of following statements inspected for assignment-related usage.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">short_control_flow_max_statements</span></td>
+      <td>Maximum short control-flow size allowed before a following assignment.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">3</span></td>
-      <td>Maximum short control-flow size allowed before a following assignment.</td>
     </tr>
 </tbody>
 </table>

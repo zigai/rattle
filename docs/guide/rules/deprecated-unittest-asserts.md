@@ -19,11 +19,13 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Discourages the use of various deprecated unittest.TestCase functions.
 
-See https://docs.python.org/3/library/unittest.html#deprecated-aliases
-
 ## Message
 
 {deprecated} is deprecated, use {replacement} instead
+
+## References
+
+- [unittest deprecated aliases](https://docs.python.org/3/library/unittest.html#deprecated-aliases)
 
 ## Valid examples
 

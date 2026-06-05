@@ -27,6 +27,7 @@ Feel free to add other methods and such -- it should only affect class attribute
 
 It appears you are using the @sorted-attributes directive and the class variables are unsorted. See the lint autofix suggestion.
 
+
 ## Valid examples
 
 ```python

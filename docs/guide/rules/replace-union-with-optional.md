@@ -18,11 +18,14 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 </p>
 
 Enforces the use of ``Optional[T]`` over ``Union[T, None]`` and ``Union[None, T]``.
-See https://docs.python.org/3/library/typing.html#typing.Optional to learn more about Optionals.
 
 ## Message
 
-`Optional[T]` is preferred over `Union[T, None]` or `Union[None, T]`. Learn more: https://docs.python.org/3/library/typing.html#typing.Optional
+`Optional[T]` is preferred over `Union[T, None]` or `Union[None, T]`.
+
+## References
+
+- [typing.Optional](https://docs.python.org/3/library/typing.html#typing.Optional)
 
 ## Valid examples
 

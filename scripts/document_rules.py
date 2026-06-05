@@ -20,7 +20,7 @@ from jinja2 import Template
 
 from rattle.config import BUILTIN_RULE_COLLECTIONS, find_rules
 from rattle.ftypes import Invalid, QualifiedRule, Valid
-from rattle.rule import LintRule, RuleSetting
+from rattle.rule import LintRule, RuleReference, RuleSetting
 
 DOCS_DIR = Path(__file__).parent.parent / "docs"
 RULES_INDEX_DOC = DOCS_DIR / "guide" / "builtins.md"
@@ -30,9 +30,9 @@ EXAMPLE_LINE_BUDGET = 6
 T = TypeVar("T")
 
 CATEGORY_TITLES = {
-    "blank-lines": "Blank-line rules",
-    "fixit": "Core Fixit rules",
-    "fixit-extra": "Additional Fixit rules",
+    "blank-lines": "Blank Lines",
+    "fixit": "Fixit",
+    "fixit-extra": "Fixit Extra",
 }
 CATEGORY_DESCRIPTIONS = {
     "blank-lines": "Whitespace and statement-separation rules.",
@@ -150,21 +150,29 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 {{ rule.message }}
 {% endif %}
 
+{% if rule.references %}
+## References
+
+{% for reference in rule.references -%}
+- [{{ reference.label }}]({{ reference.url }})
+{% endfor %}
+{% endif %}
+
 {% if rule.settings %}
 ## Settings
 
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><th>Setting</th><th>Description</th><th>Type</th><th>Default</th></tr>
   </thead>
   <tbody>
 {% for setting in rule.settings -%}
     <tr>
       <td><span class="rule-setting-name">{{ setting.name }}</span></td>
+      <td>{{ setting.description }}</td>
       <td><span class="rule-setting-type">{{ setting.value_type }}</span></td>
       <td><span class="rule-setting-default {{ setting.default_class }}">{{ setting.default }}</span></td>
-      <td>{{ setting.description }}</td>
     </tr>
 {% endfor -%}
   </tbody>
@@ -263,6 +271,12 @@ class SettingDoc:
 
 
 @dataclass(frozen=True)
+class ReferenceDoc:
+    label: str
+    url: str
+
+
+@dataclass(frozen=True)
 class InvalidExampleDoc:
     code: str
     replacement: str
@@ -280,6 +294,7 @@ class RuleDoc:
     description: str
     message: str
     message_short: str
+    references: Sequence[ReferenceDoc]
     autofix: str
     autofix_icon: str
     python_version: str
@@ -404,11 +419,20 @@ def html_text(value: str) -> str:
     return html.escape(value, quote=True)
 
 
+def reference_doc(reference: RuleReference) -> ReferenceDoc:
+    if isinstance(reference, str):
+        return ReferenceDoc(label=reference, url=reference)
+
+    label, url = reference
+    return ReferenceDoc(label=label, url=url)
+
+
 def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
     name = rule.name
     slug = name
     description = redent(rule_doc(rule))
     message = redent(str(getattr(rule, "MESSAGE", "")))
+    references = tuple(reference_doc(reference) for reference in rule.REFERENCES)
     message_short = markdown_table_cell(message or "—")
     python_version = getattr(rule, "PYTHON_VERSION", "") or "Any"
     settings = []
@@ -451,6 +475,7 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
         description=description,
         message=message,
         message_short=message_short,
+        references=references,
         autofix="Yes" if rule.AUTOFIX else "No",
         autofix_icon="Yes" if rule.AUTOFIX else "No",
         python_version=f"`{python_version}`" if python_version != "Any" else "Any",

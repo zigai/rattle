@@ -22,6 +22,7 @@ unnecessary to use a list or tuple literal within a call to tuple, list,
 set, or dict since there is literal syntax for these types.
 
 
+
 ## Valid examples
 
 ```python

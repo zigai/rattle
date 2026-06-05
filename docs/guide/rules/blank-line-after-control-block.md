@@ -23,37 +23,38 @@ Require separation after multiline control-flow block statements.
 
 Missing blank line after multiline control-flow block statement.
 
+
 ## Settings
 
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><th>Setting</th><th>Description</th><th>Type</th><th>Default</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_compact_guard_ladders</span></td>
+      <td>Allow compact guard-ladder control-flow blocks without an extra blank line.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
-      <td>Allow compact guard-ladder control-flow blocks without an extra blank line.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_pytest_raises_clusters</span></td>
+      <td>Allow adjacent pytest.raises blocks that form one test cluster.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
-      <td>Allow adjacent pytest.raises blocks that form one test cluster.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_with_immediate_inspection</span></td>
+      <td>Allow a with block followed immediately by inspection of its bound value.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
-      <td>Allow a with block followed immediately by inspection of its bound value.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">related_use_lookahead</span></td>
+      <td>Number of following statements inspected for related value usage.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
-      <td>Number of following statements inspected for related value usage.</td>
     </tr>
 </tbody>
 </table>

@@ -21,7 +21,11 @@ Remove redundant arguments when using super for readability.
 
 ## Message
 
-Do not use arguments when calling super for the parent class. See https://www.python.org/dev/peps/pep-3135/
+Do not use arguments when calling super for the parent class.
+
+## References
+
+- [PEP 3135](https://www.python.org/dev/peps/pep-3135/)
 
 ## Valid examples
 

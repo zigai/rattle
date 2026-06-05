@@ -26,6 +26,7 @@ calls to ``assertTrue``, ``assertFalse`` and ``assertIsNone``.
 
 "assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions.
 
+
 ## Valid examples
 
 ```python

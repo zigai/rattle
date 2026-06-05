@@ -27,6 +27,7 @@ the second argument is a tuple of all types can be used.
 
 Multiple isinstance calls with the same target but different types can be collapsed into a single call with a tuple of types.
 
+
 ## Valid examples
 
 ```python

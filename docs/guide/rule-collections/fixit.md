@@ -9,7 +9,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-collection-fixit)=
 
-# Core Fixit rules
+# Fixit
 
 Core lint rules inherited from Fixit.
 

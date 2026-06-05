@@ -24,6 +24,7 @@ Explicitly inheriting from ``object`` is redundant, so removing it keeps the cod
 
 Inheriting from object is a no-op.  'class Foo:' is just fine =)
 
+
 ## Valid examples
 
 ```python
