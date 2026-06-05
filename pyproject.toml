@@ -114,7 +114,8 @@ reportUnnecessaryTypeIgnoreComment = "warning"
 reportMissingParameterType = "warning"
 
 [tool.codespell]
-skip = ".git,uv.lock"
+skip = ".git,.venv,uv.lock,html,htmlcov,build,dist,docs/_build,*.egg-info,__pycache__,*.pyc,.pytest_cache,.ruff_cache"
+ignore-words-list = "implementors,NotIn"
 
 [tool.pytest.ini_options]
 testpaths = ["src/rattle/tests"]
