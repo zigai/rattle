@@ -9,6 +9,7 @@ from rattle import Invalid, LintRule, Valid
 
 
 class ComparePrimitivesByEqual(LintRule):
+    NAME = "use-eq-for-primitives"
     """
     Enforces the use of ``==`` and ``!=`` in comparisons to primitives rather than ``is`` and ``is not``.
     The ``==`` operator checks equality, while ``is`` checks identity.

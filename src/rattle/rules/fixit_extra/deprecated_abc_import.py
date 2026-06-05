@@ -45,6 +45,7 @@ ABCS = frozenset(
 
 
 class DeprecatedABCImport(LintRule):
+    NAME = "use-collections-abc"
     """
     Checks for the use of the deprecated collections ABC import. Since python 3.3,
     the Collections Abstract Base Classes (ABC) have been moved to `collections.abc`.

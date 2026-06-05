@@ -10,6 +10,7 @@ from rattle import Invalid, LintRule, Valid
 
 
 class AvoidOrInExcept(LintRule):
+    NAME = "no-or-in-except"
     """
     Discourages use of ``or`` in except clauses. If an except clause needs to catch multiple exceptions,
     they must be expressed as a parenthesized tuple, for example:

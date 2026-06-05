@@ -9,6 +9,7 @@ from rattle.rules.blank_lines.base import BaseBlockHeaderCuddleRule, validate_no
 
 
 class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
+    NAME = "blank-line-before-unrelated-block"
     """Allow cuddling when the setup remains part of the same control-flow step."""
 
     STRICT = False

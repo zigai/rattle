@@ -20,6 +20,7 @@ UNNECESSARY_LIST_COMPREHENSION: str = (
 
 
 class RewriteToComprehension(LintRule):
+    NAME = "use-comprehension"
     SOURCE_PATTERNS = ("list(", "set(", "dict(")
     """
     A derivative of flake8-comprehensions's C400-C402 and C403-C404.

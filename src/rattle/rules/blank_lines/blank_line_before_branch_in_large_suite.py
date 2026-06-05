@@ -23,6 +23,7 @@ from rattle.rules.blank_lines.utils import (
 
 
 class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
+    NAME = "blank-line-before-branch"
     """Require branch statements to be visually separated in large suites."""
 
     MESSAGE = "Missing blank line before return/raise/break/continue in a large suite."
