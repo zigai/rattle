@@ -11,18 +11,18 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # SortedAttributes
 
-Ever wanted to sort a bunch of class attributes alphabetically?
-Well now it's easy! Just add "@sorted-attributes" in the doc string of
-a class definition and lint will automatically sort all attributes alphabetically.
-
-Feel free to add other methods and such -- it should only affect class attributes.
-
 <p class="rule-metadata">
   <span>Pack: <code>fixit</code></span>
   <span>Module: <code>rattle.rules.fixit.sorted_attributes_rule</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>
+
+Ever wanted to sort a bunch of class attributes alphabetically?
+Well now it's easy! Just add "@sorted-attributes" in the doc string of
+a class definition and lint will automatically sort all attributes alphabetically.
+
+Feel free to add other methods and such -- it should only affect class attributes.
 
 ## Message
 
@@ -45,6 +45,9 @@ class MyUnsortedConstants:
 
 ## Invalid examples
 
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
 class MyUnsortedConstants:
     """
@@ -59,8 +62,10 @@ class MyUnsortedConstants:
     @classmethod
     def get_foo(cls) -> str:
         return "some random thing"
+```
+<p class="rule-example-label">Suggested fix</p>
 
-# suggested fix
+```python
 class MyUnsortedConstants:
     """
     @sorted-attributes
@@ -74,4 +79,7 @@ class MyUnsortedConstants:
     @classmethod
     def get_foo(cls) -> str:
         return "some random thing"
+```
+```{raw} html
+</div>
 ```

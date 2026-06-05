@@ -11,6 +11,13 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # AvoidOrInExcept
 
+<p class="rule-metadata">
+  <span>Pack: <code>fixit_extra</code></span>
+  <span>Module: <code>rattle.rules.fixit_extra.avoid_or_in_except</code></span>
+  <span>Autofix: No</span>
+  <span>Python: Any</span>
+</p>
+
 Discourages use of ``or`` in except clauses. If an except clause needs to catch multiple exceptions,
 they must be expressed as a parenthesized tuple, for example:
 ``except (ValueError, TypeError)``
@@ -66,13 +73,6 @@ For example::
 
     Exc2:
 
-<p class="rule-metadata">
-  <span>Pack: <code>fixit_extra</code></span>
-  <span>Module: <code>rattle.rules.fixit_extra.avoid_or_in_except</code></span>
-  <span>Autofix: No</span>
-  <span>Python: Any</span>
-</p>
-
 ## Message
 
 Avoid using 'or' in an except block. For example:'except ValueError or TypeError' only catches 'ValueError'. Instead, use parentheses, 'except (ValueError, TypeError)'
@@ -88,9 +88,15 @@ except (ValueError, TypeError) as err:
 
 ## Invalid examples
 
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
 try:
     print()
 except ValueError or TypeError:
     pass
+```
+```{raw} html
+</div>
 ```

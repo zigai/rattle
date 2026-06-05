@@ -11,14 +11,14 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # NoStaticIfCondition
 
-Discourages ``if`` conditions which evaluate to a static value (e.g. ``or True``, ``and False``, etc).
-
 <p class="rule-metadata">
   <span>Pack: <code>fixit</code></span>
   <span>Module: <code>rattle.rules.fixit.no_static_if_condition</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
+
+Discourages ``if`` conditions which evaluate to a static value (e.g. ``or True``, ``and False``, etc).
 
 ## Message
 
@@ -34,14 +34,131 @@ if my_func() or not else_func():
 if function_call(True):
     pass
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+# ew who would this???
+def true():
+    return False
+if true() and else_call():  # True or False
+    pass
+```
+```python
+# ew who would this???
+if False or some_func():
+    pass
+```
+```{raw} html
+</details>
+```
 
 ## Invalid examples
 
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
 if True:
     do_something()
 ```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
 if crazy_expression or True:
     do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if crazy_expression and False:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if crazy_expression and not True:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if crazy_expression or not False:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if crazy_expression or (something() or True):
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if crazy_expression and (something() and (not True)):
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if crazy_expression and (something() and (other_func() and not True)):
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if (crazy_expression and (something() and (not True))) or True:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+async def some_func() -> none:
+    if (await expression()) and False:
+        pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
 ```

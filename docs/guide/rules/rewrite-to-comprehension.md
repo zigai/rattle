@@ -11,19 +11,19 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # RewriteToComprehension
 
-A derivative of flake8-comprehensions's C400-C402 and C403-C404.
-Comprehensions are more efficient than functions calls. This C400-C402
-suggest to use `dict/set/list` comprehensions rather than respective
-function calls whenever possible. C403-C404 suggest to remove unnecessary
-list comprehension in a set/dict call, and replace it with set/dict
-comprehension.
-
 <p class="rule-metadata">
   <span>Pack: <code>fixit_extra</code></span>
   <span>Module: <code>rattle.rules.fixit_extra.rewrite_to_comprehension</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>
+
+A derivative of flake8-comprehensions's C400-C402 and C403-C404.
+Comprehensions are more efficient than functions calls. This C400-C402
+suggest to use `dict/set/list` comprehensions rather than respective
+function calls whenever possible. C403-C404 suggest to remove unnecessary
+list comprehension in a set/dict call, and replace it with set/dict
+comprehension.
 
 
 ## Valid examples
@@ -34,18 +34,200 @@ comprehension.
 ```python
 {val for val in iterable}
 ```
+```python
+{val: val+1 for val in iterable}
+```
+```python
+dict(line.strip().split('=', 1) for line in attr_file)
+```
 
 ## Invalid examples
 
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
 ```python
 list(val for val in iterable)
+```
+<p class="rule-example-label">Suggested fix</p>
 
-# suggested fix
+```python
 [val for val in iterable]
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 list(val for row in matrix for val in row)
+```
+<p class="rule-example-label">Suggested fix</p>
 
-# suggested fix
+```python
 [val for row in matrix for val in row]
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+set(val for val in iterable)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{val for val in iterable}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+dict((x, f(x)) for val in iterable)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{x: f(x) for val in iterable}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+dict((x, y) for y, x in iterable)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{x: y for y, x in iterable}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+dict([val, val+1] for val in iterable)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{val: val+1 for val in iterable}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+dict((x["name"], json.loads(x["data"])) for x in responses)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{x["name"]: json.loads(x["data"]) for x in responses}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+dict((k, v) for k, v in iter for iter in iters)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{k: v for k, v in iter for iter in iters}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+set([val for val in iterable])
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{val for val in iterable}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+dict([[val, val+1] for val in iterable])
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{val: val+1 for val in iterable}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+dict([(x, f(x)) for x in foo])
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{x: f(x) for x in foo}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+dict([(x, y) for y, x in iterable])
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{x: y for y, x in iterable}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+set([val for row in matrix for val in row])
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{val for row in matrix for val in row}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
 ```

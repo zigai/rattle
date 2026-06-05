@@ -11,14 +11,14 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # ExplicitFrozenDataclass
 
-Requires dataclass mutability to be explicit.
-
 <p class="rule-metadata">
   <span>Pack: <code>fixit</code></span>
   <span>Module: <code>rattle.rules.fixit.explicit_frozen_dataclass</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
+
+Requires dataclass mutability to be explicit.
 
 ## Message
 
@@ -35,9 +35,33 @@ from dataclasses import dataclass
 @dataclass(frozen=False)
 class Cls: pass
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+import dataclasses
+@dataclasses.dataclass(frozen=False)
+class Cls: pass
+```
+```python
+import dataclasses as dc
+@dc.dataclass(frozen=False)
+class Cls: pass
+```
+```python
+from dataclasses import dataclass as dc
+@dc(frozen=False)
+class Cls: pass
+```
+```{raw} html
+</details>
+```
 
 ## Invalid examples
 
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
 from dataclasses import dataclass
 @some_unrelated_decorator
@@ -45,8 +69,133 @@ from dataclasses import dataclass
 @another_unrelated_decorator
 class Cls: pass
 ```
+```{raw} html
+</div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
 from dataclasses import dataclass
 @dataclass()  # called as a function, no kwargs
 class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from dataclasses import dataclass
+@dataclass(other_kwarg=False)
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import dataclasses
+@dataclasses.dataclass
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import dataclasses
+@dataclasses.dataclass()
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import dataclasses
+@dataclasses.dataclass(other_kwarg=False)
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from dataclasses import dataclass as dc
+@dc
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from dataclasses import dataclass as dc
+@dc()
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from dataclasses import dataclass as dc
+@dc(other_kwarg=False)
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import dataclasses as dc
+@dc.dataclass
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import dataclasses as dc
+@dc.dataclass()
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import dataclasses as dc
+@dc.dataclass(other_kwarg=False)
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
 ```
