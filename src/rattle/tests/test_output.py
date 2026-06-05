@@ -26,7 +26,7 @@ class OutputTest(TestCase):
             """
         ).encode()
         violation = LintViolation(
-            rule_name="NoRedundantFString",
+            rule_name="no-redundant-f-string",
             range=CodeRange(
                 start=CodePosition(line=2, column=12),
                 end=CodePosition(line=2, column=20),
@@ -44,7 +44,7 @@ class OutputTest(TestCase):
         assert (
             dedent(
                 """\
-                NoRedundantFString [*] Remove redundant f-string
+                no-redundant-f-string [*] Remove redundant f-string
                  --> example.py:2:13
                   |
                 1 | def f():
@@ -61,7 +61,7 @@ class OutputTest(TestCase):
     def test_render_rattle_multiline_violation(self) -> None:
         source = b"alpha beta\ngamma\ndelta\n"
         violation = LintViolation(
-            rule_name="TestRule",
+            rule_name="test-rule",
             range=CodeRange(
                 start=CodePosition(line=1, column=6),
                 end=CodePosition(line=2, column=3),
@@ -79,7 +79,7 @@ class OutputTest(TestCase):
         assert (
             dedent(
                 """\
-                TestRule Cross-line issue
+                test-rule Cross-line issue
                  --> example.py:1:7
                   |
                 1 | alpha beta
@@ -95,7 +95,7 @@ class OutputTest(TestCase):
 
     def test_render_rattle_brief_violation(self) -> None:
         violation = LintViolation(
-            rule_name="NoRedundantFString",
+            rule_name="no-redundant-f-string",
             range=CodeRange(
                 start=CodePosition(line=12, column=4),
                 end=CodePosition(line=12, column=8),
@@ -112,13 +112,13 @@ class OutputTest(TestCase):
         )
 
         assert rendered == (
-            "NoRedundantFString [*] f-string doesn't have placeholders, "
+            "no-redundant-f-string [*] f-string doesn't have placeholders, "
             "remove redundant f-string.  --> src/example.py:12:5"
         )
 
     def test_render_rattle_brief_violation_pads_rule_name_to_width(self) -> None:
         violation = LintViolation(
-            rule_name="ShortRule",
+            rule_name="short-rule",
             range=CodeRange(
                 start=CodePosition(line=12, column=4),
                 end=CodePosition(line=12, column=8),
@@ -132,10 +132,10 @@ class OutputTest(TestCase):
             Result(Path("src/example.py"), violation),
             path=Path("src/example.py"),
             brief=True,
-            brief_rule_width=len("LongerRuleName"),
+            brief_rule_width=len("longer-rule-name"),
         )
 
-        assert rendered == "ShortRule      [*] Short message.  --> src/example.py:12:5"
+        assert rendered == "short-rule       [*] Short message.  --> src/example.py:12:5"
 
     def test_render_rattle_parser_syntax_error(self) -> None:
         source = b"print)\nvalue = 1\n"
@@ -188,7 +188,7 @@ class OutputTest(TestCase):
     def test_render_rattle_result_with_color(self) -> None:
         source = b"value = f'hello'\n"
         violation = LintViolation(
-            rule_name="NoRedundantFString",
+            rule_name="no-redundant-f-string",
             range=CodeRange(
                 start=CodePosition(line=1, column=8),
                 end=CodePosition(line=1, column=16),

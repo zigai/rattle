@@ -34,9 +34,9 @@ class TypesTest(TestCase):
     def test_ignore_comment_regex(self) -> None:
         for value, expected_names in (
             ("# rattle: ignore", None),
-            ("# rattle: ignore[FakeRule]", "FakeRule"),
-            ("#rattle:ignore[Fake,Another]", "Fake,Another"),
-            ("# rattle: ignore [Fake, Another, Name]", "Fake, Another, Name"),
+            ("# rattle: ignore[fake-rule]", "fake-rule"),
+            ("#rattle:ignore[fake,another-rule]", "fake,another-rule"),
+            ("# rattle: ignore [fake, another, rule-name]", "fake, another, rule-name"),
         ):
             with self.subTest("match " + value):
                 directive = ftypes.parse_lint_ignore_comment(value)
@@ -47,10 +47,11 @@ class TypesTest(TestCase):
             "# something else",
             "# noqa",
             "# rattle-ignore",
-            "# rattle: disable[FakeRule]",
+            "# rattle: disable[fake-rule]",
             "# rattle: ignore FakeRule",
+            "# rattle: ignore[FakeRule]",
             "# this is not a rattle ignore",
-            "# rattle: fixme[FakeRule]",
+            "# rattle: fixme[fake-rule]",
         ):
             with self.subTest("no match " + value):
                 assert not re.search(ftypes.LintIgnoreRegex, value), (
@@ -66,10 +67,10 @@ class TypesTest(TestCase):
             ("foo/bar", None),
             ("foo", {"local": None, "module": "foo", "name": None}),
             ("foo.bar", {"local": None, "module": "foo.bar", "name": None}),
-            ("foo.bar:Baz", {"local": None, "module": "foo.bar", "name": "Baz"}),
+            ("foo.bar:baz-rule", {"local": None, "module": "foo.bar", "name": "baz-rule"}),
             (".foo", {"local": ".", "module": ".foo", "name": None}),
             (".foo.bar", {"local": ".", "module": ".foo.bar", "name": None}),
-            (".foo.bar:Baz", {"local": ".", "module": ".foo.bar", "name": "Baz"}),
+            (".foo.bar:baz-rule", {"local": ".", "module": ".foo.bar", "name": "baz-rule"}),
             ("..foo", None),
         ):
             with self.subTest(value):
@@ -93,16 +94,16 @@ class TypesTest(TestCase):
         assert {
             ftypes.QualifiedRule("foo"),
             ftypes.QualifiedRule("foo.bar"),
-            ftypes.QualifiedRule("foo.bar", "Baz"),
+            ftypes.QualifiedRule("foo.bar", "baz-rule"),
             ftypes.QualifiedRule(".foo", local="."),
             ftypes.QualifiedRule(".foo.bar", local="."),
-            ftypes.QualifiedRule(".foo.bar", "Baz", local="."),
+            ftypes.QualifiedRule(".foo.bar", "baz-rule", local="."),
         } == valid
 
     def test_rule_name_selector_type(self) -> None:
-        selector = ftypes.RuleNameSelector("UseFstring")
+        selector = ftypes.RuleNameSelector("use-fstring")
 
-        assert str(selector) == "UseFstring"
+        assert str(selector) == "use-fstring"
         assert ftypes.RuleNameSelectorRegex.fullmatch(selector.value)
 
     def test_tags_parser(self) -> None:

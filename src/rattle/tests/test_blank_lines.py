@@ -29,7 +29,7 @@ RULE_CLASSES: tuple[type[LintRule], ...] = (
     MatchCaseSeparation,
 )
 
-DEFAULT_RULE_PACK: tuple[type[LintRule], ...] = (
+DEFAULT_RULE_COLLECTION: tuple[type[LintRule], ...] = (
     NoSuiteLeadingTrailingBlankLines,
     BlankLineBeforeAssignment,
     BlankLineBeforeBranchInLargeSuite,
@@ -87,7 +87,7 @@ VALID_CASES = [
     pytest.param(
         rule_cls,
         _as_valid(case),
-        id=f"{rule_cls.__name__}.VALID[{index}]",
+        id=f"{rule_cls.name}.VALID[{index}]",
     )
     for rule_cls in RULE_CLASSES
     for index, case in enumerate(rule_cls.VALID)
@@ -97,7 +97,7 @@ INVALID_CASES = [
     pytest.param(
         rule_cls,
         _as_invalid(case),
-        id=f"{rule_cls.__name__}.INVALID[{index}]",
+        id=f"{rule_cls.name}.INVALID[{index}]",
     )
     for rule_cls in RULE_CLASSES
     for index, case in enumerate(rule_cls.INVALID)
@@ -160,9 +160,9 @@ def test_rule_settings_resolve_from_short_selectors() -> None:
         path=path,
         root=Path.cwd(),
         options={
-            "BlankLineBeforeBranchInLargeSuite": {"max_suite_non_empty_lines": 4},
-            "BlankLineBeforeAssignment": {"short_control_flow_max_statements": 1},
-            "MatchCaseSeparation": {"max_case_non_empty_lines": 5},
+            "blank-line-before-branch-in-large-suite": {"max_suite_non_empty_lines": 4},
+            "blank-line-before-assignment": {"short_control_flow_max_statements": 1},
+            "match-case-separation": {"max_case_non_empty_lines": 5},
         },
     )
 
@@ -269,9 +269,9 @@ def test_bl210_reports_first_line_of_multiline_assignment() -> None:
     assert report.range.end.line == 3
 
 
-def test_default_rule_pack_converges_after_guard_to_assignment_fix() -> None:
+def test_default_rule_collection_converges_after_guard_to_assignment_fix() -> None:
     runner, reports = _run_rules(
-        DEFAULT_RULE_PACK,
+        DEFAULT_RULE_COLLECTION,
         """
         def f(flag: bool, label: str) -> str:
             if not flag:
@@ -296,13 +296,13 @@ def test_default_rule_pack_converges_after_guard_to_assignment_fix() -> None:
         """
     )
 
-    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    _, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
     assert fixed_reports == []
 
 
-def test_default_rule_pack_allows_compact_terminal_simple_return_tail() -> None:
+def test_default_rule_collection_allows_compact_terminal_simple_return_tail() -> None:
     _, reports = _run_rules(
-        DEFAULT_RULE_PACK,
+        DEFAULT_RULE_COLLECTION,
         """
         def f() -> int:
             log_start()
@@ -314,9 +314,9 @@ def test_default_rule_pack_allows_compact_terminal_simple_return_tail() -> None:
     assert reports == []
 
 
-def test_default_rule_pack_allows_ruff_style_nested_definition_at_loop_start() -> None:
+def test_default_rule_collection_allows_ruff_style_nested_definition_at_loop_start() -> None:
     _, reports = _run_rules(
-        DEFAULT_RULE_PACK,
+        DEFAULT_RULE_COLLECTION,
         """
         def f(digits: str) -> None:
             for digit in digits:
@@ -330,9 +330,9 @@ def test_default_rule_pack_allows_ruff_style_nested_definition_at_loop_start() -
     assert reports == []
 
 
-def test_default_rule_pack_converges_after_nested_loop_tail_return() -> None:
+def test_default_rule_collection_converges_after_nested_loop_tail_return() -> None:
     runner, reports = _run_rules(
-        DEFAULT_RULE_PACK,
+        DEFAULT_RULE_COLLECTION,
         """
         def f(items: list[int]) -> tuple[int, ...]:
             result: list[int] = []
@@ -349,13 +349,13 @@ def test_default_rule_pack_converges_after_nested_loop_tail_return() -> None:
     assert reports
 
     fixed_code = runner.apply_replacements(reports).code
-    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    _, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
     assert fixed_reports == []
 
 
-def test_default_rule_pack_converges_after_nested_guard_chain_assignment_followup() -> None:
+def test_default_rule_collection_converges_after_nested_guard_chain_assignment_followup() -> None:
     runner, reports = _run_rules(
-        DEFAULT_RULE_PACK,
+        DEFAULT_RULE_COLLECTION,
         """
         def f(values: list[str]) -> dict[str, str]:
             result: dict[str, str] = {}
@@ -376,7 +376,7 @@ def test_default_rule_pack_converges_after_nested_guard_chain_assignment_followu
     assert reports
 
     fixed_code = runner.apply_replacements(reports).code
-    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    _, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
     assert fixed_reports == []
 
 
@@ -588,9 +588,9 @@ def test_bl350_allows_related_expression_fallthrough() -> None:
     assert reports == []
 
 
-def test_default_rule_pack_keeps_loop_cleanup_compact_but_separates_phases() -> None:
+def test_default_rule_collection_keeps_loop_cleanup_compact_but_separates_phases() -> None:
     runner, reports = _run_rules(
-        DEFAULT_RULE_PACK,
+        DEFAULT_RULE_COLLECTION,
         """
         def f(stream: object) -> tuple[object, ...]:
             captured: list[object] = []
@@ -630,13 +630,15 @@ def test_default_rule_pack_keeps_loop_cleanup_compact_but_separates_phases() -> 
         """
     )
 
-    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    _, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
     assert fixed_reports == []
 
 
-def test_default_rule_pack_keeps_tuple_unpack_attached_to_guard_then_separates_main_flow() -> None:
+def test_default_rule_collection_keeps_tuple_unpack_attached_to_guard_then_separates_main_flow() -> (
+    None
+):
     runner, reports = _run_rules(
-        DEFAULT_RULE_PACK,
+        DEFAULT_RULE_COLLECTION,
         """
         def f(subject: object) -> None:
             left, candidate, payload = inspect_subject(subject)
@@ -660,7 +662,7 @@ def test_default_rule_pack_keeps_tuple_unpack_attached_to_guard_then_separates_m
         """
     )
 
-    _, fixed_reports = _run_rules(DEFAULT_RULE_PACK, fixed_code)
+    _, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
     assert fixed_reports == []
 
 

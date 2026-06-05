@@ -22,7 +22,7 @@ from .helpers import make_cli_runner
 def assert_brief_diagnostic(stdout: str, path: Path) -> None:
     line = stdout.strip()
     prefix = (
-        "NoRedundantFString [*] f-string doesn't have placeholders, "
+        "no-redundant-f-string [*] f-string doesn't have placeholders, "
         "remove redundant f-string.  --> "
     )
 
@@ -45,44 +45,68 @@ class CliTest(TestCase):
     def test_rules_test_accepts_rule_name_selector(self) -> None:
         result = self.runner.invoke(
             main,
-            ["rules", "--test", "-r", "UseFstring"],
+            ["rules", "--test", "-r", "use-fstring"],
             catch_exceptions=False,
         )
         assert result.exit_code == 0
 
+    def test_rules_test_displays_canonical_rule_name(self) -> None:
+        result = self.runner.invoke(
+            main,
+            ["rules", "--test", "-r", "use-fstring"],
+            catch_exceptions=False,
+        )
+
+        output = result.stdout + result.stderr
+        assert result.exit_code == 0
+        assert "rattle.testing.use-fstring" in output
+        assert "rattle.testing.UseFstring" not in output
+
     def test_rules_test_returns_nonzero_for_missing_rule(self) -> None:
         result = self.runner.invoke(
             main,
-            ["rules", "--test", "-r", "DefinitelyMissingRule"],
+            ["rules", "--test", "-r", "definitely-missing-rule"],
             catch_exceptions=False,
         )
         assert result.exit_code == 1
 
     def test_test_command_removed(self) -> None:
-        result = self.runner.invoke(main, ["test", "UseFstring"], catch_exceptions=False)
+        result = self.runner.invoke(main, ["test", "use-fstring"], catch_exceptions=False)
 
         assert result.exit_code == 2
         assert "invalid choice: 'test'" in result.stderr
 
     def test_rules_command_displays_enabled_rules(self) -> None:
-        result = self.runner.invoke(main, ["rules", "-r", "UseFstring"], catch_exceptions=False)
+        result = self.runner.invoke(main, ["rules", "-r", "use-fstring"], catch_exceptions=False)
 
         assert result.exit_code == 0
         assert "Rules for " in result.stdout
         assert "1 enabled" in result.stdout
-        assert "UseFstring - Do not use printf style formatting" in result.stdout
+        assert "use-fstring - Do not use printf style formatting" in result.stdout
         assert "[fix]" not in result.stdout
         assert "simple_expression_max_length" not in result.stdout
-        assert "rattle.rules.fixit_extra.use_fstring:UseFstring" not in result.stdout
+        assert "rattle.rules.fixit_extra.use_fstring:use-fstring" not in result.stdout
         assert "Options(" not in result.stdout
         assert "Config(" not in result.stdout
+
+    def test_rules_command_displays_disabled_rules_with_canonical_names(self) -> None:
+        result = self.runner.invoke(main, ["rules"], catch_exceptions=False)
+
+        assert result.exit_code == 0
+        assert "Disabled" in result.stdout
+        assert "  explicit-frozen-dataclass (disabled)" in result.stdout
+        assert "  use-rattle-ignore-comment (disabled)" in result.stdout
+        assert "  use-types-from-typing (python-version)" in result.stdout
+        assert "ExplicitFrozenDataclass" not in result.stdout
+        assert "UseRattleIgnoreComment" not in result.stdout
+        assert "UseTypesFromTyping" not in result.stdout
 
     def test_rule_line_omits_rule_tags(self) -> None:
         class TaggedRule(LintRule):
             MESSAGE = "Use the narrow rules listing."
             TAGS = {"architecture", "local"}
 
-        assert _rule_line(TaggedRule()) == "  Tagged - Use the narrow rules listing."
+        assert _rule_line(TaggedRule()) == "  tagged-rule - Use the narrow rules listing."
 
     def test_rule_line_only_colors_rule_name(self) -> None:
         def fake_colored(
@@ -97,7 +121,7 @@ class CliTest(TestCase):
         with patch("rattle.cli.colored", side_effect=fake_colored):
             line = _rule_line(UseFstring())
 
-        assert line.startswith("  <colored>UseFstring</colored> - ")
+        assert line.startswith("  <colored>use-fstring</colored> - ")
         assert " - Do not use printf style formatting" in line
         assert " - <colored>Do not use printf style formatting" not in line
 
@@ -210,7 +234,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "UseAsyncSleepInAsyncDef", path.as_posix()],
+                ["fix", "-r", "use-async-sleep-in-async-def", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -223,7 +247,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "NoRedundantFString", path.as_posix()],
+                ["fix", "-r", "no-redundant-f-string", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -236,7 +260,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "NoRedundantFString", path.as_posix()],
+                ["fix", "-r", "no-redundant-f-string", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -252,7 +276,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "NoRedundantFString", "-n", path.as_posix()],
+                ["fix", "-r", "no-redundant-f-string", "-n", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -266,7 +290,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "NoRedundantFString", "-b", path.as_posix()],
+                ["lint", "-r", "no-redundant-f-string", "-b", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -324,7 +348,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "NoRedundantFString", "--brief", path.as_posix()],
+                ["fix", "-r", "no-redundant-f-string", "--brief", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -368,7 +392,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "NoRedundantFString", "--interactive", path.as_posix()],
+                ["fix", "-r", "no-redundant-f-string", "--interactive", path.as_posix()],
                 input="q",
                 catch_exceptions=False,
             )
@@ -383,7 +407,7 @@ class CliTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "NoRedundantFString", "--interactive", path.as_posix()],
+                ["fix", "-r", "no-redundant-f-string", "--interactive", path.as_posix()],
                 input="y",
                 catch_exceptions=False,
             )

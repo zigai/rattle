@@ -242,7 +242,7 @@ class TestApi:
 
         def violation() -> LintViolation:
             return LintViolation(
-                rule_name="DirtyRule",
+                rule_name="dirty-rule",
                 range=CodeRange(
                     start=CodePosition(line=1, column=0),
                     end=CodePosition(line=1, column=1),
@@ -285,7 +285,7 @@ class TestApi:
 
         def violation() -> LintViolation:
             return LintViolation(
-                rule_name="AutoFix",
+                rule_name="auto-fix-rule",
                 range=CodeRange(
                     start=CodePosition(line=1, column=0),
                     end=CodePosition(line=1, column=1),
@@ -562,8 +562,10 @@ class TestApi:
         cache_dir = root / "cache"
         config = Config(path=path, root=root)
         cached_results: list[Result] = [
-            Result(path, violation("AutoFix", autofixable=True), source=b"x\n", config=config),
-            Result(path, violation("Other", autofixable=False), source=b"x\n", config=config),
+            Result(
+                path, violation("auto-fix-rule", autofixable=True), source=b"x\n", config=config
+            ),
+            Result(path, violation("other-rule", autofixable=False), source=b"x\n", config=config),
         ]
         seen_rules: list[list[str]] = []
 
@@ -580,8 +582,10 @@ class TestApi:
         ):
             results = list(rattle_configured_file(path, config=config, autofix=True))
 
-        assert seen_rules == [["AutoFix"]]
-        assert [result.violation.rule_name for result in results if result.violation] == ["Other"]
+        assert seen_rules == [["auto-fix-rule"]]
+        assert [result.violation.rule_name for result in results if result.violation] == [
+            "other-rule"
+        ]
         write_result.assert_not_called()
         write_clean_status.assert_not_called()
 
@@ -594,7 +598,7 @@ class TestApi:
 
         def violation() -> LintViolation:
             return LintViolation(
-                rule_name="AutoFix",
+                rule_name="auto-fix-rule",
                 range=CodeRange(
                     start=CodePosition(line=1, column=0),
                     end=CodePosition(line=1, column=1),

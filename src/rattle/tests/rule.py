@@ -81,11 +81,11 @@ class RunnerTest(TestCase):
         rule = NoopRule()
         for _ in self.runner.collect_violations([rule], Config(), metrics_hook=lambda _: None):
             pass  # exhaust the generator
-        assert "Duration.NoopRule.visit_Module" in self.runner.metrics
-        assert "Duration.NoopRule.leave_Module" in self.runner.metrics
-        assert self.runner.metrics["Duration.NoopRule.visit_Module"] >= 0
-        assert "Count.Noop" in self.runner.metrics
-        assert "FixCount.Noop" in self.runner.metrics
+        assert "Duration.noop-rule.visit_Module" in self.runner.metrics
+        assert "Duration.noop-rule.leave_Module" in self.runner.metrics
+        assert self.runner.metrics["Duration.noop-rule.visit_Module"] >= 0
+        assert "Count.noop-rule" in self.runner.metrics
+        assert "FixCount.noop-rule" in self.runner.metrics
         assert "Count.Total" in self.runner.metrics
 
     def test_timing_hook(self) -> None:
@@ -156,14 +156,14 @@ class RuleTest(TestCase):
         assert isinstance(pass_violation.node, cst.Pass)
 
         assert module_violation == LintViolation(
-            "ExerciseReport",
+            "exercise-report-rule",
             CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0)),
             "Module",
             module_violation.node,
             None,
         )
         assert pass_violation == LintViolation(
-            "ExerciseReport",
+            "exercise-report-rule",
             CodeRange(start=CodePosition(1, 0), end=CodePosition(1, 4)),
             "I pass",
             pass_violation.node,
@@ -180,14 +180,14 @@ class RuleTest(TestCase):
         assert isinstance(ellipses_violation.node, cst.Ellipsis)
 
         assert module_violation == LintViolation(
-            "ExerciseReport",
+            "exercise-report-rule",
             CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0)),
             "Module",
             module_violation.node,
             None,
         )
         assert ellipses_violation == LintViolation(
-            "ExerciseReport",
+            "exercise-report-rule",
             CodeRange(start=CodePosition(1, 1), end=CodePosition(2, 0)),
             "I ellipse",
             ellipses_violation.node,
@@ -206,14 +206,14 @@ class RuleTest(TestCase):
         assert isinstance(del_violation.node, cst.Del)
 
         assert module_violation == LintViolation(
-            "ExerciseReport",
+            "exercise-report-rule",
             CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0)),
             "Module",
             module_violation.node,
             None,
         )
         assert del_violation == LintViolation(
-            "ExerciseReport",
+            "exercise-report-rule",
             CodeRange(start=CodePosition(1, 0), end=CodePosition(1, 7)),
             "message on the class",
             del_violation.node,
@@ -230,15 +230,15 @@ class RuleTest(TestCase):
                 ("pass  # random comment\n", "I pass", (1, 0)),
                 ("pass\n", "I pass", (1, 0)),
                 ("pass  # rattle: ignore\n", None, None),
-                ("pass  # rattle: ignore[ExerciseReport]\n", None, None),
-                ("pass  # rattle: ignore[ExerciseReportRule]\n", None, None),
-                ("pass  # rattle: ignore[SomethingElse, ExerciseReport]\n", None, None),
-                ("pass  # rattle: ignore[SomethingElse]\n", "I pass", (1, 0)),
+                ("pass  # rattle: ignore[exercise-report-rule]\n", None, None),
+                ("pass  # rattle: ignore[exercise-report-rule]\n", None, None),
+                ("pass  # rattle: ignore[something-else, exercise-report-rule]\n", None, None),
+                ("pass  # rattle: ignore[something-else]\n", "I pass", (1, 0)),
                 ("# random comment\npass\n", "I pass", (2, 0)),
                 ("# rattle: ignore\npass\n", None, None),
-                ("# rattle: ignore[ExerciseReport]\npass\n", None, None),
-                ("# rattle: ignore[SomethingElse, ExerciseReport]\npass\n", None, None),
-                ("# rattle: ignore[SomethingElse]\npass\n", "I pass", (2, 0)),
+                ("# rattle: ignore[exercise-report-rule]\npass\n", None, None),
+                ("# rattle: ignore[something-else, exercise-report-rule]\npass\n", None, None),
+                ("# rattle: ignore[something-else]\npass\n", "I pass", (2, 0)),
                 ("def foo(bar): pass\n", "I pass", (1, 14)),
                 ("def foo(bar): pass  # rattle: ignore\n", None, None),
                 ("# rattle: ignore\ndef foo(bar): pass\n", None, None),
@@ -281,7 +281,7 @@ class RuleTest(TestCase):
                     """
                     import sys
 
-                    class Foo(object):  # rattle: ignore[ExerciseReport]
+                    class Foo(object):  # rattle: ignore[exercise-report-rule]
                         value = 1
                 """,
                     None,
@@ -302,7 +302,7 @@ class RuleTest(TestCase):
                     """
                     import sys
 
-                    # rattle: ignore[UnrelatedRule]
+                    # rattle: ignore[unrelated-rule]
                     class Foo(object):
                         value = 1
                 """,
@@ -314,7 +314,7 @@ class RuleTest(TestCase):
                     """
                     import sys
 
-                    # rattle: ignore[ExerciseReport]
+                    # rattle: ignore[exercise-report-rule]
                     @contextmanager
                     def problem():
                         yield True
@@ -328,7 +328,7 @@ class RuleTest(TestCase):
                     import sys
 
                     @contextmanager
-                    # rattle: ignore[ExerciseReport]
+                    # rattle: ignore[exercise-report-rule]
                     def problem():
                         yield True
                 """,
@@ -340,7 +340,7 @@ class RuleTest(TestCase):
                     """
                     import dataclasses
 
-                    # rattle: ignore[ExerciseReport]
+                    # rattle: ignore[exercise-report-rule]
                     @dataclasses.dataclass
                     class C:
                         value = 1
@@ -354,7 +354,7 @@ class RuleTest(TestCase):
                     import dataclasses
 
                     @dataclasses.dataclass
-                    # rattle: ignore[ExerciseReport]
+                    # rattle: ignore[exercise-report-rule]
                     class C:
                         value = 1
                 """,
@@ -364,7 +364,7 @@ class RuleTest(TestCase):
                 (
                     # above comprehension
                     """
-                    # rattle: ignore[ExerciseReport]
+                    # rattle: ignore[exercise-report-rule]
                     [... for _ in range(1)]
                 """,
                     None,
@@ -374,7 +374,7 @@ class RuleTest(TestCase):
                     # inside comprehension
                     """
                     [
-                        # rattle: ignore[ExerciseReport]
+                        # rattle: ignore[exercise-report-rule]
                         ... for _ in range(1)
                     ]
                 """,
@@ -384,7 +384,7 @@ class RuleTest(TestCase):
                 (
                     # after comprehension
                     """
-                    [... for _ in range(1)]  # rattle: ignore[ExerciseReport]
+                    [... for _ in range(1)]  # rattle: ignore[exercise-report-rule]
                 """,
                     None,
                     None,
@@ -393,7 +393,7 @@ class RuleTest(TestCase):
                     # trailing inline comprehension
                     """
                     [
-                        ... for _ in range(1)  # rattle: ignore[ExerciseReport]
+                        ... for _ in range(1)  # rattle: ignore[exercise-report-rule]
                     ]
                 """,
                     None,
@@ -403,7 +403,7 @@ class RuleTest(TestCase):
                     # before list element
                     """
                     [
-                        # rattle: ignore[ExerciseReport]
+                        # rattle: ignore[exercise-report-rule]
                         ...,
                         None,
                     ]
@@ -415,7 +415,7 @@ class RuleTest(TestCase):
                     # trailing list element
                     """
                     [
-                        ...,  # rattle: ignore[ExerciseReport]
+                        ...,  # rattle: ignore[exercise-report-rule]
                         None,
                     ]
                 """,

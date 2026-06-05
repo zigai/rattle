@@ -63,13 +63,13 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "NoRedundantFString", path.as_posix()],
+                    ["lint", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
                 assert result.output != ""
                 assert result.exit_code != 0
-                assert "NoRedundantFString [*]" in result.output
+                assert "no-redundant-f-string [*]" in result.output
                 assert re.search(r" --> .*file\.py:5:13", result.output)
                 assert '5 |     value = f"hello world"' in result.output
                 assert "help: Apply the available autofix" in result.output
@@ -79,13 +79,13 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "NoRedundantFString", "--diff", path.as_posix()],
+                    ["lint", "-r", "no-redundant-f-string", "--diff", path.as_posix()],
                     catch_exceptions=False,
                 )
 
                 assert result.output != ""
                 assert result.exit_code != 0
-                assert "NoRedundantFString [*]" in result.output
+                assert "no-redundant-f-string [*]" in result.output
                 assert "--- a/file.py" in result.output
                 assert "+++ b/file.py" in result.output
 
@@ -93,13 +93,13 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
                 assert result.output != ""
                 assert result.exit_code == 0
-                assert "NoRedundantFString [*]" in result.output
+                assert "no-redundant-f-string [*]" in result.output
                 assert re.search(r" --> .*file\.py:5:13", result.output)
                 assert expected_fix == path.read_text(), "unexpected file output"
 
@@ -109,13 +109,13 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
                 assert result.output != ""
                 assert result.exit_code == 0
-                assert "NoRedundantFString [*]" in result.output
+                assert "no-redundant-f-string [*]" in result.output
                 assert re.search(r" --> .*file\.py:5:13", result.output)
                 assert expected_format == path.read_text(), "unexpected file output"
 
@@ -144,13 +144,13 @@ class SmokeTest(TestCase):
                 path.write_text(ruff_content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
                 assert result.output != ""
                 assert result.exit_code == 0
-                assert "NoRedundantFString [*]" in result.output
+                assert "no-redundant-f-string [*]" in result.output
                 assert re.search(r" --> .*file\.py:5:13", result.output)
                 assert expected_ruff_format == path.read_text(), "unexpected file output"
 
@@ -170,13 +170,13 @@ class SmokeTest(TestCase):
                 path.write_text(ruff_content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
                 assert result.output != ""
                 assert result.exit_code == 0
-                assert "NoRedundantFString [*]" in result.output
+                assert "no-redundant-f-string [*]" in result.output
                 assert re.search(r" --> .*file\.py:5:13", result.output)
                 assert expected_ruff_format == path.read_text(), "unexpected file output"
 
@@ -186,27 +186,27 @@ class SmokeTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "NoRedundantFString", path.as_posix()],
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
                 assert result.output != ""
                 assert result.exit_code == 0
-                assert "NoRedundantFString [*]" in result.output
+                assert "no-redundant-f-string [*]" in result.output
                 assert re.search(r" --> .*file\.py:5:13", result.output)
                 assert expected_fix == path.read_text(), "unexpected file output"
 
             with self.subTest("linting via stdin"):
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "NoRedundantFString", "-", path.as_posix()],
+                    ["lint", "-r", "no-redundant-f-string", "-", path.as_posix()],
                     input=content,
                     catch_exceptions=False,
                 )
 
                 assert result.output != ""
                 assert result.exit_code != 0
-                assert "NoRedundantFString [*]" in result.output
+                assert "no-redundant-f-string [*]" in result.output
                 assert re.search(r" --> .*file\.py:5:13", result.output)
                 assert '5 |     value = f"hello world"' in result.output
 
@@ -215,7 +215,7 @@ class SmokeTest(TestCase):
 
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "NoRedundantFString", "-", path.as_posix()],
+                    ["fix", "-r", "no-redundant-f-string", "-", path.as_posix()],
                     input=content,
                     catch_exceptions=False,
                 )
@@ -242,8 +242,8 @@ class SmokeTest(TestCase):
             (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "UseFstring", td])
-            assert "UseFstring [*] Do not use printf style formatting" in result.output
+            result = self.runner.invoke(main, ["lint", "-r", "use-fstring", td])
+            assert "use-fstring [*] Do not use printf style formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert result.exit_code == 1
             assert result.stderr == "2 files checked, 1 violation in 1 file, 1 autofixable\n"
@@ -256,10 +256,10 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "UseFstring", dirty.as_posix()],
+                ["lint", "-r", "use-fstring", dirty.as_posix()],
                 catch_exceptions=False,
             )
-            assert "UseFstring [*] Do not use printf style formatting" in result.output
+            assert "use-fstring [*] Do not use printf style formatting" in result.output
             assert result.exit_code == 1
 
     def test_directory_respects_inherited_ruff_file_excludes(self) -> None:
@@ -282,7 +282,7 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "UseFstring", td],
+                ["lint", "-r", "use-fstring", td],
                 catch_exceptions=False,
             )
 
@@ -308,7 +308,7 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "UseFstring", td],
+                ["lint", "-r", "use-fstring", td],
                 catch_exceptions=False,
             )
 
@@ -329,7 +329,7 @@ class SmokeTest(TestCase):
                 [
                     "lint",
                     "-r",
-                    "UseFstring",
+                    "use-fstring",
                     td,
                     "--exclude",
                     "ignored.py",
@@ -365,7 +365,7 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "UseFstring", td, "--exclude", "included.py"],
+                ["lint", "-r", "use-fstring", td, "--exclude", "included.py"],
                 catch_exceptions=False,
             )
 
@@ -382,7 +382,7 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "UseFstring", td, "--extend-exclude", "generated.py"],
+                ["lint", "-r", "use-fstring", td, "--extend-exclude", "generated.py"],
                 catch_exceptions=False,
             )
 
@@ -405,7 +405,7 @@ class SmokeTest(TestCase):
             try:
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "UseFstring", "--stats", tdp.as_posix()],
+                    ["lint", "-r", "use-fstring", "--stats", tdp.as_posix()],
                     catch_exceptions=False,
                 )
             finally:
@@ -422,7 +422,7 @@ class SmokeTest(TestCase):
             (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
             (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "UseFstring", td])
+            result = self.runner.invoke(main, ["lint", "-r", "use-fstring", td])
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
             assert result.exit_code == 2
@@ -435,8 +435,8 @@ class SmokeTest(TestCase):
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
             (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "UseFstring", td])
-            assert "UseFstring [*] Do not use printf style formatting" in result.output
+            result = self.runner.invoke(main, ["lint", "-r", "use-fstring", td])
+            assert "use-fstring [*] Do not use printf style formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
@@ -491,7 +491,7 @@ class SmokeTest(TestCase):
 
             expected = clean.read_text()
 
-            result = self.runner.invoke(main, ["fix", "-r", "fixit_extra", td])
+            result = self.runner.invoke(main, ["fix", "-r", "fixit-extra", td])
             errors = defaultdict(list)
             pattern = re.compile(
                 r"(?m)^(?P<header>[^\n]+)\n --> (?P<path>.+):(?P<line>\d+):(?P<col>\d+)$"
@@ -507,15 +507,15 @@ class SmokeTest(TestCase):
 
             with self.subTest("single fix"):
                 assert [
-                    "2:10 NoRedundantFString",
+                    "2:10 no-redundant-f-string",
                 ] == sorted(errors[single])
                 assert expected == single.read_text()
 
             with self.subTest("multiple fixes"):
                 assert [
-                    "2:10 NoRedundantFString",
-                    "5:13 NoRedundantFString",
-                    "6:8 CompareSingletonPrimitivesByIs",
+                    "2:10 no-redundant-f-string",
+                    "5:13 no-redundant-f-string",
+                    "6:8 compare-singleton-primitives-by-is",
                 ] == sorted(errors[multi])
                 assert expected == multi.read_text()
 
