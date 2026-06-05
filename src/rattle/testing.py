@@ -6,7 +6,7 @@
 import re
 import textwrap
 import unittest
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -166,8 +166,9 @@ def generate_lint_rule_test_cases(
 ) -> list[type[unittest.TestCase]]:
     test_case_classes: list[type[unittest.TestCase]] = []
     for test_case in gen_all_test_methods(rules):
-        rule_name = type(test_case.rule).__name__
-        test_methods_to_add: dict[str, Callable[..., Any]] = {}
+        rule_type_name = type(test_case.rule).__name__
+        rule_display_name = test_case.rule.name
+        test_methods_to_add: dict[str, Any] = {"__qualname__": rule_display_name}
 
         for test_method_name, test_method_data in test_case.test_methods.items():
 
@@ -183,7 +184,7 @@ def generate_lint_rule_test_cases(
             test_method.__name__ = test_method_name
             test_methods_to_add[test_method_name] = test_method
 
-        test_case_class = type(rule_name, (LintRuleTestCase,), test_methods_to_add)
+        test_case_class = type(rule_type_name, (LintRuleTestCase,), test_methods_to_add)
         test_case_classes.append(test_case_class)
 
     return test_case_classes
