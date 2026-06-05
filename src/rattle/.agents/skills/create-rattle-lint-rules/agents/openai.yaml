@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Rattle Lint Rules"
+  short_description: "Use when adding Rattle to a Python repo or creating/refining in-repo custom Rattle lint rules."
+  default_prompt: "Use $create-rattle-lint-rules when adding Rattle or implementing custom Rattle lint rules in a Python project."
