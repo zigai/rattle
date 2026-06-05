@@ -94,7 +94,8 @@ class RuleConfigurationError(ValueError):
 
 class _RuleNameDescriptor:
     def __get__(self, instance: object, owner: type[LintRule]) -> str:
-        return rule_name_from_class_name(owner.__name__)
+        explicit_name = getattr(owner, "NAME", "")
+        return explicit_name or rule_name_from_class_name(owner.__name__)
 
 
 _RULE_SETTING_MISSING = object()
@@ -352,6 +353,9 @@ class LintRule(BatchableCSTVisitor):
 
     TAGS: set[str] = set()
     "Arbitrary classification tags for use in configuration/selection"
+
+    NAME: ClassVar[str] = ""
+    "Explicit public rule name. Defaults to kebab-case generated from the class name."
 
     PYTHON_VERSION: str = ""
     """
