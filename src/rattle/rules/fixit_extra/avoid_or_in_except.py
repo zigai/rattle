@@ -13,8 +13,7 @@ class AvoidOrInExcept(LintRule):
     """
     Discourages use of ``or`` in except clauses. If an except clause needs to catch multiple exceptions,
     they must be expressed as a parenthesized tuple, for example:
-    ``except (ValueError, TypeError)``
-    (https://docs.python.org/3/tutorial/errors.html#handling-exceptions).
+    ``except (ValueError, TypeError)``.
 
     When ``or`` is used, only the first operand exception type of the conditional statement will be caught.
     For example::
@@ -66,6 +65,13 @@ class AvoidOrInExcept(LintRule):
 
         Exc2:
     """
+
+    REFERENCES = (
+        (
+            "Python exception handling",
+            "https://docs.python.org/3/tutorial/errors.html#handling-exceptions",
+        ),
+    )
 
     MESSAGE: str = (
         "Avoid using 'or' in an except block. For example:"

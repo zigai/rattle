@@ -14,14 +14,14 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 class NoStringTypeAnnotation(LintRule):
     """
     Enforce the use of type identifier instead of using string type hints for simplicity and better syntax highlighting.
-    Starting in Python 3.7, ``from __future__ import annotations`` can postpone evaluation of type annotations
-    `PEP 563 <https://www.python.org/dev/peps/pep-0563/#forward-references>`_
+    Starting in Python 3.7, ``from __future__ import annotations`` can postpone evaluation of type annotations,
     and thus forward references no longer need to use string annotation style.
     """
 
     MESSAGE = (
         "String type hints are no longer necessary in Python, use the type identifier directly."
     )
+    REFERENCES = (("PEP 563", "https://www.python.org/dev/peps/pep-0563/#forward-references"),)
     SOURCE_PATTERNS = ("from __future__ import annotations",)
 
     VALID = [

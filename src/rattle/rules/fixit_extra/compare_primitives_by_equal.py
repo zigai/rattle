@@ -11,11 +11,14 @@ from rattle import Invalid, LintRule, Valid
 class ComparePrimitivesByEqual(LintRule):
     """
     Enforces the use of ``==`` and ``!=`` in comparisons to primitives rather than ``is`` and ``is not``.
-    The ``==`` operator checks equality (https://docs.python.org/3/reference/datamodel.html#object.__eq__),
-    while ``is`` checks identity (https://docs.python.org/3/reference/expressions.html#is).
+    The ``==`` operator checks equality, while ``is`` checks identity.
     """
 
     MESSAGE = "Don't use `is` or `is not` to compare primitives, as they compare references. Use == or != instead."
+    REFERENCES = (
+        ("object.__eq__", "https://docs.python.org/3/reference/datamodel.html#object.__eq__"),
+        ("is operator", "https://docs.python.org/3/reference/expressions.html#is"),
+    )
     VALID = [
         Valid("a == 1"),
         Valid("a == '1'"),

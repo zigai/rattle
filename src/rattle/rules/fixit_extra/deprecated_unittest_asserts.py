@@ -19,13 +19,15 @@ class DeprecatedUnittestAsserts(LintRule):
         "assertNotRegexpMatches",
         "assertRaisesRegexp",
     )
-    """
-    Discourages the use of various deprecated unittest.TestCase functions.
-
-    See https://docs.python.org/3/library/unittest.html#deprecated-aliases
-    """
+    """Discourages the use of various deprecated unittest.TestCase functions."""
 
     MESSAGE: str = "{deprecated} is deprecated, use {replacement} instead"
+    REFERENCES = (
+        (
+            "unittest deprecated aliases",
+            "https://docs.python.org/3/library/unittest.html#deprecated-aliases",
+        ),
+    )
     VALID = [
         # correct methods
         Valid("self.assertEqual(a, b)"),

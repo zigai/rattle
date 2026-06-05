@@ -13,14 +13,20 @@ from rattle import Invalid, LintRule, Valid
 class UseAssertIn(LintRule):
     SOURCE_PATTERNS = ("assertTrue", "assertFalse")
     """
-    Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``
-    as it is deprecated (https://docs.python.org/3.8/library/unittest.html#deprecated-aliases).
-    Use ``assertIn(x, y)`` and ``assertNotIn(x, y)``) instead.
+    Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``.
+    Use ``assertIn(x, y)`` and ``assertNotIn(x, y)`` instead.
     """
 
-    MESSAGE: str = (
-        "Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check.\n"
-        "See https://docs.python.org/3/library/unittest.html#unittest.TestCase.assertIn)"
+    MESSAGE: str = "Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check."
+    REFERENCES = (
+        (
+            "unittest deprecated aliases",
+            "https://docs.python.org/3.8/library/unittest.html#deprecated-aliases",
+        ),
+        (
+            "unittest assertIn",
+            "https://docs.python.org/3/library/unittest.html#unittest.TestCase.assertIn",
+        ),
     )
 
     VALID = [

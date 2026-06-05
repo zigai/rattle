@@ -13,14 +13,11 @@ from rattle import FileContent, Invalid, LintRule, Valid
 
 
 class ReplaceUnionWithOptional(LintRule):
-    """
-    Enforces the use of ``Optional[T]`` over ``Union[T, None]`` and ``Union[None, T]``.
-    See https://docs.python.org/3/library/typing.html#typing.Optional to learn more about Optionals.
-    """
+    """Enforces the use of ``Optional[T]`` over ``Union[T, None]`` and ``Union[None, T]``."""
 
-    MESSAGE: str = (
-        "`Optional[T]` is preferred over `Union[T, None]` or `Union[None, T]`. "
-        "Learn more: https://docs.python.org/3/library/typing.html#typing.Optional"
+    MESSAGE: str = "`Optional[T]` is preferred over `Union[T, None]` or `Union[None, T]`."
+    REFERENCES = (
+        ("typing.Optional", "https://docs.python.org/3/library/typing.html#typing.Optional"),
     )
     METADATA_DEPENDENCIES = (ScopeProvider,)
     VALID = [
