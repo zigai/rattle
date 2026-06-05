@@ -242,8 +242,8 @@ class SmokeTest(TestCase):
             (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "use-fstring", td])
-            assert "use-fstring [*] Do not use printf style formatting" in result.output
+            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
+            assert "use-f-string [*] Do not use printf style formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert result.exit_code == 1
             assert result.stderr == "2 files checked, 1 violation in 1 file, 1 autofixable\n"
@@ -256,10 +256,10 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-fstring", dirty.as_posix()],
+                ["lint", "-r", "use-f-string", dirty.as_posix()],
                 catch_exceptions=False,
             )
-            assert "use-fstring [*] Do not use printf style formatting" in result.output
+            assert "use-f-string [*] Do not use printf style formatting" in result.output
             assert result.exit_code == 1
 
     def test_directory_respects_inherited_ruff_file_excludes(self) -> None:
@@ -282,7 +282,7 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-fstring", td],
+                ["lint", "-r", "use-f-string", td],
                 catch_exceptions=False,
             )
 
@@ -308,7 +308,7 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-fstring", td],
+                ["lint", "-r", "use-f-string", td],
                 catch_exceptions=False,
             )
 
@@ -329,7 +329,7 @@ class SmokeTest(TestCase):
                 [
                     "lint",
                     "-r",
-                    "use-fstring",
+                    "use-f-string",
                     td,
                     "--exclude",
                     "ignored.py",
@@ -365,7 +365,7 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-fstring", td, "--exclude", "included.py"],
+                ["lint", "-r", "use-f-string", td, "--exclude", "included.py"],
                 catch_exceptions=False,
             )
 
@@ -382,7 +382,7 @@ class SmokeTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-fstring", td, "--extend-exclude", "generated.py"],
+                ["lint", "-r", "use-f-string", td, "--extend-exclude", "generated.py"],
                 catch_exceptions=False,
             )
 
@@ -405,7 +405,7 @@ class SmokeTest(TestCase):
             try:
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "use-fstring", "--stats", tdp.as_posix()],
+                    ["lint", "-r", "use-f-string", "--stats", tdp.as_posix()],
                     catch_exceptions=False,
                 )
             finally:
@@ -422,7 +422,7 @@ class SmokeTest(TestCase):
             (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
             (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "use-fstring", td])
+            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
             assert result.exit_code == 2
@@ -435,8 +435,8 @@ class SmokeTest(TestCase):
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
             (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "use-fstring", td])
-            assert "use-fstring [*] Do not use printf style formatting" in result.output
+            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
+            assert "use-f-string [*] Do not use printf style formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
@@ -515,7 +515,7 @@ class SmokeTest(TestCase):
                 assert [
                     "2:10 no-redundant-f-string",
                     "5:13 no-redundant-f-string",
-                    "6:8 compare-singleton-primitives-by-is",
+                    "6:8 use-is-for-singletons",
                 ] == sorted(errors[multi])
                 assert expected == multi.read_text()
 

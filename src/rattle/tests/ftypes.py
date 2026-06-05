@@ -101,9 +101,9 @@ class TypesTest(TestCase):
         } == valid
 
     def test_rule_name_selector_type(self) -> None:
-        selector = ftypes.RuleNameSelector("use-fstring")
+        selector = ftypes.RuleNameSelector("use-f-string")
 
-        assert str(selector) == "use-fstring"
+        assert str(selector) == "use-f-string"
         assert ftypes.RuleNameSelectorRegex.fullmatch(selector.value)
 
     def test_tags_parser(self) -> None:

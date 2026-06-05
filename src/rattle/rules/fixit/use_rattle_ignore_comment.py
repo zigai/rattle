@@ -23,7 +23,7 @@ class UseRattleIgnoreComment(LintRule):
     VALID = [
         Valid(
             """
-            # rattle: ignore[use-fstring]
+            # rattle: ignore[use-f-string]
             "%s" % "hi"
             """
         ),

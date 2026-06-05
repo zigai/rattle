@@ -45,7 +45,7 @@ class CliTest(TestCase):
     def test_rules_test_accepts_rule_name_selector(self) -> None:
         result = self.runner.invoke(
             main,
-            ["rules", "--test", "-r", "use-fstring"],
+            ["rules", "--test", "-r", "use-f-string"],
             catch_exceptions=False,
         )
         assert result.exit_code == 0
@@ -53,13 +53,13 @@ class CliTest(TestCase):
     def test_rules_test_displays_canonical_rule_name(self) -> None:
         result = self.runner.invoke(
             main,
-            ["rules", "--test", "-r", "use-fstring"],
+            ["rules", "--test", "-r", "use-f-string"],
             catch_exceptions=False,
         )
 
         output = result.stdout + result.stderr
         assert result.exit_code == 0
-        assert "rattle.testing.use-fstring" in output
+        assert "rattle.testing.use-f-string" in output
         assert "rattle.testing.UseFstring" not in output
 
     def test_rules_test_returns_nonzero_for_missing_rule(self) -> None:
@@ -71,21 +71,21 @@ class CliTest(TestCase):
         assert result.exit_code == 1
 
     def test_test_command_removed(self) -> None:
-        result = self.runner.invoke(main, ["test", "use-fstring"], catch_exceptions=False)
+        result = self.runner.invoke(main, ["test", "use-f-string"], catch_exceptions=False)
 
         assert result.exit_code == 2
         assert "invalid choice: 'test'" in result.stderr
 
     def test_rules_command_displays_enabled_rules(self) -> None:
-        result = self.runner.invoke(main, ["rules", "-r", "use-fstring"], catch_exceptions=False)
+        result = self.runner.invoke(main, ["rules", "-r", "use-f-string"], catch_exceptions=False)
 
         assert result.exit_code == 0
         assert "Rules for " in result.stdout
         assert "1 enabled" in result.stdout
-        assert "use-fstring - Do not use printf style formatting" in result.stdout
+        assert "use-f-string - Do not use printf style formatting" in result.stdout
         assert "[fix]" not in result.stdout
         assert "simple_expression_max_length" not in result.stdout
-        assert "rattle.rules.fixit_extra.use_fstring:use-fstring" not in result.stdout
+        assert "rattle.rules.fixit_extra.use_fstring:use-f-string" not in result.stdout
         assert "Options(" not in result.stdout
         assert "Config(" not in result.stdout
 
@@ -121,7 +121,7 @@ class CliTest(TestCase):
         with patch("rattle.cli.colored", side_effect=fake_colored):
             line = _rule_line(UseFstring())
 
-        assert line.startswith("  <colored>use-fstring</colored> - ")
+        assert line.startswith("  <colored>use-f-string</colored> - ")
         assert " - Do not use printf style formatting" in line
         assert " - <colored>Do not use printf style formatting" not in line
 

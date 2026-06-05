@@ -160,7 +160,7 @@ def test_rule_settings_resolve_from_short_selectors() -> None:
         path=path,
         root=Path.cwd(),
         options={
-            "blank-line-before-branch-in-large-suite": {"max_suite_non_empty_lines": 4},
+            "blank-line-before-branch": {"max_suite_non_empty_lines": 4},
             "blank-line-before-assignment": {"short_control_flow_max_statements": 1},
             "match-case-separation": {"max_case_non_empty_lines": 5},
         },

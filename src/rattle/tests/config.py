@@ -343,7 +343,7 @@ class ConfigTest(TestCase):
                         (root / "a/b/c/pyproject.toml"),
                         {
                             "options": {
-                                "rattle.rules.fixit_extra:use-fstring": {
+                                "rattle.rules.fixit_extra:use-f-string": {
                                     "allowed_prefixes": ["TODO", "FIXME"],
                                     "structured_entries": [
                                         {"symbol": "typing.cast", "message": "Avoid cast."}
@@ -356,7 +356,7 @@ class ConfigTest(TestCase):
                         (root / "a/b/pyproject.toml"),
                         {
                             "options": {
-                                "rattle.rules.fixit_extra:use-fstring": {
+                                "rattle.rules.fixit_extra:use-f-string": {
                                     "simple_expression_max_length": 60
                                 }
                             }
@@ -366,7 +366,7 @@ class ConfigTest(TestCase):
                         (root / "a/pyproject.toml"),
                         {
                             "options": {
-                                "rattle.rules.fixit_extra:use-fstring": {
+                                "rattle.rules.fixit_extra:use-f-string": {
                                     "simple_expression_max_length": 30,
                                     "allow_dot_format": False,
                                 }
@@ -378,7 +378,7 @@ class ConfigTest(TestCase):
                     path=target,
                     root=(root / "a"),
                     options={
-                        "rattle.rules.fixit_extra:use-fstring": {
+                        "rattle.rules.fixit_extra:use-f-string": {
                             "simple_expression_max_length": 60,
                             "allow_dot_format": False,
                             "allowed_prefixes": ["TODO", "FIXME"],
@@ -423,7 +423,7 @@ class ConfigTest(TestCase):
                 RawConfig(
                     (root / "pyproject.toml"),
                     {
-                        "enable": ["use-fstring"],
+                        "enable": ["use-f-string"],
                         "disable": ["no-static-if-condition"],
                     },
                 )
@@ -434,7 +434,7 @@ class ConfigTest(TestCase):
             assert actual == Config(
                 path=target,
                 root=root,
-                enable=[RuleNameSelector("use-fstring")],
+                enable=[RuleNameSelector("use-f-string")],
                 disable=[RuleNameSelector("no-static-if-condition")],
             )
 
@@ -580,11 +580,11 @@ class ConfigTest(TestCase):
                     """
                     [tool.rattle]
                     root = true
-                    enable = ["use-fstring"]
+                    enable = ["use-f-string"]
                     disable = ["no-static-if-condition"]
 
                     [tool.rattle.options]
-                    "use-fstring" = {simple_expression_max_length = 42}
+                    "use-f-string" = {simple_expression_max_length = 42}
                     """
                 )
             )
@@ -595,9 +595,9 @@ class ConfigTest(TestCase):
                 Config(
                     path=path,
                     root=self.tdp,
-                    enable=[RuleNameSelector("use-fstring")],
+                    enable=[RuleNameSelector("use-f-string")],
                     disable=[RuleNameSelector("no-static-if-condition")],
-                    options={"use-fstring": {"simple_expression_max_length": 42}},
+                    options={"use-f-string": {"simple_expression_max_length": 42}},
                 )
             ) == asdict(actual)
 
@@ -688,15 +688,15 @@ class ConfigTest(TestCase):
                     root = true
 
                     [tool.rattle.options]
-                    "rattle.rules.fixit_extra:use-fstring" = { structured_entries = [{symbol = "typing.cast", message = "Avoid cast."}] }
+                    "rattle.rules.fixit_extra:use-f-string" = { structured_entries = [{symbol = "typing.cast", message = "Avoid cast."}] }
                     """
                 )
             )
 
             actual = config.generate_config(self.tdp / "foo.py")
-            assert actual.options["rattle.rules.fixit_extra:use-fstring"]["structured_entries"] == [
-                {"symbol": "typing.cast", "message": "Avoid cast."}
-            ]
+            assert actual.options["rattle.rules.fixit_extra:use-f-string"][
+                "structured_entries"
+            ] == [{"symbol": "typing.cast", "message": "Avoid cast."}]
 
         with self.subTest("options value must be TOML-shaped"):
             (self.tdp / "pyproject.toml").write_text(
@@ -706,7 +706,7 @@ class ConfigTest(TestCase):
                     root = true
 
                     [tool.rattle.options]
-                    "rattle.rules.fixit_extra:use-fstring" = { simple_expression_max_length = 1979-05-27 }
+                    "rattle.rules.fixit_extra:use-f-string" = { simple_expression_max_length = 1979-05-27 }
                     """
                 )
             )
@@ -825,7 +825,7 @@ class ConfigTest(TestCase):
         with self.subTest("opt-in by rule name"):
             rules = collect_types(
                 Config(
-                    enable=[RuleNameSelector("use-fstring")],
+                    enable=[RuleNameSelector("use-f-string")],
                     disable=[],
                     python_version=None,
                 )
@@ -867,7 +867,7 @@ class ConfigTest(TestCase):
             rules = collect_types(
                 Config(
                     disable=[QualifiedRule("rattle.rules.fixit")],
-                    enable=[RuleNameSelector("use-fstring")],
+                    enable=[RuleNameSelector("use-f-string")],
                     python_version=None,
                 )
             )
@@ -979,9 +979,9 @@ class ConfigTest(TestCase):
         with self.subTest("rule settings apply"):
             (rule,) = config.collect_rules(
                 Config(
-                    enable=[RuleNameSelector("use-fstring")],
+                    enable=[RuleNameSelector("use-f-string")],
                     disable=[],
-                    options={"use-fstring": {"simple_expression_max_length": 80}},
+                    options={"use-f-string": {"simple_expression_max_length": 80}},
                     python_version=None,
                 )
             )
@@ -991,10 +991,12 @@ class ConfigTest(TestCase):
         with self.subTest("rule settings apply by qualified name"):
             (rule,) = config.collect_rules(
                 Config(
-                    enable=[RuleNameSelector("use-fstring")],
+                    enable=[RuleNameSelector("use-f-string")],
                     disable=[],
                     options={
-                        "rattle.rules.fixit_extra:use-fstring": {"simple_expression_max_length": 70}
+                        "rattle.rules.fixit_extra:use-f-string": {
+                            "simple_expression_max_length": 70
+                        }
                     },
                     python_version=None,
                 )
@@ -1004,9 +1006,9 @@ class ConfigTest(TestCase):
 
         with self.subTest("cached rule plan materializes fresh rule instances"):
             cfg = Config(
-                enable=[RuleNameSelector("use-fstring")],
+                enable=[RuleNameSelector("use-f-string")],
                 disable=[],
-                options={"use-fstring": {"simple_expression_max_length": 60}},
+                options={"use-f-string": {"simple_expression_max_length": 60}},
                 python_version=None,
             )
             (first_rule,) = config.collect_rules(cfg)
@@ -1021,9 +1023,9 @@ class ConfigTest(TestCase):
         ):
             config.collect_rules(
                 Config(
-                    enable=[QualifiedRule("rattle.rules.fixit_extra", "use-fstring")],
+                    enable=[QualifiedRule("rattle.rules.fixit_extra", "use-f-string")],
                     disable=[],
-                    options={"rattle.rules.fixit_extra:use-fstring": {"not_a_setting": 80}},
+                    options={"rattle.rules.fixit_extra:use-f-string": {"not_a_setting": 80}},
                     python_version=None,
                 )
             )
@@ -1034,7 +1036,7 @@ class ConfigTest(TestCase):
                 dedent(
                     """
                     [tool.rattle]
-                    enable = ["use-fstring"]
+                    enable = ["use-f-string"]
                     output-format = "vscode"
                     """
                 )
@@ -1044,7 +1046,7 @@ class ConfigTest(TestCase):
             content = "name = '{name}'.format(name='Jane Doe')"
             filepath = self.tdp / "f_string.py"
             filepath.write_text(content)
-            output_format_regex = r".*f_string\.py:\d+:\d+ use-fstring: .+"
+            output_format_regex = r".*f_string\.py:\d+:\d+ use-f-string: .+"
 
             with self.subTest("linting vscode"):
                 result = runner.invoke(main, ["lint", filepath.as_posix()], catch_exceptions=False)
@@ -1054,13 +1056,13 @@ class ConfigTest(TestCase):
                 result = runner.invoke(main, ["fix", filepath.as_posix()], catch_exceptions=False)
                 assert re.search(output_format_regex, result.output)
 
-            custom_output_format_regex = r".*f_string\.py|\d+|\d+ use-fstring: .+"
+            custom_output_format_regex = r".*f_string\.py|\d+|\d+ use-f-string: .+"
             custom_output_format = "{path}|{start_line}|{start_col} {rule_name}: {message}"
             (self.tdp / "pyproject.toml").write_text(
                 dedent(
                     f"""
                     [tool.rattle]
-                    enable = ["use-fstring"]
+                    enable = ["use-f-string"]
                     output-format = 'custom'
                     output-template = '{custom_output_format}'
                     """
@@ -1094,7 +1096,7 @@ class ConfigTest(TestCase):
                     ],
                     catch_exceptions=True,
                 )
-                assert re.search(r"file .*f_string\.py line \d+ rule use-fstring", result.output)
+                assert re.search(r"file .*f_string\.py line \d+ rule use-f-string", result.output)
 
             with self.subTest("per-file output-format"):
                 nested = self.tdp / "nested"
@@ -1103,7 +1105,7 @@ class ConfigTest(TestCase):
                     dedent(
                         """
                         [tool.rattle]
-                        enable = ["use-fstring"]
+                        enable = ["use-f-string"]
                         output-format = "vscode"
                         """
                     )
@@ -1112,7 +1114,7 @@ class ConfigTest(TestCase):
                     dedent(
                         """
                         [tool.rattle]
-                        enable = ["use-fstring"]
+                        enable = ["use-f-string"]
                         output-format = "custom"
                         output-template = "CUSTOM {rule_name} {path}"
                         """
@@ -1124,7 +1126,7 @@ class ConfigTest(TestCase):
                 result = runner.invoke(
                     main, ["lint", nested_file.as_posix()], catch_exceptions=False
                 )
-                assert re.search(r"CUSTOM use-fstring .*nested_f_string\.py", result.output)
+                assert re.search(r"CUSTOM use-f-string .*nested_f_string\.py", result.output)
 
     def test_validate_config(self) -> None:
         with self.subTest("validate-config valid"), TemporaryDirectory() as td:
@@ -1151,7 +1153,7 @@ class ConfigTest(TestCase):
                     root = true
 
                     [tool.rattle.options]
-                    "rattle.rules.fixit_extra.use_fstring:use-fstring" = {simple_expression_max_length = 42}
+                    "rattle.rules.fixit_extra.use_fstring:use-f-string" = {simple_expression_max_length = 42}
                     """
             )
 
@@ -1202,12 +1204,12 @@ class ConfigTest(TestCase):
                 """
                 [tool.rattle]
                 root = true
-                enable = ["use-fstring"]
+                enable = ["use-f-string"]
                 disable = ["no-static-if-condition"]
-                per-file-enable = {"tests/**/*.py" = ["use-fstring"]}
+                per-file-enable = {"tests/**/*.py" = ["use-f-string"]}
 
                 [tool.rattle.options]
-                "use-fstring" = {simple_expression_max_length = 64}
+                "use-f-string" = {simple_expression_max_length = 64}
                 """
             )
 
@@ -1263,14 +1265,14 @@ class ConfigTest(TestCase):
                 root = true
 
                 [tool.rattle.options]
-                "rattle.rules.fixit_extra.use_fstring:use-fstring" = {simple_expression_max_length = "long"}
+                "rattle.rules.fixit_extra.use_fstring:use-f-string" = {simple_expression_max_length = "long"}
                 """
             )
 
             results = config.validate_config(path)
 
             assert any(
-                "Failed to validate options for `rattle.rules.fixit_extra.use_fstring:use-fstring`"
+                "Failed to validate options for `rattle.rules.fixit_extra.use_fstring:use-f-string`"
                 in result
                 for result in results
             )
@@ -1299,8 +1301,8 @@ class ConfigTest(TestCase):
                 """
                 [tool.rattle]
                 root = true
-                per-file-enable = {"tests/**/*.py" = ["rattle.rules.fixit_extra:use-fstring"]}
-                per-file-disable = {"tests/generated.py" = ["rattle.rules.fixit_extra:use-fstring"]}
+                per-file-enable = {"tests/**/*.py" = ["rattle.rules.fixit_extra:use-f-string"]}
+                per-file-disable = {"tests/generated.py" = ["rattle.rules.fixit_extra:use-f-string"]}
                 """
             )
 
@@ -1315,7 +1317,7 @@ class ConfigTest(TestCase):
                 """
                 [tool.rattle]
                 root = true
-                per-file-enable = {"tests/**/*.py" = "rattle.rules.fixit_extra:use-fstring"}
+                per-file-enable = {"tests/**/*.py" = "rattle.rules.fixit_extra:use-f-string"}
                 """
             )
 
@@ -1398,7 +1400,7 @@ class ConfigTest(TestCase):
                 [[tool.rattle.overrides]]
                 path = "SUPER_REAL_PATH"
 
-                [tool.rattle.overrides.options."rattle.rules.fixit_extra.use_fstring:use-fstring"]
+                [tool.rattle.overrides.options."rattle.rules.fixit_extra.use_fstring:use-f-string"]
                 simple_expression_max_length = 52
                 """
             )
@@ -1422,7 +1424,7 @@ class ConfigTest(TestCase):
                 path = "SUPER_REAL_PATH"
 
                 [[tool.rattle.overrides.options]]
-                "rattle.rules.fixit_extra.use_fstring:use-fstring" = {simple_expression_max_length = 52}
+                "rattle.rules.fixit_extra.use_fstring:use-f-string" = {simple_expression_max_length = 52}
                 """
             )
 
@@ -1436,7 +1438,7 @@ class ConfigTest(TestCase):
             path.write_text(
                 """
                 [tool.rattle]
-                enable = ["rattle/rules:deprecated-a-b-c-import"]
+                enable = ["rattle/rules:use-collections-abc"]
                 disable = ["fixit"]
                 root = true
                 """
@@ -1445,7 +1447,7 @@ class ConfigTest(TestCase):
             results = config.validate_config(path)
 
             assert results == [
-                "Failed to parse rule `rattle/rules:deprecated-a-b-c-import` for global enable: ConfigError: invalid rule name 'rattle/rules:deprecated-a-b-c-import'"
+                "Failed to parse rule `rattle/rules:use-collections-abc` for global enable: ConfigError: invalid rule name 'rattle/rules:use-collections-abc'"
             ]
 
         with self.subTest("validate-config multiple errors"), TemporaryDirectory() as td:
@@ -1454,13 +1456,13 @@ class ConfigTest(TestCase):
             config_path.write_text(
                 """
                 [tool.rattle]
-                enable = ["rattle/rules:deprecated-a-b-c-import"]
+                enable = ["rattle/rules:use-collections-abc"]
                 disable = ["fixit"]
                 root = true
 
                 [[tool.rattle.overrides]]
                 path = "SUPER_REAL_PATH"
-                enable = ["rattle.rules.fixit_extra:deprecated-a-b-c-import-super-real"]
+                enable = ["rattle.rules.fixit_extra:use-collections-abc-super-real"]
                 """
             )
 
@@ -1470,6 +1472,6 @@ class ConfigTest(TestCase):
             results = config.validate_config(config_path)
 
             assert results == [
-                "Failed to parse rule `rattle/rules:deprecated-a-b-c-import` for global enable: ConfigError: invalid rule name 'rattle/rules:deprecated-a-b-c-import'",
-                "Failed to import rule `rattle.rules.fixit_extra:deprecated-a-b-c-import-super-real` for override enable: `SUPER_REAL_PATH`: CollectionError: could not find rule rattle.rules.fixit_extra:deprecated-a-b-c-import-super-real",
+                "Failed to parse rule `rattle/rules:use-collections-abc` for global enable: ConfigError: invalid rule name 'rattle/rules:use-collections-abc'",
+                "Failed to import rule `rattle.rules.fixit_extra:use-collections-abc-super-real` for override enable: `SUPER_REAL_PATH`: CollectionError: could not find rule rattle.rules.fixit_extra:use-collections-abc-super-real",
             ]
