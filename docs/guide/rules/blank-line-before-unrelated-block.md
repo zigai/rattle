@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-block-header-cuddle-relaxed)=
+(rule-blank-line-before-unrelated-block)=
 
-# block-header-cuddle-relaxed
+# blank-line-before-unrelated-block
 
 <p class="rule-metadata">
   <span>Collection: <code>blank-lines</code></span>

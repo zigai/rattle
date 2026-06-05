@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-compare-singleton-primitives-by-is)=
+(rule-use-assert-equal)=
 
-# compare-singleton-primitives-by-is
+# use-assert-equal
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
@@ -17,70 +17,29 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Enforces the use of `is` and `is not` in comparisons to singleton primitives (None, True, False) rather than == and !=.
-The == operator checks equality, when in this scenario, we want to check identity.
+Finds incorrect use of ``assertTrue`` when the intention is to compare two values.
+These calls are replaced with ``assertEqual``.
+Comparisons with True, False and None are replaced with one-argument
+calls to ``assertTrue``, ``assertFalse`` and ``assertIsNone``.
 
 ## Message
 
-Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity. Use `is` or `is not` instead.
+"assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions.
 
-## References
-
-- [Flake8 E711](https://www.flake8rules.com/rules/E711.html)
-- [Flake8 E712](https://www.flake8rules.com/rules/E712.html)
 
 ## Valid examples
 
 ```python
-if x: pass
+self.assertTrue(a == b)
 ```
 ```python
-if not x: pass
+self.assertTrue(data.is_valid(), "is_valid() method")
 ```
 ```python
-x is True
+self.assertTrue(validate(len(obj.getName(type=SHORT))))
 ```
 ```python
-x is False
-```
-```python
-x is None
-```
-```python
-x is not None
-```
-```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
-```
-```python
-x is True is not y
-```
-```python
-y is None is not x
-```
-```python
-None is y
-```
-```python
-True is x
-```
-```python
-False is x
-```
-```python
-x == 2
-```
-```python
-2 != x
-```
-```python
-"True" == "True"
-```
-```python
-"True" != "False".lower()
-```
-```{raw} html
-</details>
+self.assertTrue(condition, message_string)
 ```
 
 ## Invalid examples
@@ -89,12 +48,12 @@ x == 2
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-x != True
+self.assertTrue(a, 3)
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-x is not True
+self.assertEqual(a, 3)
 ```
 ```{raw} html
 </div>
@@ -103,12 +62,12 @@ x is not True
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-x != False
+self.assertTrue(hash(s[:4]), 0x1234)
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-x is not False
+self.assertEqual(hash(s[:4]), 0x1234)
 ```
 ```{raw} html
 </div>
@@ -117,12 +76,12 @@ x is not False
 <div class="rule-invalid-example">
 ```
 ```python
-x == False
+self.assertTrue(list, [1, 3])
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-x is False
+self.assertEqual(list, [1, 3])
 ```
 ```{raw} html
 </div>
@@ -134,12 +93,12 @@ x is False
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-x == None
+self.assertTrue(optional, None)
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-x is None
+self.assertIsNone(optional)
 ```
 ```{raw} html
 </div>
@@ -148,26 +107,12 @@ x is None
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-x != None
+self.assertTrue(b == a, True)
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-x is not None
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-False == x
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-False is x
+self.assertTrue(b == a)
 ```
 ```{raw} html
 </div>
@@ -176,12 +121,12 @@ False is x
 <div class="rule-invalid-example">
 ```
 ```python
-x is True == y
+self.assertTrue(b == a, False)
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-x is True is y
+self.assertFalse(b == a)
 ```
 ```{raw} html
 </div>

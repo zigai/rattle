@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-blank-line-before-branch-in-large-suite)=
+(rule-blank-line-before-branch)=
 
-# blank-line-before-branch-in-large-suite
+# blank-line-before-branch
 
 <p class="rule-metadata">
   <span>Collection: <code>blank-lines</code></span>

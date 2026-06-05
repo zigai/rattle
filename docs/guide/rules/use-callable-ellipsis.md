@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-variadic-callable-syntax)=
+(rule-use-callable-ellipsis)=
 
-# variadic-callable-syntax
+# use-callable-ellipsis
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit</code></span>

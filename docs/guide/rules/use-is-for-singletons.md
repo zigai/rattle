@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-compare-primitives-by-equal)=
+(rule-use-is-for-singletons)=
 
-# compare-primitives-by-equal
+# use-is-for-singletons
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
@@ -17,52 +17,67 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Enforces the use of ``==`` and ``!=`` in comparisons to primitives rather than ``is`` and ``is not``.
-The ``==`` operator checks equality, while ``is`` checks identity.
+Enforces the use of `is` and `is not` in comparisons to singleton primitives (None, True, False) rather than == and !=.
+The == operator checks equality, when in this scenario, we want to check identity.
 
 ## Message
 
-Don't use `is` or `is not` to compare primitives, as they compare references. Use == or != instead.
+Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity. Use `is` or `is not` instead.
 
 ## References
 
-- [object.__eq__](https://docs.python.org/3/reference/datamodel.html#object.__eq__)
-- [is operator](https://docs.python.org/3/reference/expressions.html#is)
+- [Flake8 E711](https://www.flake8rules.com/rules/E711.html)
+- [Flake8 E712](https://www.flake8rules.com/rules/E712.html)
 
 ## Valid examples
 
 ```python
-a == 1
+if x: pass
 ```
 ```python
-a == '1'
+if not x: pass
 ```
 ```python
-a != '1'
+x is True
 ```
 ```python
-'3' == '1'
+x is False
 ```
 ```python
-3 == '1'
+x is None
 ```
 ```python
-3 > 2 > 1
+x is not None
 ```
 ```{raw} html
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```python
-3 > 2 > '1'
+x is True is not y
 ```
 ```python
-a is b > 1
+y is None is not x
 ```
 ```python
-a is b is c
+None is y
 ```
 ```python
-1 > b is c
+True is x
+```
+```python
+False is x
+```
+```python
+x == 2
+```
+```python
+2 != x
+```
+```python
+"True" == "True"
+```
+```python
+"True" != "False".lower()
 ```
 ```{raw} html
 </details>
@@ -74,12 +89,12 @@ a is b is c
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-a is 1
+x != True
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-a == 1
+x is not True
 ```
 ```{raw} html
 </div>
@@ -88,12 +103,12 @@ a == 1
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-a is '1'
+x != False
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-a == '1'
+x is not False
 ```
 ```{raw} html
 </div>
@@ -102,12 +117,12 @@ a == '1'
 <div class="rule-invalid-example">
 ```
 ```python
-a is f'1{b}'
+x == False
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-a == f'1{b}'
+x is False
 ```
 ```{raw} html
 </div>
@@ -119,12 +134,12 @@ a == f'1{b}'
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-a is not f'1{d}'
+x == None
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-a != f'1{d}'
+x is None
 ```
 ```{raw} html
 </div>
@@ -133,12 +148,12 @@ a != f'1{d}'
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-1 is a
+x != None
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-1 == a
+x is not None
 ```
 ```{raw} html
 </div>
@@ -147,26 +162,12 @@ a != f'1{d}'
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-'2' > '1' is a
+False == x
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-'2' > '1' == a
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-3 > a is 2
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-3 > a == 2
+False is x
 ```
 ```{raw} html
 </div>
@@ -175,12 +176,12 @@ a != f'1{d}'
 <div class="rule-invalid-example">
 ```
 ```python
-1  is   2
+x is True == y
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-1  ==   2
+x is True is y
 ```
 ```{raw} html
 </div>

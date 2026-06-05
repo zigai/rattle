@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-no-assert-true-for-comparisons)=
+(rule-use-eq-for-primitives)=
 
-# no-assert-true-for-comparisons
+# use-eq-for-primitives
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
@@ -17,29 +17,55 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Finds incorrect use of ``assertTrue`` when the intention is to compare two values.
-These calls are replaced with ``assertEqual``.
-Comparisons with True, False and None are replaced with one-argument
-calls to ``assertTrue``, ``assertFalse`` and ``assertIsNone``.
+Enforces the use of ``==`` and ``!=`` in comparisons to primitives rather than ``is`` and ``is not``.
+The ``==`` operator checks equality, while ``is`` checks identity.
 
 ## Message
 
-"assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions.
+Don't use `is` or `is not` to compare primitives, as they compare references. Use == or != instead.
 
+## References
+
+- [object.__eq__](https://docs.python.org/3/reference/datamodel.html#object.__eq__)
+- [is operator](https://docs.python.org/3/reference/expressions.html#is)
 
 ## Valid examples
 
 ```python
-self.assertTrue(a == b)
+a == 1
 ```
 ```python
-self.assertTrue(data.is_valid(), "is_valid() method")
+a == '1'
 ```
 ```python
-self.assertTrue(validate(len(obj.getName(type=SHORT))))
+a != '1'
 ```
 ```python
-self.assertTrue(condition, message_string)
+'3' == '1'
+```
+```python
+3 == '1'
+```
+```python
+3 > 2 > 1
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+3 > 2 > '1'
+```
+```python
+a is b > 1
+```
+```python
+a is b is c
+```
+```python
+1 > b is c
+```
+```{raw} html
+</details>
 ```
 
 ## Invalid examples
@@ -48,12 +74,12 @@ self.assertTrue(condition, message_string)
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-self.assertTrue(a, 3)
+a is 1
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-self.assertEqual(a, 3)
+a == 1
 ```
 ```{raw} html
 </div>
@@ -62,12 +88,12 @@ self.assertEqual(a, 3)
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-self.assertTrue(hash(s[:4]), 0x1234)
+a is '1'
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-self.assertEqual(hash(s[:4]), 0x1234)
+a == '1'
 ```
 ```{raw} html
 </div>
@@ -76,12 +102,12 @@ self.assertEqual(hash(s[:4]), 0x1234)
 <div class="rule-invalid-example">
 ```
 ```python
-self.assertTrue(list, [1, 3])
+a is f'1{b}'
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-self.assertEqual(list, [1, 3])
+a == f'1{b}'
 ```
 ```{raw} html
 </div>
@@ -93,12 +119,12 @@ self.assertEqual(list, [1, 3])
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-self.assertTrue(optional, None)
+a is not f'1{d}'
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-self.assertIsNone(optional)
+a != f'1{d}'
 ```
 ```{raw} html
 </div>
@@ -107,12 +133,40 @@ self.assertIsNone(optional)
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
-self.assertTrue(b == a, True)
+1 is a
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-self.assertTrue(b == a)
+1 == a
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+'2' > '1' is a
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+'2' > '1' == a
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+3 > a is 2
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+3 > a == 2
 ```
 ```{raw} html
 </div>
@@ -121,12 +175,12 @@ self.assertTrue(b == a)
 <div class="rule-invalid-example">
 ```
 ```python
-self.assertTrue(b == a, False)
+1  is   2
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-self.assertFalse(b == a)
+1  ==   2
 ```
 ```{raw} html
 </div>

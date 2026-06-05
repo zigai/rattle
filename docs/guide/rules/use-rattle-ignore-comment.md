@@ -32,7 +32,7 @@ noqa is deprecated. Use `rattle: ignore[rule-name]` instead.
 ## Valid examples
 
 ```python
-# rattle: ignore[use-fstring]
+# rattle: ignore[use-f-string]
 "%s" % "hi"
 ```
 ```python

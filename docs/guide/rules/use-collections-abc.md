@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-deprecated-a-b-c-import)=
+(rule-use-collections-abc)=
 
-# deprecated-a-b-c-import
+# use-collections-abc
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>

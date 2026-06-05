@@ -41,7 +41,7 @@ Rattle accepts three selector forms:
 - built-in rule collections, currently `blank-lines`, `fixit`, and `fixit-extra`
 - import selectors, using Python module syntax, for packages, modules, or one
   concrete rule (`module:rule-name`)
-- exact built-in rule names such as `use-fstring`
+- exact built-in rule names such as `use-f-string`
 
 Rules bundled with Rattle, or available in the environment's `site-packages`,
 can be referenced as a rule collection, as a group by their fully-qualified package
@@ -60,8 +60,8 @@ Multiple collections and individual rules can be combined:
 enable = [
     "fixit",
     "fixit-extra",
-    "rattle.rules.fixit_extra:use-fstring",
-    "use-fstring",
+    "rattle.rules.fixit_extra:use-f-string",
+    "use-f-string",
 ]
 ```
 
@@ -222,10 +222,10 @@ one concrete rule target to a dictionary of key-value pairs.
 Valid keys are:
 
 - a concrete import selector (`module:rule-name`)
-- an exact built-in rule name such as `use-fstring`
+- an exact built-in rule name such as `use-f-string`
 
 ```toml
-[tool.rattle.options."use-fstring"]
+[tool.rattle.options."use-f-string"]
 simple_expression_max_length = 42
 ```
 
@@ -251,7 +251,7 @@ Inline mappings are still supported:
 
 ```toml
 [tool.rattle.options]
-"use-fstring" = {simple_expression_max_length = 42}
+"use-f-string" = {simple_expression_max_length = 42}
 ```
 
 (overrides)=
@@ -277,15 +277,15 @@ enable = ["plugin:something-neat"]
 For example:
 
 ```toml
-[tool.rattle.options."use-fstring"]
+[tool.rattle.options."use-f-string"]
 simple_expression_max_length = 40
 
 [[tool.rattle.overrides]]
 path = "tests"
-options = { "use-fstring" = { simple_expression_max_length = 60 } }
+options = { "use-f-string" = { simple_expression_max_length = 60 } }
 ```
 
-In that configuration, `use-fstring.simple_expression_max_length` is `40`
+In that configuration, `use-f-string.simple_expression_max_length` is `40`
 globally and `60` for files under `tests/`.
 
 The expanded TOML table form is also supported when needed:
@@ -294,7 +294,7 @@ The expanded TOML table form is also supported when needed:
 [[tool.rattle.overrides]]
 path = "tests"
 
-[tool.rattle.overrides.options."use-fstring"]
+[tool.rattle.overrides.options."use-f-string"]
 simple_expression_max_length = 60
 ```
 
@@ -314,13 +314,13 @@ These tables are applied after the base config and any matching
 
 ```toml
 [tool.rattle.per-file-enable]
-"tests/**/*.py" = ["rattle.rules.fixit_extra:use-fstring"]
+"tests/**/*.py" = ["rattle.rules.fixit_extra:use-f-string"]
 "scripts/**/*.py" = ["no-static-if-condition"]
 
 [tool.rattle.per-file-disable]
-"tests/generated.py" = ["rattle.rules.fixit_extra:use-fstring"]
+"tests/generated.py" = ["rattle.rules.fixit_extra:use-f-string"]
 "scripts/*.py" = ["fixit"]
-"fixtures/**/*.py" = ["use-fstring"]
+"fixtures/**/*.py" = ["use-f-string"]
 ```
 
 ## `exclude`

@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-rewrite-to-comprehension)=
+(rule-use-comprehension)=
 
-# rewrite-to-comprehension
+# use-comprehension
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>

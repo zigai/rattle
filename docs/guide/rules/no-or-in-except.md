@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-avoid-or-in-except)=
+(rule-no-or-in-except)=
 
-# avoid-or-in-except
+# no-or-in-except
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>

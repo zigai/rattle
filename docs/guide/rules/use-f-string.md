@@ -7,9 +7,9 @@ THIS FILE IS GENERATED - DO NOT EDIT BY HAND!
 Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 -->
 
-(rule-use-fstring)=
+(rule-use-f-string)=
 
-# use-fstring
+# use-f-string
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
