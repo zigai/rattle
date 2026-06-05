@@ -73,7 +73,7 @@ typecheck: _require-uv
 
 # check code for common misspellings
 spell: _require-uv
-  uv run --extra dev codespell
+  uv run --extra dev codespell src scripts examples
 
 # run all quality checks
 check: lint coverage typecheck spell
