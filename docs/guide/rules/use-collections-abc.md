@@ -17,9 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: `>= 3.3`</span>
 </p>
 
-Checks for the use of the deprecated collections ABC import. Since python 3.3,
-the Collections Abstract Base Classes (ABC) have been moved to `collections.abc`.
-These ABCs are import errors starting in Python 3.10.
+Require collection ABCs to be imported from collections.abc.
 
 ## Message
 

@@ -17,8 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Discourages use of ``assertTrue(x is not None)`` and ``assertFalse(x is not None)``.
-Use ``assertIsNotNone(x)`` and ``assertIsNone(x)`` instead.
+Prefer assertIsNotNone and assertIsNone for unittest None checks.
 
 ## Message
 

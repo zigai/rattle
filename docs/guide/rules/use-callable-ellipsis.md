@@ -17,7 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Callable types with arbitrary parameters should be written as `Callable[..., T]`.
+Prefer Callable[..., T] for callable types with arbitrary parameters.
 
 
 

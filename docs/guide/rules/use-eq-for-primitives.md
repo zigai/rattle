@@ -17,8 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Enforces the use of ``==`` and ``!=`` in comparisons to primitives rather than ``is`` and ``is not``.
-The ``==`` operator checks equality, while ``is`` checks identity.
+Require equality operators when comparing primitive values.
 
 ## Message
 

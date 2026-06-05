@@ -17,10 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Finds incorrect use of ``assertTrue`` when the intention is to compare two values.
-These calls are replaced with ``assertEqual``.
-Comparisons with True, False and None are replaced with one-argument
-calls to ``assertTrue``, ``assertFalse`` and ``assertIsNone``.
+Prefer specific unittest comparison assertions over assertTrue comparisons.
 
 ## Message
 

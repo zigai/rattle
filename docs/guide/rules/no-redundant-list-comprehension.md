@@ -17,7 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-A derivative of flake8-comprehensions's C407 rule.
+Remove unnecessary list comprehensions inside any() and all().
 
 
 

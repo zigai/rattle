@@ -17,12 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-A derivative of flake8-comprehensions's C400-C402 and C403-C404.
-Comprehensions are more efficient than functions calls. This C400-C402
-suggest to use `dict/set/list` comprehensions rather than respective
-function calls whenever possible. C403-C404 suggest to remove unnecessary
-list comprehension in a set/dict call, and replace it with set/dict
-comprehension.
+Prefer comprehensions over unnecessary collection constructor calls.
 
 
 

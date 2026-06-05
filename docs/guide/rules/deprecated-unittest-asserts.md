@@ -17,7 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Discourages the use of various deprecated unittest.TestCase functions.
+Discourage deprecated unittest assertion aliases.
 
 ## Message
 

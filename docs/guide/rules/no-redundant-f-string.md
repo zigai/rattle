@@ -17,7 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Remove redundant f-string without placeholders.
+Remove f-string prefixes from strings without placeholders.
 
 ## Message
 

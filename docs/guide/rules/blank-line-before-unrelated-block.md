@@ -17,7 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Allow cuddling when the setup remains part of the same control-flow step.
+Allow block headers to stay attached to related setup statements.
 
 ## Message
 

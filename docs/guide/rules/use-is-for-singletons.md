@@ -17,8 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Enforces the use of `is` and `is not` in comparisons to singleton primitives (None, True, False) rather than == and !=.
-The == operator checks equality, when in this scenario, we want to check identity.
+Require identity operators when comparing singleton primitives.
 
 ## Message
 

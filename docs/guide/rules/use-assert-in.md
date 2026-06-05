@@ -17,8 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``.
-Use ``assertIn(x, y)`` and ``assertNotIn(x, y)`` instead.
+Prefer assertIn and assertNotIn for unittest membership checks.
 
 ## Message
 
