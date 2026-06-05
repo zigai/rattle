@@ -14,7 +14,7 @@ from libcst.metadata import CodePosition, CodeRange
 
 from rattle.engine import LintRunner
 from rattle.ftypes import Config, LintViolation
-from rattle.rule import LintRule, RuleSetting
+from rattle.rule import LintRule, RuleSetting, rule_name_from_class_name
 
 
 class NoopRule(LintRule):
@@ -140,6 +140,33 @@ class ConfigurableRule(LintRule):
             validator=lambda value: [{"name": entry["old_name"]} for entry in value],
         ),
     }
+
+
+class RuleNameTest(TestCase):
+    def test_rule_name_from_class_name_preserves_acronyms(self) -> None:
+        assert (
+            rule_name_from_class_name("NoDomainHTTPExceptionInRouterRule")
+            == "no-domain-http-exception-in-router-rule"
+        )
+        assert rule_name_from_class_name("HTTPExceptionRule") == "http-exception-rule"
+        assert rule_name_from_class_name("NoABCImportRule") == "no-abc-import-rule"
+        assert rule_name_from_class_name("PEP695TypeAliasesRule") == "pep695-type-aliases-rule"
+
+    def test_rule_name_from_class_name_keeps_existing_simple_names(self) -> None:
+        assert rule_name_from_class_name("ExerciseReportRule") == "exercise-report-rule"
+        assert rule_name_from_class_name("NoRedundantFString") == "no-redundant-f-string"
+
+    def test_rule_name_is_set_on_subclass_creation(self) -> None:
+        class ExplicitRule(LintRule):
+            NAME = "explicit-rule"
+
+        class ChildRule(ExplicitRule):
+            pass
+
+        assert ExplicitRule.name == "explicit-rule"
+        assert ExplicitRule().name == "explicit-rule"
+        assert ChildRule.name == "child-rule"
+        assert ChildRule().name == "child-rule"
 
 
 class RuleTest(TestCase):
