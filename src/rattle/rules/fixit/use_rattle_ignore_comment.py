@@ -10,7 +10,7 @@ from rattle import Invalid, LintRule, Valid
 
 class UseRattleIgnoreComment(LintRule):
     """
-    To silence a lint warning, use ``rattle: ignore[RuleName]`` comments.
+    To silence a lint warning, use ``rattle: ignore[rule-name]`` comments.
     The comment may be a trailing inline comment or a standalone comment line above the code.
     Rule names are optional, but explicitly listing one or more comma-separated rule names avoids
     accidentally silencing unrelated warnings.
@@ -18,18 +18,18 @@ class UseRattleIgnoreComment(LintRule):
     accidentally silence warnings unexpectedly.
     """
 
-    MESSAGE: str = "noqa is deprecated. Use `rattle: ignore[RuleName]` instead."
+    MESSAGE: str = "noqa is deprecated. Use `rattle: ignore[rule-name]` instead."
 
     VALID = [
         Valid(
             """
-            # rattle: ignore[UseFstringRule]
+            # rattle: ignore[use-fstring]
             "%s" % "hi"
             """
         ),
         Valid(
             """
-            'ab' 'cd'  # rattle: ignore[UsePlusForStringConcatRule]
+            'ab' 'cd'  # rattle: ignore[use-plus-for-string-concat]
             """
         ),
     ]
