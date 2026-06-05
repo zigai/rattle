@@ -38,15 +38,15 @@ Rules from parent configs are inherited and this list adds to them.
 
 Rattle accepts three selector forms:
 
-- built-in rule packs, currently `blank_lines`, `fixit`, and `fixit_extra`
+- built-in rule collections, currently `blank-lines`, `fixit`, and `fixit-extra`
 - import selectors, using Python module syntax, for packages, modules, or one
-  concrete rule (`module:ClassName`)
-- exact built-in rule class names such as `UseFstring`
+  concrete rule (`module:rule-name`)
+- exact built-in rule names such as `use-fstring`
 
 Rules bundled with Rattle, or available in the environment's `site-packages`,
-can be referenced as a rule pack, as a group by their fully-qualified package
-name, individually by adding a colon and the rule name, or by the built-in class
-name:
+can be referenced as a rule collection, as a group by their fully-qualified package
+name, individually by adding a colon and the kebab-case rule name, or by the
+built-in rule name:
 
 ```toml
 enable = [
@@ -54,14 +54,14 @@ enable = [
 ]
 ```
 
-Multiple packs and individual rules can be combined:
+Multiple collections and individual rules can be combined:
 
 ```toml
 enable = [
     "fixit",
-    "fixit_extra",
-    "rattle.rules.fixit_extra:UseFstring",
-    "UseFstring",
+    "fixit-extra",
+    "rattle.rules.fixit_extra:use-fstring",
+    "use-fstring",
 ]
 ```
 
@@ -74,11 +74,11 @@ Python module relative to the configuration file specifying the rule:
 enable = [
     ".rules",
     ".rules.hollywood",
-    ".rules:HollywoodNameRule",
+    ".rules:hollywood-name-rule",
 ]
 ```
 
-Built-in rule packs and rule class names are always available. Local and
+Built-in rule collections and built-in rule names are always available. Local and
 third-party rules should be referenced by import selector.
 
 An exact rule in `enable` can re-enable that rule after a broader inherited
@@ -100,7 +100,7 @@ List of rule selectors to disable when linting files covered by this
 configuration. Rules from parent configs are inherited and this list adds to
 them.
 
-A broader `disable` can remove a whole pack; a later exact `enable` can add one
+A broader `disable` can remove a whole collection; a later exact `enable` can add one
 rule back.
 
 See {attr}`enable <rattle.Config.enable>` for selector details.
@@ -221,16 +221,16 @@ one concrete rule target to a dictionary of key-value pairs.
 
 Valid keys are:
 
-- a concrete import selector (`module:ClassName`)
-- an exact built-in rule class name such as `UseFstring`
+- a concrete import selector (`module:rule-name`)
+- an exact built-in rule name such as `use-fstring`
 
 ```toml
-[tool.rattle.options.UseFstring]
+[tool.rattle.options."use-fstring"]
 simple_expression_max_length = 42
 ```
 
-Option keys must point to one concrete lint rule class, not a package or
-module. Keys should be quoted when using `:` or a leading `.`.
+Option keys must point to one concrete lint rule, not a package or
+module. Keys should be quoted when using `:`, `-`, or a leading `.`.
 
 Option values may be TOML scalars, arrays, or tables.
 
@@ -238,7 +238,7 @@ For rules with a larger number of options, the rule name may instead be part of
 the table name:
 
 ```toml
-[tool.rattle.options."rattle.rules.fixit_extra:ExampleRule"]
+[tool.rattle.options."rattle.rules.fixit_extra:example-rule"]
 greeting = "hello world"
 answer = 42
 entries = [
@@ -251,7 +251,7 @@ Inline mappings are still supported:
 
 ```toml
 [tool.rattle.options]
-UseFstring = {simple_expression_max_length = 42}
+"use-fstring" = {simple_expression_max_length = 42}
 ```
 
 (overrides)=
@@ -266,26 +266,26 @@ defining the subpath it applies to along with any values from the main table.
 ```toml
 [[tool.rattle.overrides]]
 path = "foo/bar"
-disable = ["rattle.rules.fixit_extra:ExampleRule"]
-options = {"rattle.rules.fixit_extra:Story" = {closing = "goodnight moon"}}
+disable = ["rattle.rules.fixit_extra:example-rule"]
+options = {"rattle.rules.fixit_extra:story" = {closing = "goodnight moon"}}
 
 [[tool.rattle.overrides]]
 path = "fizz/buzz"
-enable = ["plugin:SomethingNeat"]
+enable = ["plugin:something-neat"]
 ```
 
 For example:
 
 ```toml
-[tool.rattle.options.UseFstring]
+[tool.rattle.options."use-fstring"]
 simple_expression_max_length = 40
 
 [[tool.rattle.overrides]]
 path = "tests"
-options = { UseFstring = { simple_expression_max_length = 60 } }
+options = { "use-fstring" = { simple_expression_max_length = 60 } }
 ```
 
-In that configuration, `UseFstring.simple_expression_max_length` is `40`
+In that configuration, `use-fstring.simple_expression_max_length` is `40`
 globally and `60` for files under `tests/`.
 
 The expanded TOML table form is also supported when needed:
@@ -294,7 +294,7 @@ The expanded TOML table form is also supported when needed:
 [[tool.rattle.overrides]]
 path = "tests"
 
-[tool.rattle.overrides.options.UseFstring]
+[tool.rattle.overrides.options."use-fstring"]
 simple_expression_max_length = 60
 ```
 
@@ -314,13 +314,13 @@ These tables are applied after the base config and any matching
 
 ```toml
 [tool.rattle.per-file-enable]
-"tests/**/*.py" = ["rattle.rules.fixit_extra:UseFstring"]
-"scripts/**/*.py" = ["NoStaticIfCondition"]
+"tests/**/*.py" = ["rattle.rules.fixit_extra:use-fstring"]
+"scripts/**/*.py" = ["no-static-if-condition"]
 
 [tool.rattle.per-file-disable]
-"tests/generated.py" = ["rattle.rules.fixit_extra:UseFstring"]
+"tests/generated.py" = ["rattle.rules.fixit_extra:use-fstring"]
 "scripts/*.py" = ["fixit"]
-"fixtures/**/*.py" = ["UseFstring"]
+"fixtures/**/*.py" = ["use-fstring"]
 ```
 
 ## `exclude`

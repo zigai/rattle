@@ -10,7 +10,7 @@ Install Rattle from PyPI:
 $ pip install rattle-lint
 ```
 
-By default, Rattle runs with no enabled lint rules. Enable rule packs in
+By default, Rattle runs with no enabled lint rules. Enable rule collections in
 `pyproject.toml`:
 
 ```toml
@@ -61,7 +61,7 @@ With `fixit` enabled, running Rattle shows the rule violation:
 
 ```console
 $ rattle lint custom_object.py
-NoNamedTuple [*] Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
+no-named-tuple [*] Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
  --> custom_object.py:4:1
   |
 3 |
@@ -77,7 +77,7 @@ You can also see suggested changes by passing `--diff`:
 
 ```console
 $ rattle lint --diff custom_object.py
-NoNamedTuple [*] Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
+no-named-tuple [*] Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
  --> custom_object.py:4:1
   |
 3 |
@@ -110,10 +110,10 @@ or as a dedicated comment line above the code, will silence the matching
 violation:
 
 ```python
-class Foo(NamedTuple):  # rattle: ignore[NoNamedTuple]
+class Foo(NamedTuple):  # rattle: ignore[no-named-tuple]
     ...
 
-# rattle: ignore[NoNamedTuple]
+# rattle: ignore[no-named-tuple]
 class Bar(NamedTuple):
     ...
 ```
@@ -215,7 +215,7 @@ def main():
 
 ```console
 $ rattle lint --diff sourdough/baker.py
-HollywoodName [*] It's underproved!
+hollywood-name-rule [*] It's underproved!
  --> sourdough/baker.py:2:12
   |
 1 | def main():
@@ -238,7 +238,7 @@ The `fix` command applies those changes to the codebase:
 
 ```console
 $ rattle fix sourdough/baker.py
-HollywoodName [*] It's underproved!
+hollywood-name-rule [*] It's underproved!
  --> sourdough/baker.py:2:12
   |
 1 | def main():

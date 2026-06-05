@@ -60,18 +60,18 @@ enable = ["fixit"]
 python-version = "3.10"
 output-format = "rattle"
 disable = [
-    "NoStaticIfCondition",
-    "UseRattleIgnoreComment",
+    "no-static-if-condition",
+    "use-rattle-ignore-comment",
 ]
-per-file-disable = {"tests/generated.py" = ["NoNamedTuple"]}
+per-file-disable = {"tests/generated.py" = ["no-named-tuple"]}
 
 [[tool.rattle.overrides]]
 path = "legacy"
-enable = ["fixit_extra"]
+enable = ["fixit-extra"]
 
 [[tool.rattle.overrides]]
 path = "tests"
-enable = ["NoNamedTuple"]
+enable = ["no-named-tuple"]
 ```
 
 ## Documentation

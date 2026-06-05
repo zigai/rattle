@@ -67,15 +67,15 @@ This takes a comma-separated list of rule selectors, with the same accepted
 forms as {attr}`enable <rattle.Config.enable>` and
 {attr}`disable <rattle.Config.disable>`:
 
-- import selectors such as `rattle.rules.fixit_extra:UseFstring`
-- built-in rule packs such as `blank_lines`, `fixit`, or `fixit_extra`
-- exact built-in rule class names such as `UseFstring`
+- import selectors such as `rattle.rules.fixit_extra:use-fstring`
+- built-in rule collections such as `blank-lines`, `fixit`, or `fixit-extra`
+- exact built-in rule names such as `use-fstring`
 
 For example:
 
 ```console
-$ rattle lint --rules "UseFstring" path/to/file.py
-$ rattle lint --rules "fixit,fixit_extra" path/to/file.py
+$ rattle lint --rules "use-fstring" path/to/file.py
+$ rattle lint --rules "fixit,fixit-extra" path/to/file.py
 ```
 
 ## `--output-format / -o FORMAT_TYPE`
@@ -193,10 +193,10 @@ Example:
 
 ```console
 $ rattle rules --test -r .examples.teambread.rules
-test_INVALID_0 (rattle.testing.HollywoodNameRule) ... ok
-test_INVALID_1 (rattle.testing.HollywoodNameRule) ... ok
-test_VALID_0 (rattle.testing.HollywoodNameRule) ... ok
-test_VALID_1 (rattle.testing.HollywoodNameRule) ... ok
+test_INVALID_0 (rattle.testing.hollywood-name-rule) ... ok
+test_INVALID_1 (rattle.testing.hollywood-name-rule) ... ok
+test_VALID_0 (rattle.testing.hollywood-name-rule) ... ok
+test_VALID_1 (rattle.testing.hollywood-name-rule) ... ok
 
 ----------------------------------------------------------------------
 Ran 4 tests in 0.024s
@@ -205,7 +205,7 @@ OK
 ```
 
 ```console
-$ rattle rules --test -r UseFstring
+$ rattle rules --test -r use-fstring
 ```
 
 ## `validate`
