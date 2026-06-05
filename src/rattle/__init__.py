@@ -22,7 +22,7 @@ from .ftypes import (
     Tags,
     Valid,
 )
-from .rule import LintRule, RuleSetting
+from .rule import LintRule, RuleReference, RuleSetting
 
 __all__ = [
     "CodePosition",
@@ -37,6 +37,7 @@ __all__ = [
     "QualifiedRule",
     "Result",
     "RuleNameSelector",
+    "RuleReference",
     "RuleSetting",
     "Tags",
     "Valid",

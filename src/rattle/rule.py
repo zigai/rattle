@@ -52,6 +52,7 @@ from .ftypes import (
 )
 
 SourcePattern = str | bytes
+RuleReference = str | tuple[str, str]
 
 
 def rule_name_from_class_name(class_name: str) -> str:
@@ -368,6 +369,9 @@ class LintRule(BatchableCSTVisitor):
     SETTINGS: ClassVar[dict[str, RuleSetting]] = {}
     "Optional typed configuration settings for this lint rule."
 
+    REFERENCES: ClassVar[Sequence[RuleReference]] = ()
+    "External references for documentation, as URLs or ``(label, URL)`` pairs."
+
     SOURCE_PATTERNS: ClassVar[tuple[SourcePattern, ...]] = ()
 
     AUTOFIX = False  # set by __subclass_init__
@@ -629,5 +633,6 @@ class LintRule(BatchableCSTVisitor):
 __all__ = [
     "LintRule",
     "RuleConfigurationError",
+    "RuleReference",
     "RuleSetting",
 ]
