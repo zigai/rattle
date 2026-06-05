@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-no-assert-true-for-comparisons)=
 
-# NoAssertTrueForComparisons
+# no-assert-true-for-comparisons
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit_extra</code></span>
-  <span>Module: <code>rattle.rules.fixit_extra.no_assert_true_for_comparison</code></span>
+  <span>Collection: <code>fixit-extra</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>

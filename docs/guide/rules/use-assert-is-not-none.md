@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-use-assert-is-not-none)=
 
-# UseAssertIsNotNone
+# use-assert-is-not-none
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit_extra</code></span>
-  <span>Module: <code>rattle.rules.fixit_extra.use_assert_is_not_none</code></span>
+  <span>Collection: <code>fixit-extra</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>

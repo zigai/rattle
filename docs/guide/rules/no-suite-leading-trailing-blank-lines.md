@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-no-suite-leading-trailing-blank-lines)=
 
-# NoSuiteLeadingTrailingBlankLines
+# no-suite-leading-trailing-blank-lines
 
 <p class="rule-metadata">
-  <span>Pack: <code>blank_lines</code></span>
-  <span>Module: <code>rattle.rules.blank_lines.no_suite_leading_trailing_blank_lines</code></span>
+  <span>Collection: <code>blank-lines</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>

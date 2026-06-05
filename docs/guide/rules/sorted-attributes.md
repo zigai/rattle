@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-sorted-attributes)=
 
-# SortedAttributes
+# sorted-attributes
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit</code></span>
-  <span>Module: <code>rattle.rules.fixit.sorted_attributes_rule</code></span>
+  <span>Collection: <code>fixit</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>

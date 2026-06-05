@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-explicit-frozen-dataclass)=
 
-# ExplicitFrozenDataclass
+# explicit-frozen-dataclass
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit</code></span>
-  <span>Module: <code>rattle.rules.fixit.explicit_frozen_dataclass</code></span>
+  <span>Collection: <code>fixit</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>

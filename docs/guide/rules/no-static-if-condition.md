@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-no-static-if-condition)=
 
-# NoStaticIfCondition
+# no-static-if-condition
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit</code></span>
-  <span>Module: <code>rattle.rules.fixit.no_static_if_condition</code></span>
+  <span>Collection: <code>fixit</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>

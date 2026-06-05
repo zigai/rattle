@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-blank-line-before-branch-in-large-suite)=
 
-# BlankLineBeforeBranchInLargeSuite
+# blank-line-before-branch-in-large-suite
 
 <p class="rule-metadata">
-  <span>Pack: <code>blank_lines</code></span>
-  <span>Module: <code>rattle.rules.blank_lines.blank_line_before_branch_in_large_suite</code></span>
+  <span>Collection: <code>blank-lines</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>
@@ -29,28 +28,32 @@ Missing blank line before return/raise/break/continue in a large suite.
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th></tr>
+    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_guard_ladder_final_branch</span></td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
+      <td>Allow compact final branches in guard-ladder control flow.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_related_return_tails</span></td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
+      <td>Allow compact returns that immediately return a just-created value.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">compact_tail_max_statements</span></td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
+      <td>Maximum compact tail size allowed before a final branch statement.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">max_suite_non_empty_lines</span></td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
+      <td>Minimum non-empty suite size before branch statements require spacing.</td>
     </tr>
 </tbody>
 </table>

@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-use-async-sleep-in-async-def)=
 
-# UseAsyncSleepInAsyncDef
+# use-async-sleep-in-async-def
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit_extra</code></span>
-  <span>Module: <code>rattle.rules.fixit_extra.use_async_sleep_in_async_def</code></span>
+  <span>Collection: <code>fixit-extra</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>

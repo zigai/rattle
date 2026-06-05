@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-avoid-or-in-except)=
 
-# AvoidOrInExcept
+# avoid-or-in-except
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit_extra</code></span>
-  <span>Module: <code>rattle.rules.fixit_extra.avoid_or_in_except</code></span>
+  <span>Collection: <code>fixit-extra</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>

@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-block-header-cuddle-relaxed)=
 
-# BlockHeaderCuddleRelaxed
+# block-header-cuddle-relaxed
 
 <p class="rule-metadata">
-  <span>Pack: <code>blank_lines</code></span>
-  <span>Module: <code>rattle.rules.blank_lines.block_header_cuddle_relaxed</code></span>
+  <span>Collection: <code>blank-lines</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>
@@ -29,23 +28,26 @@ Illegal cuddle before block header. The preceding setup must directly feed the u
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th></tr>
+    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_setup_before_compact_guard_ladder</span></td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
+      <td>Allow setup statements before compact guard-ladder branches.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">body_usage_lookahead</span></td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">4</span></td>
+      <td>Number of following statements inspected for setup-value usage.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">setup_run_lookback</span></td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">3</span></td>
+      <td>Number of preceding setup statements that may stay attached to a block.</td>
     </tr>
 </tbody>
 </table>

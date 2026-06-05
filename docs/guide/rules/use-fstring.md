@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-use-fstring)=
 
-# UseFstring
+# use-fstring
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit_extra</code></span>
-  <span>Module: <code>rattle.rules.fixit_extra.use_fstring</code></span>
+  <span>Collection: <code>fixit-extra</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>
@@ -45,13 +44,14 @@ Do not use printf style formatting or .format(). Use f-string instead to be more
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th></tr>
+    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">simple_expression_max_length</span></td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">30</span></td>
+      <td>Maximum expression length to autofix inline in an f-string.</td>
     </tr>
 </tbody>
 </table>

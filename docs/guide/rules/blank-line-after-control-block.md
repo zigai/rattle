@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-blank-line-after-control-block)=
 
-# BlankLineAfterControlBlock
+# blank-line-after-control-block
 
 <p class="rule-metadata">
-  <span>Pack: <code>blank_lines</code></span>
-  <span>Module: <code>rattle.rules.blank_lines.blank_line_after_control_block</code></span>
+  <span>Collection: <code>blank-lines</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>
@@ -29,28 +28,32 @@ Missing blank line after multiline control-flow block statement.
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th></tr>
+    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_compact_guard_ladders</span></td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
+      <td>Allow compact guard-ladder control-flow blocks without an extra blank line.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_pytest_raises_clusters</span></td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
+      <td>Allow adjacent pytest.raises blocks that form one test cluster.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_with_immediate_inspection</span></td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
+      <td>Allow a with block followed immediately by inspection of its bound value.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">related_use_lookahead</span></td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
+      <td>Number of following statements inspected for related value usage.</td>
     </tr>
 </tbody>
 </table>

@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-blank-line-before-assignment)=
 
-# BlankLineBeforeAssignment
+# blank-line-before-assignment
 
 <p class="rule-metadata">
-  <span>Pack: <code>blank_lines</code></span>
-  <span>Module: <code>rattle.rules.blank_lines.blank_line_before_assignment</code></span>
+  <span>Collection: <code>blank-lines</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>
@@ -29,28 +28,32 @@ Missing blank line before assignment statement that follows a non-assignment sta
 ```{raw} html
 <table class="docutils rule-settings-table">
   <thead>
-    <tr><th>Setting</th><th>Type</th><th>Default</th></tr>
+    <tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr>
   </thead>
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_local_helper_capture</span></td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
+      <td>Allow local helper assignments that capture values from preceding code.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_post_guard_continuation</span></td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">False</span></td>
+      <td>Allow assignments that continue immediately after a guard statement.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">related_use_lookahead</span></td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
+      <td>Number of following statements inspected for assignment-related usage.</td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">short_control_flow_max_statements</span></td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">3</span></td>
+      <td>Maximum short control-flow size allowed before a following assignment.</td>
     </tr>
 </tbody>
 </table>

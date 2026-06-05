@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-no-named-tuple)=
 
-# NoNamedTuple
+# no-named-tuple
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit</code></span>
-  <span>Module: <code>rattle.rules.fixit.no_namedtuple</code></span>
+  <span>Collection: <code>fixit</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>

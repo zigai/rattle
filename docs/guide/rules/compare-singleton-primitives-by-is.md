@@ -9,11 +9,10 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-compare-singleton-primitives-by-is)=
 
-# CompareSingletonPrimitivesByIs
+# compare-singleton-primitives-by-is
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit_extra</code></span>
-  <span>Module: <code>rattle.rules.fixit_extra.compare_singleton_primitives_by_is</code></span>
+  <span>Collection: <code>fixit-extra</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>

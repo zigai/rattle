@@ -9,16 +9,15 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 (rule-use-rattle-ignore-comment)=
 
-# UseRattleIgnoreComment
+# use-rattle-ignore-comment
 
 <p class="rule-metadata">
-  <span>Pack: <code>fixit</code></span>
-  <span>Module: <code>rattle.rules.fixit.use_rattle_ignore_comment</code></span>
+  <span>Collection: <code>fixit</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
 
-To silence a lint warning, use ``rattle: ignore[RuleName]`` comments.
+To silence a lint warning, use ``rattle: ignore[rule-name]`` comments.
 The comment may be a trailing inline comment or a standalone comment line above the code.
 Rule names are optional, but explicitly listing one or more comma-separated rule names avoids
 accidentally silencing unrelated warnings.
@@ -27,16 +26,16 @@ accidentally silence warnings unexpectedly.
 
 ## Message
 
-noqa is deprecated. Use `rattle: ignore[RuleName]` instead.
+noqa is deprecated. Use `rattle: ignore[rule-name]` instead.
 
 ## Valid examples
 
 ```python
-# rattle: ignore[UseFstringRule]
+# rattle: ignore[use-fstring]
 "%s" % "hi"
 ```
 ```python
-'ab' 'cd'  # rattle: ignore[UsePlusForStringConcatRule]
+'ab' 'cd'  # rattle: ignore[use-plus-for-string-concat]
 ```
 
 ## Invalid examples
