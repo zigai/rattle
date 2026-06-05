@@ -13,11 +13,9 @@ from rattle import Invalid, LintRule, Valid
 
 
 class UseAssertIsNotNone(LintRule):
+    """Prefer assertIsNotNone and assertIsNone for unittest None checks."""
+
     SOURCE_PATTERNS = ("assertTrue", "assertFalse")
-    """
-    Discourages use of ``assertTrue(x is not None)`` and ``assertFalse(x is not None)``.
-    Use ``assertIsNotNone(x)`` and ``assertIsNone(x)`` instead.
-    """
 
     MESSAGE: str = '"assertTrue" and "assertFalse" are deprecated. Use "assertIsNotNone" and "assertIsNone" instead.'
     REFERENCES = (

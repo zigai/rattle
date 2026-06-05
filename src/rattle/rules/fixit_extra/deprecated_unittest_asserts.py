@@ -10,6 +10,8 @@ from rattle import Invalid, LintRule, Valid
 
 
 class DeprecatedUnittestAsserts(LintRule):
+    """Discourage deprecated unittest assertion aliases."""
+
     SOURCE_PATTERNS = (
         "assertEquals",
         "assertNotEquals",
@@ -19,7 +21,6 @@ class DeprecatedUnittestAsserts(LintRule):
         "assertNotRegexpMatches",
         "assertRaisesRegexp",
     )
-    """Discourages the use of various deprecated unittest.TestCase functions."""
 
     MESSAGE: str = "{deprecated} is deprecated, use {replacement} instead"
     REFERENCES = (

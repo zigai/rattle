@@ -12,14 +12,10 @@ from rattle import Invalid, LintRule, Valid
 
 
 class NoAssertTrueForComparisons(LintRule):
+    """Prefer specific unittest comparison assertions over assertTrue comparisons."""
+
     NAME = "use-assert-equal"
     SOURCE_PATTERNS = ("assertTrue",)
-    """
-    Finds incorrect use of ``assertTrue`` when the intention is to compare two values.
-    These calls are replaced with ``assertEqual``.
-    Comparisons with True, False and None are replaced with one-argument
-    calls to ``assertTrue``, ``assertFalse`` and ``assertIsNone``.
-    """
 
     MESSAGE: str = (
         '"assertTrue" does not compare its arguments, use "assertEqual" or other '

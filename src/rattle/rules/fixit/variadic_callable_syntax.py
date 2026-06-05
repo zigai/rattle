@@ -11,8 +11,9 @@ from rattle import Invalid, LintRule, Valid
 
 
 class VariadicCallableSyntax(LintRule):
+    """Prefer Callable[..., T] for callable types with arbitrary parameters."""
+
     NAME = "use-callable-ellipsis"
-    """Callable types with arbitrary parameters should be written as `Callable[..., T]`."""
 
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
     SOURCE_PATTERNS = ("Callable",)

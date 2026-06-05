@@ -20,16 +20,10 @@ UNNECESSARY_LIST_COMPREHENSION: str = (
 
 
 class RewriteToComprehension(LintRule):
+    """Prefer comprehensions over unnecessary collection constructor calls."""
+
     NAME = "use-comprehension"
     SOURCE_PATTERNS = ("list(", "set(", "dict(")
-    """
-    A derivative of flake8-comprehensions's C400-C402 and C403-C404.
-    Comprehensions are more efficient than functions calls. This C400-C402
-    suggest to use `dict/set/list` comprehensions rather than respective
-    function calls whenever possible. C403-C404 suggest to remove unnecessary
-    list comprehension in a set/dict call, and replace it with set/dict
-    comprehension.
-    """
 
     VALID = [
         Valid("[val for val in iterable]"),

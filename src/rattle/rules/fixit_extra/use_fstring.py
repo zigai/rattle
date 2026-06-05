@@ -81,27 +81,10 @@ class EscapeStringQuote(cst.CSTTransformer):
 
 
 class UseFstring(LintRule):
+    """Prefer f-strings over percent formatting and str.format calls."""
+
     NAME = "use-f-string"
     SOURCE_PATTERNS = (".format", "%")
-    """
-    Encourages the use of f-string instead of %-formatting or .format() for high code quality and efficiency.
-
-    Following two cases not covered:
-
-    1. arguments length greater than 30 characters: for better readability reason
-        For example:
-
-        1: this is the answer: %d" % (a_long_function_call() + b_another_long_function_call())
-        2: f"this is the answer: {a_long_function_call() + b_another_long_function_call()}"
-        3: result = a_long_function_call() + b_another_long_function_call()
-        f"this is the answer: {result}"
-
-        Line 1 is more readable than line 2. Ideally, we'd like developers to manually fix this case to line 3
-
-    2. only %s placeholders are linted against for now. We leave it as future work to support other placeholders.
-        For example, %d raises TypeError for non-numeric objects, whereas f"{x:d}" raises ValueError.
-        This discrepancy in the type of exception raised could potentially break the logic in the code where the exception is handled
-    """
 
     MESSAGE: str = (
         "Do not use printf style formatting or .format(). "

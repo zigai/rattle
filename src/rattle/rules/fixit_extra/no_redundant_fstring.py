@@ -10,6 +10,8 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
 
 class NoRedundantFString(LintRule):
+    """Remove f-string prefixes from strings without placeholders."""
+
     SOURCE_PATTERNS = (
         "f'",
         'f"',
@@ -24,7 +26,6 @@ class NoRedundantFString(LintRule):
         "FR'",
         'FR"',
     )
-    """Remove redundant f-string without placeholders."""
 
     MESSAGE: str = "f-string doesn't have placeholders, remove redundant f-string."
 

@@ -11,11 +11,9 @@ from rattle import Invalid, LintRule, Valid
 
 
 class UseAssertIn(LintRule):
+    """Prefer assertIn and assertNotIn for unittest membership checks."""
+
     SOURCE_PATTERNS = ("assertTrue", "assertFalse")
-    """
-    Discourages use of ``assertTrue(x in y)`` and ``assertFalse(x in y)``.
-    Use ``assertIn(x, y)`` and ``assertNotIn(x, y)`` instead.
-    """
 
     MESSAGE: str = "Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check."
     REFERENCES = (

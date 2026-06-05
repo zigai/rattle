@@ -15,8 +15,9 @@ UNNECESSARY_LIST_COMPREHENSION: str = (
 
 
 class NoRedundantListComprehension(LintRule):
+    """Remove unnecessary list comprehensions inside any() and all()."""
+
     SOURCE_PATTERNS = ("any(", "all(")
-    """A derivative of flake8-comprehensions's C407 rule."""
 
     VALID = [
         Valid("any(val for val in iterable)"),
