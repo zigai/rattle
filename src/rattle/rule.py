@@ -56,8 +56,11 @@ RuleReference = str | tuple[str, str]
 
 
 def rule_name_from_class_name(class_name: str) -> str:
-    words = re.sub(r"(?<!^)(?=[A-Z])", "-", class_name).lower()
-    return re.sub(r"[^a-z0-9]+", "-", words).strip("-")
+    words = re.findall(
+        r"[A-Z]+[0-9]+(?=[A-Z]|$)|[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+|[0-9]+",
+        class_name,
+    )
+    return re.sub(r"[^a-z0-9]+", "-", "-".join(words).lower()).strip("-")
 
 
 def _normalize_source_pattern(pattern: SourcePattern) -> bytes:
@@ -90,12 +93,6 @@ def _source_pattern_matches(source: FileContent, pattern: SourcePattern) -> bool
 
 class RuleConfigurationError(ValueError):
     pass
-
-
-class _RuleNameDescriptor:
-    def __get__(self, instance: object, owner: type[LintRule]) -> str:
-        explicit_name = getattr(owner, "NAME", "")
-        return explicit_name or rule_name_from_class_name(owner.__name__)
 
 
 _RULE_SETTING_MISSING = object()
@@ -386,7 +383,7 @@ class LintRule(BatchableCSTVisitor):
     test case that provides an expected replacement.
     """
 
-    name = _RuleNameDescriptor()
+    name: ClassVar[str] = ""
     """
     Canonical kebab-case name of this lint rule.
     """
@@ -397,11 +394,12 @@ class LintRule(BatchableCSTVisitor):
         self.settings: Mapping[str, Any] = MappingProxyType({})
 
     def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        cls.name = cls.__dict__.get("NAME") or rule_name_from_class_name(cls.__name__)
         invalid: list[str | Invalid] = getattr(cls, "INVALID", [])
-        for case in invalid:
-            if isinstance(case, Invalid) and case.expected_replacement:
-                cls.AUTOFIX = True
-                return
+        cls.AUTOFIX = any(
+            isinstance(case, Invalid) and bool(case.expected_replacement) for case in invalid
+        )
 
     def __str__(self) -> str:
         return self.qualified_name()
