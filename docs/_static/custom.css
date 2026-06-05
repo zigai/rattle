@@ -354,7 +354,9 @@ article:has(.rule-metadata) > section > section > h2 {
 article:has(.rule-metadata) section#settings table.docutils {
     float: left;
     margin: 0.25rem 1.5rem 1rem 0;
-    width: auto;
+    max-width: 100%;
+    table-layout: fixed;
+    width: 100%;
 }
 
 .rule-settings-table,
@@ -368,9 +370,35 @@ article:has(.rule-metadata) section#settings table.docutils {
     padding: 0.5rem 0.8rem;
 }
 
-.rule-settings-table th:nth-child(2),
-.rule-settings-table td:nth-child(2) {
+.content table.docutils.rule-settings-table th:nth-child(1),
+.content table.docutils.rule-settings-table td:nth-child(1) {
+    overflow-wrap: anywhere;
+    width: 16rem;
+}
+
+.content table.docutils.rule-settings-table th:nth-child(2),
+.content table.docutils.rule-settings-table td:nth-child(2) {
+    overflow-wrap: anywhere;
+    text-align: left;
+    white-space: normal;
+}
+
+.content table.docutils.rule-settings-table th:nth-child(3),
+.content table.docutils.rule-settings-table td:nth-child(3) {
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
     text-align: center;
+    white-space: nowrap;
+    width: 3.5rem;
+}
+
+.content table.docutils.rule-settings-table th:nth-child(4),
+.content table.docutils.rule-settings-table td:nth-child(4) {
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+    text-align: center;
+    white-space: nowrap;
+    width: 4.75rem;
 }
 
 .rule-settings-table .rule-setting-name,
