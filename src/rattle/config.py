@@ -52,12 +52,12 @@ else:
 
 RATTLE_CONFIG_FILENAMES = ("pyproject.toml",)
 RATTLE_LOCAL_MODULE = "rattle.local"
-BUILTIN_RULE_PACKS = {
-    "blank_lines": "rattle.rules.blank_lines",
+BUILTIN_RULE_COLLECTIONS = {
+    "blank-lines": "rattle.rules.blank_lines",
     "fixit": "rattle.rules.fixit",
-    "fixit_extra": "rattle.rules.fixit_extra",
+    "fixit-extra": "rattle.rules.fixit_extra",
 }
-BUILTIN_RULE_MODULES = tuple(BUILTIN_RULE_PACKS.values())
+BUILTIN_RULE_COLLECTION_MODULES = tuple(BUILTIN_RULE_COLLECTIONS.values())
 
 
 log = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ class RuleRegistry:
         elif existing is not rule_type:
             raise CollectionError(
                 f"duplicate rule registration for {key}",
-                QualifiedRule(rule_type.__module__, rule_type.__name__),
+                QualifiedRule(rule_type.__module__, rule_type.name),
             )
 
         self._register_name(rule_type)
@@ -171,10 +171,9 @@ class RuleRegistry:
                 yield resolution
 
     def _register_name(self, rule_type: type[LintRule]) -> None:
-        for name in _rule_name_aliases(rule_type.__name__):
-            rules = self.rules_by_name.setdefault(name, [])
-            if rule_type in rules:
-                continue
+        name = rule_type.name
+        rules = self.rules_by_name.setdefault(name, [])
+        if rule_type not in rules:
             rules.append(rule_type)
 
 
@@ -283,7 +282,7 @@ def walk_module(module: ModuleType) -> dict[str, type[LintRule]]:
         return rules
 
     members = inspect.getmembers(module, is_rule)
-    rules.update(members)
+    rules.update((rule_type.name, rule_type) for _, rule_type in members)
 
     if hasattr(module, "__path__"):
         for _, module_name, is_pkg in pkgutil.iter_modules(module.__path__):
@@ -295,22 +294,13 @@ def walk_module(module: ModuleType) -> dict[str, type[LintRule]]:
 
 
 def _rule_key_for_type(rule_type: type[LintRule]) -> str:
-    return f"{rule_type.__module__}:{rule_type.__name__}"
-
-
-def _rule_name_aliases(name: str) -> set[str]:
-    aliases = {name}
-    if name.endswith("Rule"):
-        aliases.add(name.removesuffix("Rule"))
-    else:
-        aliases.add(f"{name}Rule")
-    return aliases
+    return f"{rule_type.__module__}:{rule_type.name}"
 
 
 @cache
 def _builtin_rule_types() -> tuple[type[LintRule], ...]:
     builtin_rules: list[type[LintRule]] = []
-    for module_name in BUILTIN_RULE_MODULES:
+    for module_name in BUILTIN_RULE_COLLECTION_MODULES:
         builtin_rules.extend(find_rules(QualifiedRule(module_name)))
     return tuple(builtin_rules)
 
@@ -318,10 +308,10 @@ def _builtin_rule_types() -> tuple[type[LintRule], ...]:
 def _option_key_aliases_for_rule_type(rule_type: type[LintRule]) -> set[str]:
     module_parts = rule_type.__module__.split(".")
     aliases: set[str] = set()
-    rule_names = _rule_name_aliases(rule_type.__name__)
+    name = rule_type.name
     for idx in range(len(module_parts), 0, -1):
         module_name = ".".join(module_parts[:idx])
-        aliases.update(f"{module_name}:{rule_name}" for rule_name in rule_names)
+        aliases.add(f"{module_name}:{name}")
 
     local_prefix = f"{RATTLE_LOCAL_MODULE}."
     if rule_type.__module__.startswith(local_prefix):
@@ -329,13 +319,13 @@ def _option_key_aliases_for_rule_type(rule_type: type[LintRule]) -> set[str]:
         local_parts = local_module.split(".")
         for idx in range(len(local_parts), 0, -1):
             module_name = ".".join(local_parts[:idx])
-            aliases.update(f".{module_name}:{rule_name}" for rule_name in rule_names)
+            aliases.add(f".{module_name}:{name}")
 
     if rule_type in set(_builtin_rule_types()):
-        aliases.update(rule_names)
-        for module_name in BUILTIN_RULE_MODULES:
+        aliases.add(name)
+        for module_name in BUILTIN_RULE_COLLECTION_MODULES:
             if rule_type in set(find_rules(QualifiedRule(module_name))):
-                aliases.update(f"{module_name}:{rule_name}" for rule_name in rule_names)
+                aliases.add(f"{module_name}:{name}")
 
     return aliases
 
@@ -349,8 +339,7 @@ def _option_key_aliases_for_rule_types(
     for rule_type in rule_types:
         for alias in _option_key_aliases_for_rule_type(rule_type):
             aliases[alias] = rule_type
-        for rule_name in _rule_name_aliases(rule_type.__name__):
-            rules_by_name[rule_name].append(rule_type)
+        rules_by_name[rule_type.name].append(rule_type)
 
     for name, named_rules in rules_by_name.items():
         if len(named_rules) == 1:
@@ -505,8 +494,8 @@ def resolve_rule_settings(
     rules_by_key = _option_key_aliases_for_rule_types(rule_types)
 
     resolved_settings: dict[type[LintRule], dict[str, object]] = {}
-    for rule_name, settings in config.options.items():
-        rule_type = rules_by_key.get(rule_name)
+    for option_key, settings in config.options.items():
+        rule_type = rules_by_key.get(option_key)
         if rule_type is None:
             continue
 
@@ -909,11 +898,13 @@ def get_options(  # noqa: C901 - option parsing and normalization
 
 def parse_rule(rule: str, root: Path, config: RawConfig | None = None) -> RuleSelector:
     """Given a raw rule string, parse and return a rule selector object."""
-    if module := BUILTIN_RULE_PACKS.get(rule):
+    if module := BUILTIN_RULE_COLLECTIONS.get(rule):
         return QualifiedRule(module)
 
-    if "." not in rule and ":" not in rule and RuleNameSelectorRegex.fullmatch(rule):
-        return RuleNameSelector(rule)
+    if "." not in rule and ":" not in rule:
+        if RuleNameSelectorRegex.fullmatch(rule):
+            return RuleNameSelector(rule)
+        raise ConfigError(f"invalid rule name {rule!r}", config=config)
 
     if not (match := QualifiedRuleRegex.match(rule)):
         raise ConfigError(f"invalid rule name {rule!r}", config=config)
@@ -938,7 +929,7 @@ def parse_exact_rule_target(
     if isinstance(selector, QualifiedRule):
         if selector.name is None:
             raise ConfigError(
-                f"rule target {rule!r} must reference one concrete rule (`module:ClassName`)",
+                f"rule target {rule!r} must reference one concrete rule (`module:rule-name`)",
                 config=config,
             )
         return selector
@@ -1402,15 +1393,15 @@ class ConfigValidator:
         rule_options: RuleOptionsTable,
         context: str,
     ) -> None:
-        for rule_name, settings in rule_options.items():
+        for option_key, settings in rule_options.items():
             try:
-                selector = parse_exact_rule_target(rule_name, self.root, self.config)
+                selector = parse_exact_rule_target(option_key, self.root, self.config)
             except Exception as error:  # noqa: BLE001 - validation boundary
                 self.exceptions.append(
-                    f"Failed to validate options for `{rule_name}` in {context}: {error.__class__.__name__}: {error}"
+                    f"Failed to validate options for `{option_key}` in {context}: {error.__class__.__name__}: {error}"
                 )
                 continue
-            self.option_targets_to_validate.append((rule_name, selector, settings, context))
+            self.option_targets_to_validate.append((option_key, selector, settings, context))
 
     def _collect_rule_patterns(
         self,
@@ -1499,8 +1490,8 @@ def validate_config(path: Path) -> list[str]:
 
 
 __all__ = [
-    "BUILTIN_RULE_MODULES",
-    "BUILTIN_RULE_PACKS",
+    "BUILTIN_RULE_COLLECTIONS",
+    "BUILTIN_RULE_COLLECTION_MODULES",
     "GLOB_META_CHARS",
     "RATTLE_CONFIG_FILENAMES",
     "RATTLE_LOCAL_MODULE",
