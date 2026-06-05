@@ -6,13 +6,15 @@
 from __future__ import annotations
 
 import ast
+import html
 import inspect
 import re
 import shutil
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent, indent
+from typing import TypeVar
 
 from jinja2 import Template
 
@@ -24,6 +26,8 @@ DOCS_DIR = Path(__file__).parent.parent / "docs"
 RULES_INDEX_DOC = DOCS_DIR / "guide" / "builtins.md"
 RULES_CATEGORY_DIR = DOCS_DIR / "guide" / "rule-packs"
 RULES_DETAIL_DIR = DOCS_DIR / "guide" / "rules"
+EXAMPLE_LINE_BUDGET = 6
+T = TypeVar("T")
 
 CATEGORY_TITLES = {
     "blank_lines": "Blank-line rules",
@@ -131,8 +135,6 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # {{ rule.name }}
 
-{{ rule.description }}
-
 <p class="rule-metadata">
   <span>Pack: <code>{{ rule.pack }}</code></span>
   <span>Module: <code>{{ rule.module }}</code></span>
@@ -140,6 +142,8 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: {{ rule.python_version }}</span>
   {% if rule.tags -%}<span>Tags: {{ rule.tags }}</span>{% endif %}
 </p>
+
+{{ rule.description }}
 
 {% if rule.message %}
 ## Message
@@ -150,33 +154,99 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 {% if rule.settings %}
 ## Settings
 
-| Setting | Type | Default |
-| --- | --- | --- |
+```{raw} html
+<table class="docutils rule-settings-table">
+  <thead>
+    <tr><th>Setting</th><th>Type</th><th>Default</th></tr>
+  </thead>
+  <tbody>
 {% for setting in rule.settings -%}
-| `{{ setting.name }}` | `{{ setting.value_type }}` | `{{ setting.default }}` |
-{% endfor %}
+    <tr>
+      <td><span class="rule-setting-name">{{ setting.name }}</span></td>
+      <td><span class="rule-setting-type">{{ setting.value_type }}</span></td>
+      <td><span class="rule-setting-default {{ setting.default_class }}">{{ setting.default }}</span></td>
+    </tr>
+{% endfor -%}
+  </tbody>
+</table>
+```
 
 {% endif %}
 ## Valid examples
 
-{% for case in rule.valid_examples %}
+{% if rule.valid_examples_visible %}
+{% for case in rule.valid_examples_visible %}
 ```python
 {{ case }}
 ```
 {% endfor %}
+{% if rule.valid_examples_hidden %}
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+{% for case in rule.valid_examples_hidden %}
+```python
+{{ case }}
+```
+{% endfor %}
+```{raw} html
+</details>
+```
+{% endif %}
+{% else %}
+No valid examples are documented.
+{% endif %}
 
 ## Invalid examples
 
-{% for case in rule.invalid_examples %}
+{% if rule.invalid_examples_visible %}
+{% for case in rule.invalid_examples_visible %}
+```{raw} html
+<div class="rule-invalid-example{% if case.replacement and not loop.last %} rule-invalid-example-separated{% endif %}">
+```
 ```python
 {{ case.code }}
+```
 {% if case.replacement %}
+<p class="rule-example-label">Suggested fix</p>
 
-# suggested fix
+```python
 {{ case.replacement }}
+```
 {% endif %}
+```{raw} html
+</div>
 ```
 {% endfor %}
+{% if rule.invalid_examples_hidden %}
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+{% for case in rule.invalid_examples_hidden %}
+```{raw} html
+<div class="rule-invalid-example{% if case.replacement and not loop.last %} rule-invalid-example-separated{% endif %}">
+```
+```python
+{{ case.code }}
+```
+{% if case.replacement %}
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{{ case.replacement }}
+```
+{% endif %}
+```{raw} html
+</div>
+```
+{% endfor %}
+```{raw} html
+</details>
+```
+{% endif %}
+{% else %}
+No invalid examples are documented.
+{% endif %}
     """,
     trim_blocks=True,
     lstrip_blocks=True,
@@ -188,6 +258,7 @@ class SettingDoc:
     name: str
     value_type: str
     default: str
+    default_class: str
 
 
 @dataclass(frozen=True)
@@ -213,8 +284,10 @@ class RuleDoc:
     python_version: str
     tags: str
     settings: Sequence[SettingDoc]
-    valid_examples: Sequence[str]
-    invalid_examples: Sequence[InvalidExampleDoc]
+    valid_examples_visible: Sequence[str]
+    valid_examples_hidden: Sequence[str]
+    invalid_examples_visible: Sequence[InvalidExampleDoc]
+    invalid_examples_hidden: Sequence[InvalidExampleDoc]
 
 
 @dataclass(frozen=True)
@@ -273,6 +346,35 @@ def expected_replacement(case: str | Invalid) -> str:
     return ""
 
 
+def code_line_count(value: str) -> int:
+    return max(1, len(value.splitlines()))
+
+
+def invalid_example_line_count(example: InvalidExampleDoc) -> int:
+    return code_line_count(example.code) + (
+        code_line_count(example.replacement) if example.replacement else 0
+    )
+
+
+def split_examples_by_line_budget(
+    examples: Sequence[T],
+    *,
+    line_count: Callable[[T], int],
+    budget: int = EXAMPLE_LINE_BUDGET,
+) -> tuple[Sequence[T], Sequence[T]]:
+    visible: list[T] = []
+    used = 0
+
+    for example in examples:
+        example_lines = line_count(example)
+        if visible and used + example_lines > budget:
+            break
+        visible.append(example)
+        used += example_lines
+
+    return visible, examples[len(visible) :]
+
+
 def type_name(value: object) -> str:
     name = getattr(value, "__name__", None)
     if name is not None:
@@ -287,6 +389,20 @@ def setting_default(setting: RuleSetting) -> str:
     return repr(default)
 
 
+def setting_default_class(default: str) -> str:
+    if default in {"True", "False", "None"}:
+        return "rule-setting-default-constant"
+    if re.fullmatch(r"-?\d+(\.\d+)?", default):
+        return "rule-setting-default-number"
+    if default.startswith(("'", '"')):
+        return "rule-setting-default-string"
+    return "rule-setting-default-plain"
+
+
+def html_text(value: str) -> str:
+    return html.escape(value, quote=True)
+
+
 def build_rule_doc(rule: type[LintRule], *, pack: str) -> RuleDoc:
     name = rule.__name__
     slug = slugify(name)
@@ -294,22 +410,33 @@ def build_rule_doc(rule: type[LintRule], *, pack: str) -> RuleDoc:
     message = redent(str(getattr(rule, "MESSAGE", "")))
     message_short = markdown_table_cell(message or "—")
     python_version = getattr(rule, "PYTHON_VERSION", "") or "Any"
-    settings = [
-        SettingDoc(
-            name=name,
-            value_type=type_name(setting.value_type),
-            default=setting_default(setting),
+    settings = []
+    for setting_name, setting in sorted(rule.SETTINGS.items()):
+        default = setting_default(setting)
+        settings.append(
+            SettingDoc(
+                name=html_text(setting_name),
+                value_type=html_text(type_name(setting.value_type)),
+                default=html_text(default),
+                default_class=setting_default_class(default),
+            )
         )
-        for name, setting in sorted(rule.SETTINGS.items())
-    ]
-    valid_examples = [example_code(case) for case in getattr(rule, "VALID", ())[:2]]
+    valid_examples = [example_code(case) for case in getattr(rule, "VALID", ())]
     invalid_examples = [
         InvalidExampleDoc(
             code=example_code(case),
             replacement=expected_replacement(case),
         )
-        for case in getattr(rule, "INVALID", ())[:2]
+        for case in getattr(rule, "INVALID", ())
     ]
+    valid_examples_visible, valid_examples_hidden = split_examples_by_line_budget(
+        valid_examples,
+        line_count=code_line_count,
+    )
+    invalid_examples_visible, invalid_examples_hidden = split_examples_by_line_budget(
+        invalid_examples,
+        line_count=invalid_example_line_count,
+    )
 
     return RuleDoc(
         name=name,
@@ -323,12 +450,14 @@ def build_rule_doc(rule: type[LintRule], *, pack: str) -> RuleDoc:
         message=message,
         message_short=message_short,
         autofix="Yes" if rule.AUTOFIX else "No",
-        autofix_icon="✅" if rule.AUTOFIX else "—",
+        autofix_icon="Yes" if rule.AUTOFIX else "No",
         python_version=f"`{python_version}`" if python_version != "Any" else "Any",
         tags=", ".join(f"`{tag}`" for tag in sorted(getattr(rule, "TAGS", ()))),
         settings=settings,
-        valid_examples=valid_examples,
-        invalid_examples=invalid_examples,
+        valid_examples_visible=valid_examples_visible,
+        valid_examples_hidden=valid_examples_hidden,
+        invalid_examples_visible=invalid_examples_visible,
+        invalid_examples_hidden=invalid_examples_hidden,
     )
 
 
