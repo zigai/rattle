@@ -33,7 +33,7 @@ from sphinx.domains import python
 from sphinx.highlighting import lexers as sphinx_lexers
 
 sys.path.insert(0, str(Path(__file__).parent / "_ext"))
-from rattle_pygments import DarkerModernPythonLexer
+from darker_modern_pygments import DarkerModernPythonLexer
 
 # modified from sphinx/domains/python.py
 py_sig_re = re.compile(
@@ -90,7 +90,7 @@ autodoc_typehints = "description"
 autodoc_typehints_format = "short"
 
 pygments_style = "github-light"
-pygments_dark_style = "rattle_pygments.DarkerModernStyle"
+pygments_dark_style = "darker_modern_pygments.DarkerModernStyle"
 sphinx_lexers["python"] = DarkerModernPythonLexer()
 sphinx_lexers["python3"] = DarkerModernPythonLexer()
 sphinx_lexers["py"] = DarkerModernPythonLexer()
