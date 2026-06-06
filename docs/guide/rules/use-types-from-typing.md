@@ -21,6 +21,9 @@ Enforces the use of types from the ``typing`` module in type annotations in plac
 of ``builtins.{builtin_type}`` since the type system doesn't recognize the latter
 as a valid type before Python ``3.10``.
 
+## Message
+
+You are using builtins.{builtin_type} as a type annotation but the type system doesn't recognize it as a valid type. Use typing.{correct_type} instead.
 
 
 ## Valid examples

@@ -15,7 +15,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Collection: <code>exports</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
-<span>Tags: `exports`, `style`</span></p>
+</p>
 
 Forbid exporting underscore-prefixed names from module __all__.
 
@@ -23,6 +23,30 @@ Forbid exporting underscore-prefixed names from module __all__.
 
 Do not export underscore-prefixed symbols in __all__. Either remove them from __all__ or rename them to be public.
 
+
+## Settings
+
+```{raw} html
+<table class="docutils rule-settings-table">
+  <thead>
+    <tr><th>Setting</th><th>Description</th><th>Type</th><th>Default</th></tr>
+  </thead>
+  <tbody>
+<tr>
+      <td><span class="rule-setting-name">allow_dunder_exports</span></td>
+      <td>Allow double-underscore names such as __version__ in __all__.</td>
+      <td><span class="rule-setting-type">bool</span></td>
+      <td><span class="rule-setting-default rule-setting-default-constant">False</span></td>
+    </tr>
+<tr>
+      <td><span class="rule-setting-name">allowed_exports</span></td>
+      <td>Underscore-prefixed __all__ entries to allow by exact name.</td>
+      <td><span class="rule-setting-type">list</span></td>
+      <td><span class="rule-setting-default rule-setting-default-plain">[]</span></td>
+    </tr>
+</tbody>
+</table>
+```
 
 ## Valid examples
 
@@ -48,6 +72,12 @@ def build() -> None:
 ```
 ```python
 module.__all__ = ["_private_name"]
+```
+```python
+__all__ = ["__version__"]
+```
+```python
+__all__ = ["_C_API", "_Sentinel"]
 ```
 ```{raw} html
 </details>

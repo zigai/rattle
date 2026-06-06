@@ -19,6 +19,9 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Prefer Callable[..., T] for callable types with arbitrary parameters.
 
+## Message
+
+Use Callable[..., T] instead of Callable[[...], T].
 
 
 ## Valid examples

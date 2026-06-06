@@ -15,7 +15,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Collection: <code>policy</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
-<span>Tags: `architecture`, `style`</span></p>
+</p>
 
 Limit file, function, and method length with optional path-specific settings.
 

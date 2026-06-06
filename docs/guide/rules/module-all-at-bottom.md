@@ -15,7 +15,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Collection: <code>exports</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
-<span>Tags: `exports`, `style`</span></p>
+</p>
 
 Require module __all__ declarations to appear after runtime definitions.
 

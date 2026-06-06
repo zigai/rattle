@@ -15,7 +15,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Collection: <code>style</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
-<span>Tags: `style`, `typing`</span></p>
+</p>
 
 Forbid explicit type annotations on instance-method self parameters.
 

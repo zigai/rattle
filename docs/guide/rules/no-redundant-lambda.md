@@ -21,6 +21,9 @@ A lambda function which has a single objective of
 passing all it is arguments to another callable can
 be safely replaced by that callable.
 
+## Message
+
+The lambda that is wrapping {function} is redundant. It can unwrapped safely and used purely.
 
 
 ## Valid examples

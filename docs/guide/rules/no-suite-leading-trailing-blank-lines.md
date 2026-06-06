@@ -19,6 +19,9 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Disallow leading/trailing empty lines at suite boundaries.
 
+## Message
+
+Leading or trailing blank lines in a suite are not allowed.
 
 
 ## Valid examples

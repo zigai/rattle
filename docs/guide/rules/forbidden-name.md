@@ -15,7 +15,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Collection: <code>policy</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
-<span>Tags: `architecture`, `naming`</span></p>
+</p>
 
 Ban configured names by identifier kind and pattern.
 

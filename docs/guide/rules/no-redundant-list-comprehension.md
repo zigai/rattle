@@ -19,6 +19,9 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Remove unnecessary list comprehensions inside any() and all().
 
+## Message
+
+Unnecessary list comprehension inside {func}(). Use a generator expression instead.
 
 
 ## Valid examples

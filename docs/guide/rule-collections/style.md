@@ -11,7 +11,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 # Style
 
-Opinionated style rules that are not inherited from Fixit.
+Rules for code style and structure.
 
 Enable with:
 

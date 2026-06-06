@@ -15,7 +15,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Collection: <code>policy</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
-<span>Tags: `filesystem`, `reliability`</span></p>
+</p>
 
 Require tempfile context managers instead of unmanaged mkstemp or mkdtemp calls.
 
@@ -58,6 +58,11 @@ from tempfile import NamedTemporaryFile
 
 with NamedTemporaryFile() as file:
     use(file.name)
+```
+```python
+from tempfile import mkstemp
+
+factory().mkstemp()
 ```
 ```{raw} html
 </details>

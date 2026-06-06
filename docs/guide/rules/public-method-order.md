@@ -15,7 +15,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Collection: <code>style</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
-<span>Tags: `structure`, `style`</span></p>
+</p>
 
 Require behavior classes to define public methods before private helpers.
 
