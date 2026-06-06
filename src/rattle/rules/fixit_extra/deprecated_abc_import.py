@@ -6,10 +6,10 @@
 
 import libcst as cst
 import libcst.matchers as m
-from libcst import MaybeSentinel
 from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import normalize_import_alias
 
 # The ABCs that have been moved to `collections.abc`
 ABCS = frozenset(
@@ -201,12 +201,12 @@ class DeprecatedABCImport(LintRule):
 
                 assert isinstance(node.names, tuple)
                 non_abcs = tuple(
-                    _normalize_import_alias(alias)
+                    normalize_import_alias(alias)
                     for alias in node.names
                     if alias.name.value not in ABCS
                 )
                 abcs = tuple(
-                    _normalize_import_alias(alias)
+                    normalize_import_alias(alias)
                     for alias in node.names
                     if alias.name.value in ABCS
                 )
@@ -316,10 +316,6 @@ class DeprecatedABCImport(LintRule):
                         ]
                     ),
                 )
-
-
-def _normalize_import_alias(alias: cst.ImportAlias) -> cst.ImportAlias:
-    return alias.with_changes(comma=MaybeSentinel.DEFAULT)
 
 
 __all__ = [

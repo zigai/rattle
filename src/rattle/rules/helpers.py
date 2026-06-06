@@ -4,6 +4,7 @@ import fnmatch
 from pathlib import Path
 
 import libcst as cst
+from libcst import MaybeSentinel
 
 DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
 
@@ -65,6 +66,31 @@ def alias_name(alias: cst.AsName | None, default: str) -> str:
     return default
 
 
+def normalize_import_alias(alias: cst.ImportAlias) -> cst.ImportAlias:
+    return alias.with_changes(comma=MaybeSentinel.DEFAULT)
+
+
+def target_names(target: cst.BaseExpression) -> list[cst.Name]:
+    if isinstance(target, cst.Name):
+        return [target]
+
+    if isinstance(target, cst.List | cst.Tuple):
+        names: list[cst.Name] = []
+        for element in target.elements:
+            names.extend(target_names(element.value))
+
+        return names
+
+    if isinstance(target, cst.StarredElement):
+        return target_names(target.value)
+
+    return []
+
+
+def matches_any_pattern(patterns: list[str], value: str) -> bool:
+    return any(fnmatch.fnmatchcase(value, pattern) for pattern in patterns)
+
+
 def path_candidates(path: Path) -> tuple[str, ...]:
     candidates = [path.as_posix(), path.name]
     try:
@@ -106,8 +132,11 @@ __all__ = [
     "dotted_name",
     "is_docstring_statement",
     "is_excluded_path",
+    "matches_any_pattern",
     "matches_exact_path",
     "matches_path",
+    "normalize_import_alias",
     "path_candidates",
+    "target_names",
     "validate_non_negative_int",
 ]

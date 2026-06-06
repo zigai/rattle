@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import fnmatch
 from collections.abc import Sequence
 
 import libcst as cst
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
-from rattle.rules.helpers import callable_dotted_name
+from rattle.rules.helpers import callable_dotted_name, matches_any_pattern
 
 _DEFAULT_CLASS_NAME_PATTERNS = ["*"]
 _DEFAULT_EXCLUDED_CLASS_NAME_PATTERNS = [
@@ -66,10 +65,6 @@ def _decorator_names(decorators: Sequence[cst.Decorator]) -> tuple[str, ...]:
         for decorator in decorators
         if (decorator_name := _decorator_name(decorator)) is not None
     )
-
-
-def _matches_any_pattern(patterns: list[str], value: str) -> bool:
-    return any(fnmatch.fnmatchcase(value, pattern) for pattern in patterns)
 
 
 def _is_public_accessor(method: cst.FunctionDef) -> bool:
@@ -133,9 +128,9 @@ def _should_check_class(
     excluded_class_name_patterns: list[str],
 ) -> bool:
     class_name = node.name.value
-    if not _matches_any_pattern(class_name_patterns, class_name):
+    if not matches_any_pattern(class_name_patterns, class_name):
         return False
-    if _matches_any_pattern(excluded_class_name_patterns, class_name):
+    if matches_any_pattern(excluded_class_name_patterns, class_name):
         return False
 
     return not (_has_order_sensitive_base(node) or _has_order_sensitive_decorator(node))

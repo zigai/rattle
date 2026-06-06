@@ -14,7 +14,7 @@ from libcst.metadata import (
 )
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import is_docstring_statement
+from rattle.rules.helpers import is_docstring_statement, normalize_import_alias
 
 _REMOVE_IMPORT = object()
 
@@ -240,10 +240,6 @@ def _is_future_import_statement(statement: cst.BaseStatement) -> bool:
     )
 
 
-def _normalize_import_alias(alias: cst.ImportAlias) -> cst.ImportAlias:
-    return alias.with_changes(comma=MaybeSentinel.DEFAULT)
-
-
 def _is_dataclasses_import(statement: cst.BaseSmallStatement) -> bool:
     return isinstance(statement, cst.Import) and any(
         isinstance(alias.name, cst.Name)
@@ -264,7 +260,7 @@ def _rewrite_typing_import(
         return None
 
     filtered_aliases = tuple(
-        _normalize_import_alias(alias)
+        normalize_import_alias(alias)
         for alias in statement.names
         if not (isinstance(alias.name, cst.Name) and alias.name.value == "NamedTuple")
     )

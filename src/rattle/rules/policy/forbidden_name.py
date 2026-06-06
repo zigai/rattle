@@ -8,6 +8,7 @@ from pathlib import Path
 import libcst as cst
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rules.helpers import target_names
 
 _ENTRY_PATTERN = re.compile(
     r"(?P<kind>any|variable|parameter|function|class|attribute|import|alias):(?P<pattern>[A-Za-z_][A-Za-z0-9_*?\[\]!-]*)"
@@ -67,26 +68,6 @@ def _matches_pattern(pattern: str, name: str) -> bool:
         return fnmatch.fnmatchcase(name, pattern)
 
     return name == pattern
-
-
-def _target_names(node: cst.BaseExpression) -> list[cst.Name]:
-    if isinstance(node, cst.Name):
-        return [node]
-
-    if isinstance(node, cst.Tuple | cst.List):
-        names: list[cst.Name] = []
-        for element in node.elements:
-            if isinstance(element, cst.StarredElement):
-                names.extend(_target_names(element.value))
-                continue
-            names.extend(_target_names(element.value))
-
-        return names
-
-    if isinstance(node, cst.StarredElement):
-        return _target_names(node.value)
-
-    return []
 
 
 def _leftmost_name(node: cst.BaseExpression) -> cst.Name | None:
@@ -233,7 +214,7 @@ class ForbiddenName(LintRule):
         self._report_for_name(root_name, "import")
 
     def _report_for_target(self, target: cst.BaseExpression) -> None:
-        for name in _target_names(target):
+        for name in target_names(target):
             self._report_for_name(name, "variable")
 
     def _report_for_name(self, node: cst.Name, kind: str) -> None:

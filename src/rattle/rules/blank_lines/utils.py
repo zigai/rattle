@@ -5,7 +5,7 @@ from typing import Protocol, cast
 
 import libcst as cst
 
-from rattle.rules.helpers import is_docstring_statement
+from rattle.rules.helpers import is_docstring_statement, target_names
 
 BRANCH_SMALL_STATEMENTS = (cst.Break, cst.Continue, cst.Raise, cst.Return)
 HEADER_BLOCK_STATEMENTS = (cst.For, cst.If, cst.Match, cst.While, cst.With)
@@ -153,20 +153,7 @@ def assignment_small_statement(statement: cst.BaseStatement) -> cst.BaseSmallSta
 
 
 def extract_target_names(target: cst.BaseExpression) -> list[str]:
-    if isinstance(target, cst.Name):
-        return [target.value]
-
-    if isinstance(target, (cst.List, cst.Tuple)):
-        names: list[str] = []
-        for element in target.elements:
-            names.extend(extract_target_names(element.value))
-
-        return names
-
-    if isinstance(target, cst.StarredElement):
-        return extract_target_names(target.value)
-
-    return []
+    return [name.value for name in target_names(target)]
 
 
 def extract_target_expressions(target: cst.BaseExpression) -> list[cst.BaseExpression]:
