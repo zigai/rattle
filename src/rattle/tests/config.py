@@ -898,6 +898,31 @@ class ConfigTest(TestCase):
             )
             assert [rule.__name__ for rule in rules] == ["KeepRule"]
 
+        with self.subTest("rule imports resolve local short override without enabling collection"):
+            (self.tdp / "override_rules.py").write_text(
+                dedent(
+                    """
+                    from rattle import LintRule
+
+                    class KeepRule(LintRule):
+                        pass
+
+                    class SkipRule(LintRule):
+                        pass
+                    """
+                )
+            )
+            rules = collect_types(
+                Config(
+                    root=self.tdp,
+                    enable_root_import=True,
+                    rule_imports=[QualifiedRule("override_rules")],
+                    enable=[RuleNameSelector("skip-rule")],
+                    python_version=None,
+                )
+            )
+            assert [rule.__name__ for rule in rules] == ["SkipRule"]
+
         with self.subTest("override broad opt-out"):
             rules = collect_types(
                 Config(

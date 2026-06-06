@@ -262,6 +262,51 @@ class SmokeTest(TestCase):
             assert "use-f-string [*] Do not use printf style formatting" in result.output
             assert result.exit_code == 1
 
+    def test_cli_short_rule_override_resolves_configured_local_rule(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            (tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
+                    enable = [".my_rules"]
+                    """
+                )
+            )
+            (tdp / "my_rules.py").write_text(
+                dedent(
+                    """
+                    from rattle import LintRule
+
+                    class PublicMethodOrder(LintRule):
+                        MESSAGE = "Use public methods before private helpers."
+
+                        def visit_Name(self, node):
+                            if node.value == "x":
+                                self.report(node, self.MESSAGE)
+                    """
+                )
+            )
+            dirty = tdp / "dirty.py"
+            dirty.write_text("x = 1\n")
+
+            result = self.runner.invoke(
+                main,
+                [
+                    "lint",
+                    "--config",
+                    (tdp / "pyproject.toml").as_posix(),
+                    "--rules",
+                    "public-method-order",
+                    dirty.as_posix(),
+                ],
+                catch_exceptions=False,
+            )
+
+            assert "public-method-order Use public methods before private helpers." in result.output
+            assert result.exit_code == 1
+
     def test_directory_respects_inherited_ruff_file_excludes(self) -> None:
         with TemporaryDirectory() as td:
             tdp = Path(td).resolve()
