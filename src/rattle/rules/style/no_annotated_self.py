@@ -18,7 +18,6 @@ class NoAnnotatedSelf(LintRule):
     """Forbid explicit type annotations on instance-method self parameters."""
 
     MESSAGE = "Do not annotate self in instance methods."
-    TAGS = {"style", "typing"}
 
     VALID = [
         Valid(

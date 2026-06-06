@@ -12,7 +12,7 @@ from rattle import Invalid, LintRule, Valid
 REPLACE_BUILTIN_TYPE_ANNOTATION: str = (
     "You are using builtins.{builtin_type} as a type annotation "
     "but the type system doesn't recognize it as a valid type."
-    " You should use typing.{correct_type} instead."
+    " Use typing.{correct_type} instead."
 )
 
 BUILTINS_TO_REPLACE: set[str] = {"dict", "list", "set", "tuple"}
@@ -26,6 +26,7 @@ class UseTypesFromTyping(LintRule):
     as a valid type before Python ``3.10``.
     """
 
+    MESSAGE = REPLACE_BUILTIN_TYPE_ANNOTATION
     PYTHON_VERSION = "< 3.10"
 
     METADATA_DEPENDENCIES = (

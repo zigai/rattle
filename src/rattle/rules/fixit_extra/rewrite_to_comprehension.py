@@ -23,6 +23,7 @@ class RewriteToComprehension(LintRule):
     """Prefer comprehensions over unnecessary collection constructor calls."""
 
     NAME = "use-comprehension"
+    MESSAGE = UNNECESSARY_GENERATOR
     SOURCE_PATTERNS = ("list(", "set(", "dict(")
 
     VALID = [

@@ -12,6 +12,7 @@ from rattle.rules.blank_lines.utils import is_blank_line, statement_leading_line
 class NoSuiteLeadingTrailingBlankLines(BaseBlankLinesRule, LintRule):
     """Disallow leading/trailing empty lines at suite boundaries."""
 
+    MESSAGE = "Leading or trailing blank lines in a suite are not allowed."
     LEADING_MESSAGE = "Leading blank lines in a suite are not allowed."
     TRAILING_MESSAGE = "Trailing blank lines in a suite are not allowed."
 

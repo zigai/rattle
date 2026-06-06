@@ -64,7 +64,6 @@ class ForbiddenCall(LintRule):
     """Ban calls to configured functions, constructors, and helper APIs."""
 
     MESSAGE = "Do not call forbidden callable '{symbol}'."
-    TAGS = {"architecture"}
     METADATA_DEPENDENCIES = (*LintRule.METADATA_DEPENDENCIES, QualifiedNameProvider)
     SETTINGS = {
         "forbidden_calls": RuleSetting(

@@ -14,6 +14,7 @@ class VariadicCallableSyntax(LintRule):
     """Prefer Callable[..., T] for callable types with arbitrary parameters."""
 
     NAME = "use-callable-ellipsis"
+    MESSAGE = "Use Callable[..., T] instead of Callable[[...], T]."
 
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
     SOURCE_PATTERNS = ("Callable",)

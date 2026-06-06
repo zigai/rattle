@@ -9,14 +9,14 @@ import libcst.matchers as m
 from rattle import Invalid, LintRule, Valid
 
 UNNECESSARY_LIST_COMPREHENSION: str = (
-    "Unnecessary list comprehension - {func} can take a generator, and is likely "
-    "to short-circuit, so constructing a list is probably wasteful."
+    "Unnecessary list comprehension inside {func}(). Use a generator expression instead."
 )
 
 
 class NoRedundantListComprehension(LintRule):
     """Remove unnecessary list comprehensions inside any() and all()."""
 
+    MESSAGE = UNNECESSARY_LIST_COMPREHENSION
     SOURCE_PATTERNS = ("any(", "all(")
 
     VALID = [

@@ -173,7 +173,6 @@ class PublicMethodOrder(LintRule):
     """Require behavior classes to define public methods before private helpers."""
 
     MESSAGE = "Define public methods before private helpers in behavior classes."
-    TAGS = {"style", "structure"}
     SETTINGS = {
         "class_name_patterns": RuleSetting(
             list[str],

@@ -67,7 +67,6 @@ class ForbiddenImport(LintRule):
     """Ban imports that cross configured package or module boundaries."""
 
     MESSAGE = "Do not import across forbidden boundary '{boundary}'."
-    TAGS = {"architecture", "imports"}
     SETTINGS = {
         "forbidden_imports": RuleSetting(
             list[str],

@@ -75,7 +75,6 @@ class LineCountLimit(LintRule):
     """Limit file, function, and method length with optional path-specific settings."""
 
     MESSAGE = "{target} has {actual_lines} lines, exceeding the configured limit of {max_lines}."
-    TAGS = {"architecture", "style"}
     METADATA_DEPENDENCIES = (*LintRule.METADATA_DEPENDENCIES, FilePathProvider, PositionProvider)
     SETTINGS = {
         "max_file_lines": RuleSetting(

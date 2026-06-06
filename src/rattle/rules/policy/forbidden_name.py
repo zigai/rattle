@@ -84,7 +84,6 @@ class ForbiddenName(LintRule):
     """Ban configured names by identifier kind and pattern."""
 
     MESSAGE = "Do not use forbidden {kind} name '{name}'."
-    TAGS = {"architecture", "naming"}
     SETTINGS = {
         "forbidden_names": RuleSetting(
             list[str],

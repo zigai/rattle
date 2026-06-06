@@ -193,7 +193,6 @@ class ModuleAllAtBottom(LintRule):
     """Require module __all__ declarations to appear after runtime definitions."""
 
     MESSAGE = "Define module __all__ at the bottom of the file."
-    TAGS = {"exports", "style"}
 
     VALID = [
         Valid(

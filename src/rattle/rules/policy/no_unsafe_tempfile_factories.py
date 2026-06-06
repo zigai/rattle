@@ -14,7 +14,6 @@ class NoUnsafeTempfileFactories(LintRule):
 
     MESSAGE = "Use tempfile context managers instead of mkstemp or mkdtemp."
     SOURCE_PATTERNS = (b"tempfile",)
-    TAGS = {"filesystem", "reliability"}
     METADATA_DEPENDENCIES = (*LintRule.METADATA_DEPENDENCIES, FilePathProvider)
     SETTINGS = {
         "excluded_path_parts": RuleSetting(list[str], default=["tests", "benchmarks"]),

@@ -25,6 +25,7 @@ class RewriteToLiteral(LintRule):
     """Prefer collection literals over unnecessary constructor calls."""
 
     NAME = "use-literal"
+    MESSAGE = UNNECESSARY_LITERAL
     SOURCE_PATTERNS = ("tuple(", "list(", "set(", "dict(")
 
     VALID = [

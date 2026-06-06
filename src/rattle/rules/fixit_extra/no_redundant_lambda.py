@@ -15,6 +15,8 @@ UNNECESSARY_LAMBDA: str = (
 
 
 class NoRedundantLambda(LintRule):
+    MESSAGE = UNNECESSARY_LAMBDA
+
     """
     A lambda function which has a single objective of
     passing all it is arguments to another callable can
