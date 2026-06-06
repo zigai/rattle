@@ -256,6 +256,7 @@ class Config:
     # rule selection
     enable: list[RuleSelector] = field(default_factory=list)
     disable: list[RuleSelector] = field(default_factory=list)
+    rule_imports: list[RuleSelector] = field(default_factory=list)
     options: RuleOptionsTable = field(default_factory=dict)
 
     # filtering criteria

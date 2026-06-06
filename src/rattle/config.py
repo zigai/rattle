@@ -431,7 +431,7 @@ def _build_rule_registry(
 def resolve_rule_type(config: Config, selector: RuleSelector) -> type[LintRule]:
     """Resolve one rule selector against built-ins and configured/imported rules."""
     registry = _build_rule_registry(
-        (*config.enable, *config.disable, selector),
+        (*config.rule_imports, *config.enable, *config.disable, selector),
         root=config.root,
         enable_root_import=config.enable_root_import,
         strict=False,
@@ -465,7 +465,7 @@ def collect_rule_types(
     disabled_rules = debug_reasons if debug_reasons is not None else {}
 
     registry = _build_rule_registry(
-        (*config.enable, *config.disable),
+        (*config.rule_imports, *config.enable, *config.disable),
         root=config.root,
         enable_root_import=config.enable_root_import,
         strict=False,
@@ -557,6 +557,7 @@ def _config_rule_plan_key(config: Config) -> tuple[object, ...]:
     return (
         config.root,
         config.enable_root_import,
+        tuple(str(selector) for selector in config.rule_imports),
         tuple(str(selector) for selector in config.enable),
         tuple(str(selector) for selector in config.disable),
         (
@@ -962,6 +963,58 @@ def parse_exact_rule_target(
     return selector
 
 
+def _needs_configured_rule_imports(selectors: Sequence[RuleSelector]) -> bool:
+    return any(
+        isinstance(selector, RuleNameSelector)
+        and selector.value not in BUILTIN_RULE_COLLECTIONS
+        and not any(rule_type.name == selector.value for rule_type in _builtin_rule_types())
+        for selector in selectors
+    )
+
+
+def _configured_rule_imports(*selector_groups: Iterable[RuleSelector]) -> list[RuleSelector]:
+    selectors = {
+        selector
+        for selector_group in selector_groups
+        for selector in selector_group
+        if isinstance(selector, QualifiedRule)
+    }
+    return sorted(selectors, key=str)
+
+
+def _apply_runtime_options(
+    config: Config,
+    options: Options,
+    raw_configs: list[RawConfig],
+    *,
+    explicit_path: bool,
+) -> None:
+    if not raw_configs and _excluded_by_options_without_configs(
+        config.path,
+        options,
+        explicit_path,
+    ):
+        config.excluded = True
+
+    if options.tags:
+        config.tags = options.tags
+
+    if options.rules:
+        if _needs_configured_rule_imports(options.rules):
+            config.rule_imports = _configured_rule_imports(config.enable)
+        config.enable = list(options.rules)
+        config.disable = []
+
+    if options.output_format:
+        config.output_format = options.output_format
+
+    if options.output_template:
+        config.output_template = options.output_template
+
+    if options.no_format:
+        config.formatter = None
+
+
 @dataclass
 class ConfigMerger:
     path: Path
@@ -1260,24 +1313,7 @@ def generate_config(
     ).merge()
 
     if options:
-        if not raw_configs and _excluded_by_options_without_configs(path, options, explicit_path):
-            config.excluded = True
-
-        if options.tags:
-            config.tags = options.tags
-
-        if options.rules:
-            config.enable = list(options.rules)
-            config.disable = []
-
-        if options.output_format:
-            config.output_format = options.output_format
-
-        if options.output_template:
-            config.output_template = options.output_template
-
-        if options.no_format:
-            config.formatter = None
+        _apply_runtime_options(config, options, raw_configs, explicit_path=explicit_path)
 
     return config
 

@@ -459,6 +459,7 @@ def _clean_cache_key(
         "enable_root_import": config.enable_root_import.as_posix()
         if isinstance(config.enable_root_import, Path)
         else config.enable_root_import,
+        "rule_imports": [str(selector) for selector in config.rule_imports],
         "enable": [str(selector) for selector in config.enable],
         "disable": [str(selector) for selector in config.disable],
         "options": [
