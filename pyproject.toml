@@ -62,6 +62,7 @@ rattle = "rattle.cli:main"
 
 [project.urls]
 Home = "https://github.com/zigai/rattle"
+Documentation = "https://rattle.readthedocs.io"
 Issues = "https://github.com/zigai/rattle/issues"
 
 [tool.attribution]
