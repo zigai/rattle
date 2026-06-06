@@ -46,8 +46,16 @@ CATEGORY_DESCRIPTIONS = {
     "fixit": "Core lint rules inherited from Fixit.",
     "fixit-extra": "Additional Fixit-derived rules that can be enabled separately.",
     "policy": "Configurable policy rules for architecture and naming boundaries.",
-    "style": "Opinionated style rules that are not inherited from Fixit.",
+    "style": "Rules for code style and structure.",
 }
+CATEGORY_ORDER = (
+    "blank-lines",
+    "exports",
+    "policy",
+    "style",
+    "fixit",
+    "fixit-extra",
+)
 
 INDEX_TPL = Template(
     r"""
@@ -148,7 +156,6 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Collection: <code>{{ rule.collection }}</code></span>
   <span>Autofix: {{ rule.autofix }}</span>
   <span>Python: {{ rule.python_version }}</span>
-  {% if rule.tags -%}<span>Tags: {{ rule.tags }}</span>{% endif %}
 </p>
 
 {{ rule.description }}
@@ -499,7 +506,14 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
 
 def build_categories() -> list[CategoryDoc]:
     categories: list[CategoryDoc] = []
-    for collection, module in BUILTIN_RULE_COLLECTIONS.items():
+    ordered_collections = [
+        collection for collection in CATEGORY_ORDER if collection in BUILTIN_RULE_COLLECTIONS
+    ]
+    ordered_collections.extend(
+        collection for collection in BUILTIN_RULE_COLLECTIONS if collection not in CATEGORY_ORDER
+    )
+    for collection in ordered_collections:
+        module = BUILTIN_RULE_COLLECTIONS[collection]
         rules = sorted(
             (
                 build_rule_doc(rule, collection=collection)
