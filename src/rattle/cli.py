@@ -938,7 +938,7 @@ def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
         plugins=[ValidateConfigPositionalPlugin()],
         executable_flags=[
             ExecutableFlag(
-                ("--version", "-V"),
+                ("-V", "--version"),
                 _version,
                 help="Show the version and exit.",
             )
