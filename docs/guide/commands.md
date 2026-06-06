@@ -47,11 +47,14 @@ forms as {attr}`enable <rattle.Config.enable>` and
 - import selectors such as `rattle.rules.fixit_extra:use-f-string`
 - built-in rule collections such as `blank-lines`, `fixit`, or `fixit-extra`
 - exact built-in rule names such as `use-f-string`
+- exact local rule names such as `my-custom-rule`, when the local rule module is
+  already configured for the target path
 
 For example:
 
 ```console
 $ rattle lint --rules "use-f-string" path/to/file.py
+$ rattle lint --rules "my-custom-rule" path/to/file.py
 $ rattle lint --rules "fixit,fixit-extra" path/to/file.py
 ```
 
