@@ -58,7 +58,6 @@ BUILTIN_RULE_COLLECTIONS = {
     "fixit": "rattle.rules.fixit",
     "fixit-extra": "rattle.rules.fixit_extra",
     "policy": "rattle.rules.policy",
-    "reliability": "rattle.rules.reliability",
     "style": "rattle.rules.style",
 }
 BUILTIN_RULE_COLLECTION_MODULES = tuple(BUILTIN_RULE_COLLECTIONS.values())

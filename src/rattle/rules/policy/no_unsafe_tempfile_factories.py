@@ -6,7 +6,7 @@ import libcst as cst
 from libcst.metadata import FilePathProvider
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
-from rattle.rules.reliability._helpers import alias_name, call_name, is_excluded_path, module_name
+from rattle.rules.policy._helpers import alias_name, call_name, is_excluded_path, module_name
 
 
 class NoUnsafeTempfileFactories(LintRule):

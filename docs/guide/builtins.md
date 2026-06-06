@@ -116,19 +116,6 @@ enable = ["policy"]
 | [forbidden-import](rules/forbidden-import.md) | Do not import across forbidden boundary '{boundary}'. | Any | No |
 | [forbidden-name](rules/forbidden-name.md) | Do not use forbidden {kind} name '{name}'. | Any | No |
 | [line-count-limit](rules/line-count-limit.md) | {target} has {actual_lines} lines, exceeding the configured limit of {max_lines}. | Any | No |
-
-## Reliability
-
-Rules for APIs that are easy to misuse in production code.
-
-Enable with:
-
-```toml
-enable = ["reliability"]
-```
-
-| Rule | Message | Python | Autofix |
-| --- | --- | --- | :---: |
 | [no-unsafe-tempfile-factories](rules/no-unsafe-tempfile-factories.md) | Use tempfile context managers instead of mkstemp or mkdtemp. | Any | No |
 
 ## Style
@@ -155,6 +142,5 @@ rule-collections/exports
 rule-collections/fixit
 rule-collections/fixit-extra
 rule-collections/policy
-rule-collections/reliability
 rule-collections/style
 ```

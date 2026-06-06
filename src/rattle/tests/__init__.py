@@ -23,7 +23,6 @@ add_lint_rule_tests_to_module(
                 QualifiedRule("rattle.rules.fixit"),
                 QualifiedRule("rattle.rules.fixit_extra"),
                 QualifiedRule("rattle.rules.policy"),
-                QualifiedRule("rattle.rules.reliability"),
                 QualifiedRule("rattle.rules.style"),
             ],
             python_version=None,

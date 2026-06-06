@@ -38,7 +38,6 @@ CATEGORY_TITLES = {
     "fixit": "Fixit",
     "fixit-extra": "Fixit Extra",
     "policy": "Policy",
-    "reliability": "Reliability",
     "style": "Style",
 }
 CATEGORY_DESCRIPTIONS = {
@@ -47,7 +46,6 @@ CATEGORY_DESCRIPTIONS = {
     "fixit": "Core lint rules inherited from Fixit.",
     "fixit-extra": "Additional Fixit-derived rules that can be enabled separately.",
     "policy": "Configurable policy rules for architecture and naming boundaries.",
-    "reliability": "Rules for APIs that are easy to misuse in production code.",
     "style": "Opinionated style rules that are not inherited from Fixit.",
 }
 

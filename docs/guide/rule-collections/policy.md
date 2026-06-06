@@ -25,3 +25,4 @@ enable = ["policy"]
 | [forbidden-import](../rules/forbidden-import.md) | Do not import across forbidden boundary '{boundary}'. | Any | No |
 | [forbidden-name](../rules/forbidden-name.md) | Do not use forbidden {kind} name '{name}'. | Any | No |
 | [line-count-limit](../rules/line-count-limit.md) | {target} has {actual_lines} lines, exceeding the configured limit of {max_lines}. | Any | No |
+| [no-unsafe-tempfile-factories](../rules/no-unsafe-tempfile-factories.md) | Use tempfile context managers instead of mkstemp or mkdtemp. | Any | No |

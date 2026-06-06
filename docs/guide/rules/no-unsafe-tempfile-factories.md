@@ -12,7 +12,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 # no-unsafe-tempfile-factories
 
 <p class="rule-metadata">
-  <span>Collection: <code>reliability</code></span>
+  <span>Collection: <code>policy</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 <span>Tags: `filesystem`, `reliability`</span></p>
