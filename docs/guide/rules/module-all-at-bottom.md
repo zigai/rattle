@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Require module __all__ declarations to appear after runtime definitions.
+Require module \_\_all\_\_ declarations to appear after runtime definitions.
 
 ## Message
 
-Define module __all__ at the bottom of the file.
+Define module \_\_all\_\_ at the bottom of the file.
 
 
 ## Valid examples

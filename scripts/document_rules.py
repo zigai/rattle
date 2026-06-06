@@ -435,6 +435,10 @@ def html_text(value: str) -> str:
     return html.escape(value, quote=True)
 
 
+def markdown_text(value: str) -> str:
+    return re.sub(r"__(?=\w)([^\n`]*?\w)__", r"\\_\\_\1\\_\\_", value)
+
+
 def reference_doc(reference: RuleReference) -> ReferenceDoc:
     if isinstance(reference, str):
         return ReferenceDoc(label=reference, url=reference)
@@ -446,8 +450,8 @@ def reference_doc(reference: RuleReference) -> ReferenceDoc:
 def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
     name = rule.name
     slug = name
-    description = redent(rule_doc(rule))
-    message = redent(str(getattr(rule, "MESSAGE", "")))
+    description = markdown_text(redent(rule_doc(rule)))
+    message = markdown_text(redent(str(getattr(rule, "MESSAGE", ""))))
     references = tuple(reference_doc(reference) for reference in rule.REFERENCES)
     message_short = markdown_table_cell(message or "—")
     python_version = getattr(rule, "PYTHON_VERSION", "") or "Any"

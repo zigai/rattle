@@ -21,5 +21,5 @@ enable = ["exports"]
 
 | Rule | Message | Python | Autofix |
 | --- | --- | --- | :---: |
-| [module-all-at-bottom](../rules/module-all-at-bottom.md) | Define module __all__ at the bottom of the file. | Any | Yes |
-| [no-underscore-all-exports](../rules/no-underscore-all-exports.md) | Do not export underscore-prefixed symbols in __all__. Either remove them from __all__ or rename them to be public. | Any | No |
+| [module-all-at-bottom](../rules/module-all-at-bottom.md) | Define module \_\_all\_\_ at the bottom of the file. | Any | Yes |
+| [no-underscore-all-exports](../rules/no-underscore-all-exports.md) | Do not export underscore-prefixed symbols in \_\_all\_\_. Either remove them from \_\_all\_\_ or rename them to be public. | Any | No |

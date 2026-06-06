@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Forbid exporting underscore-prefixed names from module __all__.
+Forbid exporting underscore-prefixed names from module \_\_all\_\_.
 
 ## Message
 
-Do not export underscore-prefixed symbols in __all__. Either remove them from __all__ or rename them to be public.
+Do not export underscore-prefixed symbols in \_\_all\_\_. Either remove them from \_\_all\_\_ or rename them to be public.
 
 
 ## Settings

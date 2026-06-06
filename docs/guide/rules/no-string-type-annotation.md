@@ -18,7 +18,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 </p>
 
 Enforce the use of type identifier instead of using string type hints for simplicity and better syntax highlighting.
-Starting in Python 3.7, ``from __future__ import annotations`` can postpone evaluation of type annotations,
+Starting in Python 3.7, ``from \_\_future\_\_ import annotations`` can postpone evaluation of type annotations,
 and thus forward references no longer need to use string annotation style.
 
 ## Message
