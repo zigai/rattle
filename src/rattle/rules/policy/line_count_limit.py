@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,6 +7,7 @@ import libcst as cst
 from libcst.metadata import FilePathProvider, PositionProvider
 
 from rattle import CodePosition, Invalid, LintRule, RuleSetting, Valid
+from rattle.rules.helpers import matches_exact_path, matches_path
 
 _SETTING_NAMES = frozenset({"max_file_lines", "max_function_lines", "max_method_lines"})
 
@@ -24,24 +24,6 @@ def _validate_non_negative_int(value: object) -> bool:
         raise ValueError(f"expected a non-negative integer, got {value!r}")
 
     return True
-
-
-def _path_candidates(path: Path) -> tuple[str, ...]:
-    candidates = [path.as_posix(), path.name]
-    try:
-        candidates.append(path.relative_to(Path.cwd()).as_posix())
-    except ValueError:
-        pass
-
-    return tuple(dict.fromkeys(candidates))
-
-
-def _matches_path(pattern: str, path: Path) -> bool:
-    return any(fnmatch.fnmatchcase(candidate, pattern) for candidate in _path_candidates(path))
-
-
-def _matches_exact_path(expected_path: str, path: Path) -> bool:
-    return expected_path in _path_candidates(path)
 
 
 def _validate_limit_table(value: object) -> bool:
@@ -302,14 +284,14 @@ class LineCountLimit(LintRule):
         for path_pattern, configured_limits in sorted(
             glob_limits.items(), key=lambda item: len(item[0])
         ):
-            if not _matches_path(path_pattern, self._current_file_path):
+            if not matches_path(path_pattern, self._current_file_path):
                 continue
 
             limits = _apply_limits(limits, configured_limits)
 
         per_file_limits = self.settings["per_file_limits"]
         for path_pattern, configured_limits in per_file_limits.items():
-            if not _matches_exact_path(path_pattern, self._current_file_path):
+            if not matches_exact_path(path_pattern, self._current_file_path):
                 continue
 
             limits = _apply_limits(limits, configured_limits)

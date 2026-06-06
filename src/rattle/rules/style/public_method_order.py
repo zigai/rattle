@@ -6,6 +6,7 @@ from collections.abc import Sequence
 import libcst as cst
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rules.helpers import callable_dotted_name
 
 _DEFAULT_CLASS_NAME_PATTERNS = ["*"]
 _DEFAULT_EXCLUDED_CLASS_NAME_PATTERNS = [
@@ -47,36 +48,16 @@ def _is_dunder(name: str) -> bool:
     return name.startswith("__") and name.endswith("__")
 
 
-def _dotted_name(node: cst.CSTNode) -> str | None:
-    if isinstance(node, cst.Name):
-        return node.value
-
-    if isinstance(node, cst.Attribute):
-        parent_name = _dotted_name(node.value)
-        if parent_name is None:
-            return node.attr.value
-
-        return f"{parent_name}.{node.attr.value}"
-
-    if isinstance(node, cst.Call):
-        return _dotted_name(node.func)
-
-    if isinstance(node, cst.Subscript):
-        return _dotted_name(node.value)
-
-    return None
-
-
 def _base_name(base: cst.Arg) -> str | None:
-    dotted_name = _dotted_name(base.value)
-    if dotted_name is None:
+    name = callable_dotted_name(base.value)
+    if name is None:
         return None
 
-    return dotted_name.rsplit(".", maxsplit=1)[-1]
+    return name.rsplit(".", maxsplit=1)[-1]
 
 
 def _decorator_name(decorator: cst.Decorator) -> str | None:
-    return _dotted_name(decorator.decorator)
+    return callable_dotted_name(decorator.decorator)
 
 
 def _decorator_names(decorators: Sequence[cst.Decorator]) -> tuple[str, ...]:

@@ -8,6 +8,7 @@ import libcst as cst
 from libcst.metadata import QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rules.helpers import dotted_name
 
 _SYMBOL_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
 
@@ -57,20 +58,6 @@ def _parse_forbidden_calls_setting(value: object) -> tuple[_ForbiddenCall, ...]:
     assert isinstance(value, list | tuple)
 
     return tuple(_parse_forbidden_call(entry) for entry in value)
-
-
-def _dotted_name(node: cst.BaseExpression) -> str | None:
-    if isinstance(node, cst.Name):
-        return node.value
-
-    if not isinstance(node, cst.Attribute):
-        return None
-
-    parent_name = _dotted_name(node.value)
-    if parent_name is None:
-        return None
-
-    return f"{parent_name}.{node.attr.value}"
 
 
 class ForbiddenCall(LintRule):
@@ -213,9 +200,9 @@ class ForbiddenCall(LintRule):
             if qualified_name.name in forbidden_symbols:
                 return qualified_name.name
 
-        dotted_name = _dotted_name(node.func)
-        if dotted_name in forbidden_symbols:
-            return dotted_name
+        call_name = dotted_name(node.func)
+        if call_name in forbidden_symbols:
+            return call_name
 
         return None
 

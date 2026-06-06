@@ -6,7 +6,7 @@ import libcst as cst
 from libcst.metadata import FilePathProvider
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
-from rattle.rules.policy._helpers import alias_name, call_name, is_excluded_path, module_name
+from rattle.rules.helpers import alias_name, dotted_name, is_excluded_path
 
 
 class NoUnsafeTempfileFactories(LintRule):
@@ -35,6 +35,13 @@ class NoUnsafeTempfileFactories(LintRule):
 
             with NamedTemporaryFile() as file:
                 use(file.name)
+            """
+        ),
+        Valid(
+            """
+            from tempfile import mkstemp
+
+            factory().mkstemp()
             """
         ),
     ]
@@ -95,7 +102,7 @@ class NoUnsafeTempfileFactories(LintRule):
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
         if self._should_skip_current_file():
             return
-        if module_name(node.module) != "tempfile":
+        if dotted_name(node.module) != "tempfile":
             return
         if isinstance(node.names, cst.ImportStar):
             return
@@ -112,7 +119,7 @@ class NoUnsafeTempfileFactories(LintRule):
         if self._should_skip_current_file():
             return
 
-        name = call_name(node.func)
+        name = dotted_name(node.func)
         if name in self._factory_aliases:
             self.report(node.func, self.MESSAGE)
             return
