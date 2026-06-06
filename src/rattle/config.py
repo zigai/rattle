@@ -54,8 +54,12 @@ RATTLE_CONFIG_FILENAMES = ("pyproject.toml",)
 RATTLE_LOCAL_MODULE = "rattle.local"
 BUILTIN_RULE_COLLECTIONS = {
     "blank-lines": "rattle.rules.blank_lines",
+    "exports": "rattle.rules.exports",
     "fixit": "rattle.rules.fixit",
     "fixit-extra": "rattle.rules.fixit_extra",
+    "policy": "rattle.rules.policy",
+    "reliability": "rattle.rules.reliability",
+    "style": "rattle.rules.style",
 }
 BUILTIN_RULE_COLLECTION_MODULES = tuple(BUILTIN_RULE_COLLECTIONS.values())
 

@@ -31,6 +31,21 @@ enable = ["blank-lines"]
 | [blank-line-before-unrelated-block](rules/blank-line-before-unrelated-block.md) | Illegal cuddle before block header. The preceding setup must directly feed the upcoming block. | Any | Yes |
 | [no-suite-leading-trailing-blank-lines](rules/no-suite-leading-trailing-blank-lines.md) | — | Any | Yes |
 
+## Exports
+
+Rules for explicit module export surfaces.
+
+Enable with:
+
+```toml
+enable = ["exports"]
+```
+
+| Rule | Message | Python | Autofix |
+| --- | --- | --- | :---: |
+| [module-all-at-bottom](rules/module-all-at-bottom.md) | Define module __all__ at the bottom of the file. | Any | Yes |
+| [no-underscore-all-exports](rules/no-underscore-all-exports.md) | Do not export underscore-prefixed symbols in __all__. Either remove them from __all__ or rename them to be public. | Any | No |
+
 ## Fixit
 
 Core lint rules inherited from Fixit.
@@ -85,11 +100,61 @@ enable = ["fixit-extra"]
 | [use-is-for-singletons](rules/use-is-for-singletons.md) | Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity. Use `is` or `is not` instead. | Any | Yes |
 | [use-literal](rules/use-literal.md) | — | Any | Yes |
 
+## Policy
+
+Configurable policy rules for architecture and naming boundaries.
+
+Enable with:
+
+```toml
+enable = ["policy"]
+```
+
+| Rule | Message | Python | Autofix |
+| --- | --- | --- | :---: |
+| [forbidden-call](rules/forbidden-call.md) | Do not call forbidden callable '{symbol}'. | Any | No |
+| [forbidden-import](rules/forbidden-import.md) | Do not import across forbidden boundary '{boundary}'. | Any | No |
+| [forbidden-name](rules/forbidden-name.md) | Do not use forbidden {kind} name '{name}'. | Any | No |
+| [line-count-limit](rules/line-count-limit.md) | {target} has {actual_lines} lines, exceeding the configured limit of {max_lines}. | Any | No |
+
+## Reliability
+
+Rules for APIs that are easy to misuse in production code.
+
+Enable with:
+
+```toml
+enable = ["reliability"]
+```
+
+| Rule | Message | Python | Autofix |
+| --- | --- | --- | :---: |
+| [no-unsafe-tempfile-factories](rules/no-unsafe-tempfile-factories.md) | Use tempfile context managers instead of mkstemp or mkdtemp. | Any | No |
+
+## Style
+
+Opinionated style rules that are not inherited from Fixit.
+
+Enable with:
+
+```toml
+enable = ["style"]
+```
+
+| Rule | Message | Python | Autofix |
+| --- | --- | --- | :---: |
+| [no-annotated-self](rules/no-annotated-self.md) | Do not annotate self in instance methods. | Any | Yes |
+| [public-method-order](rules/public-method-order.md) | Define public methods before private helpers in behavior classes. | Any | No |
+
 ```{toctree}
 :hidden:
 :maxdepth: 1
 
 rule-collections/blank-lines
+rule-collections/exports
 rule-collections/fixit
 rule-collections/fixit-extra
+rule-collections/policy
+rule-collections/reliability
+rule-collections/style
 ```

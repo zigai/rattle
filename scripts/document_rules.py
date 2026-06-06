@@ -34,13 +34,21 @@ T = TypeVar("T")
 
 CATEGORY_TITLES = {
     "blank-lines": "Blank Lines",
+    "exports": "Exports",
     "fixit": "Fixit",
     "fixit-extra": "Fixit Extra",
+    "policy": "Policy",
+    "reliability": "Reliability",
+    "style": "Style",
 }
 CATEGORY_DESCRIPTIONS = {
     "blank-lines": "Whitespace and statement-separation rules.",
+    "exports": "Rules for explicit module export surfaces.",
     "fixit": "Core lint rules inherited from Fixit.",
     "fixit-extra": "Additional Fixit-derived rules that can be enabled separately.",
+    "policy": "Configurable policy rules for architecture and naming boundaries.",
+    "reliability": "Rules for APIs that are easy to misuse in production code.",
+    "style": "Opinionated style rules that are not inherited from Fixit.",
 }
 
 INDEX_TPL = Template(

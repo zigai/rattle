@@ -1,0 +1,231 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from pathlib import Path
+
+import libcst as cst
+from libcst.metadata import QualifiedNameProvider, QualifiedNameSource
+
+from rattle import Invalid, LintRule, RuleSetting, Valid
+
+_SYMBOL_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
+
+
+@dataclass(frozen=True)
+class _ForbiddenCall:
+    symbol: str
+    message: str | None = None
+    use_instead: str | None = None
+
+
+def _parse_forbidden_call(entry: str | _ForbiddenCall) -> _ForbiddenCall:
+    if isinstance(entry, _ForbiddenCall):
+        return entry
+
+    symbol, _, details = entry.partition("|")
+    message, _, use_instead = details.partition("|")
+    normalized_message = message.strip() or None
+    normalized_use_instead = use_instead.strip() or None
+
+    if not _SYMBOL_PATTERN.fullmatch(symbol):
+        raise ValueError(f"expected dotted symbol in forbidden call entry, got {entry!r}")
+    if normalized_message == "":
+        raise ValueError(f"expected non-empty message in forbidden call entry, got {entry!r}")
+    if normalized_use_instead is not None and not _SYMBOL_PATTERN.fullmatch(normalized_use_instead):
+        raise ValueError(
+            f"expected dotted use_instead symbol in forbidden call entry, got {entry!r}"
+        )
+
+    return _ForbiddenCall(
+        symbol=symbol,
+        message=normalized_message,
+        use_instead=normalized_use_instead,
+    )
+
+
+def _validate_forbidden_calls(value: object) -> object:
+    assert isinstance(value, list)
+
+    for entry in value:
+        _parse_forbidden_call(entry)
+
+    return True
+
+
+def _parse_forbidden_calls_setting(value: object) -> tuple[_ForbiddenCall, ...]:
+    assert isinstance(value, list | tuple)
+
+    return tuple(_parse_forbidden_call(entry) for entry in value)
+
+
+def _dotted_name(node: cst.BaseExpression) -> str | None:
+    if isinstance(node, cst.Name):
+        return node.value
+
+    if not isinstance(node, cst.Attribute):
+        return None
+
+    parent_name = _dotted_name(node.value)
+    if parent_name is None:
+        return None
+
+    return f"{parent_name}.{node.attr.value}"
+
+
+class ForbiddenCall(LintRule):
+    """Ban calls to configured functions, constructors, and helper APIs."""
+
+    MESSAGE = "Do not call forbidden callable '{symbol}'."
+    TAGS = {"architecture"}
+    METADATA_DEPENDENCIES = (*LintRule.METADATA_DEPENDENCIES, QualifiedNameProvider)
+    SETTINGS = {
+        "forbidden_calls": RuleSetting(
+            list[str],
+            default=[],
+            validator=_validate_forbidden_calls,
+        ),
+    }
+
+    VALID = [
+        Valid("typing.cast(str, value)"),
+        Valid(
+            """
+            from typing import cast
+
+            def cast(value: object) -> object:
+                return value
+
+            result = cast(value)
+            """,
+            options={"forbidden_calls": ["typing.cast"]},
+        ),
+        Valid(
+            """
+            import typing
+
+            value = typing.NamedTuple("Row", [("id", int)])
+            """,
+            options={"forbidden_calls": ["typing.cast"]},
+        ),
+    ]
+
+    INVALID = [
+        Invalid(
+            """
+            import typing
+
+            value = typing.cast(str, value)
+            """,
+            expected_message="Do not call forbidden callable 'typing.cast'.",
+            options={"forbidden_calls": ["typing.cast"]},
+        ),
+        Invalid(
+            """
+            import typing as t
+
+            value = t.cast(str, value)
+            """,
+            expected_message="Do not call forbidden callable 'typing.cast'.",
+            options={"forbidden_calls": ["typing.cast"]},
+        ),
+        Invalid(
+            """
+            from typing import cast as type_cast
+
+            value = type_cast(str, value)
+            """,
+            expected_message="Do not call forbidden callable 'typing.cast'.",
+            options={"forbidden_calls": ["typing.cast"]},
+        ),
+        Invalid(
+            """
+            from typing_extensions import cast
+
+            value = cast(str, value)
+            """,
+            expected_message="Use a typed boundary instead of cast().",
+            options={
+                "forbidden_calls": [
+                    "typing_extensions.cast|Use a typed boundary instead of cast().",
+                ],
+            },
+        ),
+        Invalid(
+            """
+            import legacy_math
+
+            value = legacy_math.sqrt(4)
+            """,
+            expected_message=("Do not call the legacy square-root helper. Use instead: math.sqrt."),
+            options={
+                "forbidden_calls": [
+                    "legacy_math.sqrt|Do not call the legacy square-root helper.|math.sqrt",
+                ],
+            },
+        ),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self._forbidden_calls_by_symbol: dict[str, _ForbiddenCall] = {}
+
+    def should_lint_file(self, source: bytes, path: Path) -> bool:
+        del path
+
+        return any(
+            entry.symbol.rsplit(".", 1)[-1].encode() in source
+            for entry in _parse_forbidden_calls_setting(self.settings.get("forbidden_calls", ()))
+        )
+
+    def visit_Module(self, node: cst.Module) -> None:
+        del node
+
+        self._forbidden_calls_by_symbol = {
+            entry.symbol: entry
+            for entry in _parse_forbidden_calls_setting(self.settings["forbidden_calls"])
+        }
+
+    def leave_Module(self, original_node: cst.Module) -> None:
+        del original_node
+
+        self._forbidden_calls_by_symbol = {}
+
+    def visit_Call(self, node: cst.Call) -> None:
+        symbol = self._forbidden_symbol_for_call(node)
+        if symbol is None:
+            return
+
+        self.report(node.func, self._message_for_symbol(symbol))
+
+    def _forbidden_symbol_for_call(self, node: cst.Call) -> str | None:
+        forbidden_symbols = set(self._forbidden_calls_by_symbol)
+        qualified_names = self.get_metadata(QualifiedNameProvider, node.func, set())
+        if any(
+            qualified_name.source is QualifiedNameSource.LOCAL for qualified_name in qualified_names
+        ):
+            return None
+
+        for qualified_name in qualified_names:
+            if qualified_name.source is not QualifiedNameSource.IMPORT:
+                continue
+            if qualified_name.name in forbidden_symbols:
+                return qualified_name.name
+
+        dotted_name = _dotted_name(node.func)
+        if dotted_name in forbidden_symbols:
+            return dotted_name
+
+        return None
+
+    def _message_for_symbol(self, symbol: str) -> str:
+        forbidden_call = self._forbidden_calls_by_symbol[symbol]
+        message = forbidden_call.message
+        if message is None:
+            message = self.MESSAGE.format(symbol=symbol)
+
+        if forbidden_call.use_instead is None:
+            return message
+
+        return f"{message} Use instead: {forbidden_call.use_instead}."

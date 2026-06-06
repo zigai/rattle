@@ -45,7 +45,7 @@ forms as {attr}`enable <rattle.Config.enable>` and
 {attr}`disable <rattle.Config.disable>`:
 
 - import selectors such as `rattle.rules.fixit_extra:use-f-string`
-- built-in rule collections such as `blank-lines`, `fixit`, or `fixit-extra`
+- built-in rule collections such as `blank-lines`, `policy`, or `reliability`
 - exact built-in rule names such as `use-f-string`
 - exact local rule names such as `my-custom-rule`, when the local rule module is
   already configured for the target path
