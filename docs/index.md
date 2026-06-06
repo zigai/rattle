@@ -94,7 +94,7 @@ enable = ["no-named-tuple"]
 - [Configuration](guide/configuration.md)
 - [Integrations](guide/integrations.md)
 - [Rules](guide/builtins.md)
-- [API reference](api.rst)
+- [API reference](api/index.md)
 
 ## License
 
@@ -117,7 +117,7 @@ guide/builtins
 :caption: Reference
 :maxdepth: 1
 
-api
+api/index
 contributing
 ```
 
