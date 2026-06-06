@@ -100,4 +100,4 @@ enable = ["no-named-tuple"]
 
 ## License
 
-MIT
+[MIT](LICENSE)
