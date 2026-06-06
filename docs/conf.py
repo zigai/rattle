@@ -62,6 +62,8 @@ author = ""
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
     "myst_parser",
     "sphinx_copybutton",
 ]
@@ -81,13 +83,23 @@ source_suffix = {
 
 myst_heading_anchors = 3
 
+autoclass_content = "both"
+autodoc_class_signature = "separated"
 autodoc_default_options = {
     "members": True,
     "undoc-members": True,
 }
-autodoc_member_order = "groupwise"
+autodoc_member_order = "bysource"
+autodoc_preserve_defaults = True
 autodoc_typehints = "description"
+autodoc_typehints_description_target = "documented"
 autodoc_typehints_format = "short"
+add_module_names = False
+python_use_unqualified_type_names = True
+python_maximum_signature_line_length = 68
+napoleon_google_docstring = True
+napoleon_numpy_docstring = False
+napoleon_preprocess_types = False
 
 pygments_style = "github-light"
 pygments_dark_style = "darker_modern_pygments.DarkerModernStyle"
