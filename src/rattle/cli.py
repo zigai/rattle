@@ -69,6 +69,7 @@ class RattleAbbreviationGenerator(AbbreviationGenerator):
         "config": "c",
         "diff": "d",
         "exclude": "e",
+        "extend-exclude": "ee",
         "interactive": "i",
         "jobs": "j",
         "quiet": "q",
@@ -956,7 +957,7 @@ def _coalesce_repeated_list_options(args: list[str] | None) -> list[str] | None:
     if args is None:
         return None
 
-    repeated_options = {"--exclude", "-e", "--extend-exclude"}
+    repeated_options = {"--exclude", "-e", "--extend-exclude", "-ee"}
     output: list[str] = []
     pending: dict[str, int] = {}
     index = 0
@@ -967,7 +968,7 @@ def _coalesce_repeated_list_options(args: list[str] | None) -> list[str] | None:
             index += 1
             continue
 
-        option = "--exclude" if arg in {"--exclude", "-e"} else arg
+        option = "--exclude" if arg in {"--exclude", "-e"} else "--extend-exclude"
         if option not in pending:
             pending[option] = len(output)
             output.append(arg)
