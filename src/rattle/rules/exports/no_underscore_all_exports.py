@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import libcst as cst
 
-from rattle import Invalid, LintRule, Valid
+from rattle import Invalid, LintRule, RuleSetting, Valid
 
 
 def _is_all_target(target: cst.BaseAssignTargetExpression) -> bool:
@@ -35,7 +35,18 @@ class NoUnderscoreAllExports(LintRule):
         "Do not export underscore-prefixed symbols in __all__. "
         "Either remove them from __all__ or rename them to be public."
     )
-    TAGS = {"exports", "style"}
+    SETTINGS = {
+        "allowed_exports": RuleSetting(
+            list[str],
+            default=[],
+            description="Underscore-prefixed __all__ entries to allow by exact name.",
+        ),
+        "allow_dunder_exports": RuleSetting(
+            bool,
+            default=False,
+            description="Allow double-underscore names such as __version__ in __all__.",
+        ),
+    }
 
     VALID = [
         Valid('__all__ = ["PublicThing", "public_thing"]'),
@@ -54,6 +65,14 @@ class NoUnderscoreAllExports(LintRule):
             """
         ),
         Valid('module.__all__ = ["_private_name"]'),
+        Valid(
+            '__all__ = ["__version__"]',
+            options={"allow_dunder_exports": True},
+        ),
+        Valid(
+            '__all__ = ["_C_API", "_Sentinel"]',
+            options={"allowed_exports": ["_C_API", "_Sentinel"]},
+        ),
     ]
 
     INVALID = [
@@ -141,6 +160,8 @@ class NoUnderscoreAllExports(LintRule):
         for exported_node, exported_name in _exported_names(expression):
             if not exported_name.startswith("_"):
                 continue
+            if self._is_allowed_export(exported_name):
+                continue
             self.report(
                 exported_node,
                 (
@@ -148,3 +169,13 @@ class NoUnderscoreAllExports(LintRule):
                     "Either remove it from __all__ or rename it to be public."
                 ),
             )
+
+    def _is_allowed_export(self, exported_name: str) -> bool:
+        if exported_name in self.settings["allowed_exports"]:
+            return True
+
+        return bool(
+            self.settings["allow_dunder_exports"]
+            and exported_name.startswith("__")
+            and exported_name.endswith("__")
+        )
