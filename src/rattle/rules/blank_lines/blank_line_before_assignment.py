@@ -28,6 +28,7 @@ from rattle.rules.blank_lines.utils import (
 class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
     """Require separators before assignments that do not continue the local flow."""
 
+    SOURCE_PATTERNS = (b"=", b":")
     MESSAGE = (
         "Missing blank line before assignment statement that follows a non-assignment statement."
     )

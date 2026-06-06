@@ -12,6 +12,7 @@ class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
     """Allow block headers to stay attached to related setup statements."""
 
     NAME = "blank-line-before-unrelated-block"
+    SOURCE_PATTERNS = (b":",)
 
     STRICT = False
     BODY_USAGE_LOOKAHEAD = 4

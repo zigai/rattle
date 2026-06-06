@@ -29,6 +29,7 @@ from rattle.rules.blank_lines.utils import (
 class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
     """Require separation after multiline control-flow block statements."""
 
+    SOURCE_PATTERNS = (b":",)
     MESSAGE = "Missing blank line after multiline control-flow block statement."
     SETTINGS = {
         "related_use_lookahead": RuleSetting(

@@ -26,6 +26,7 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
     """Require branch statements to be visually separated in large suites."""
 
     NAME = "blank-line-before-branch"
+    SOURCE_PATTERNS = (b"return", b"raise", b"break", b"continue")
 
     MESSAGE = "Missing blank line before return/raise/break/continue in a large suite."
     EXTRA_MESSAGE = (
