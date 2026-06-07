@@ -16,6 +16,7 @@ for generated_case in generate_lint_rule_test_cases(
                 QualifiedRule("rattle.rules.fixit_extra"),
                 QualifiedRule("rattle.rules.policy"),
                 QualifiedRule("rattle.rules.style"),
+                QualifiedRule("rattle.rules.typing"),
             ],
             python_version=None,
         )

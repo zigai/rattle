@@ -24,6 +24,7 @@ add_lint_rule_tests_to_module(
                 QualifiedRule("rattle.rules.fixit_extra"),
                 QualifiedRule("rattle.rules.policy"),
                 QualifiedRule("rattle.rules.style"),
+                QualifiedRule("rattle.rules.typing"),
             ],
             python_version=None,
         )

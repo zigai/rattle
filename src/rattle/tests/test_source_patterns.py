@@ -23,6 +23,9 @@ def test_source_patterns_match_all_invalid_builtin_fixtures() -> None:
                 QualifiedRule("rattle.rules.blank_lines"),
                 QualifiedRule("rattle.rules.fixit"),
                 QualifiedRule("rattle.rules.fixit_extra"),
+                QualifiedRule("rattle.rules.policy"),
+                QualifiedRule("rattle.rules.style"),
+                QualifiedRule("rattle.rules.typing"),
             ],
             python_version=None,
         )
