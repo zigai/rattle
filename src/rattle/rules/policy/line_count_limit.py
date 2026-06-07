@@ -13,7 +13,7 @@ _SETTING_NAMES = frozenset({"max_file_lines", "max_function_lines", "max_method_
 
 
 @dataclass(frozen=True)
-class _LineCountLimits:
+class LineCountLimits:
     max_file_lines: int
     max_function_lines: int
     max_method_lines: int
@@ -54,10 +54,10 @@ def _validate_limit_table(value: object) -> bool:
 
 
 def _apply_limits(
-    limits: _LineCountLimits,
+    limits: LineCountLimits,
     configured_limits: dict[str, int],
-) -> _LineCountLimits:
-    return _LineCountLimits(
+) -> LineCountLimits:
+    return LineCountLimits(
         max_file_lines=configured_limits.get("max_file_lines", limits.max_file_lines),
         max_function_lines=configured_limits.get(
             "max_function_lines",
@@ -184,7 +184,7 @@ class LineCountLimit(LintRule):
         super().__init__()
 
         self._current_file_path: Path | None = None
-        self._current_limits = _LineCountLimits(
+        self._current_limits = LineCountLimits(
             max_file_lines=0,
             max_function_lines=0,
             max_method_lines=0,
@@ -219,7 +219,7 @@ class LineCountLimit(LintRule):
         del original_node
 
         self._current_file_path = None
-        self._current_limits = _LineCountLimits(
+        self._current_limits = LineCountLimits(
             max_file_lines=0,
             max_function_lines=0,
             max_method_lines=0,
@@ -270,8 +270,8 @@ class LineCountLimit(LintRule):
 
         self._function_depth -= 1
 
-    def _limits_for_current_file(self) -> _LineCountLimits:
-        limits = _LineCountLimits(
+    def _limits_for_current_file(self) -> LineCountLimits:
+        limits = LineCountLimits(
             max_file_lines=self.settings["max_file_lines"],
             max_function_lines=self.settings["max_function_lines"],
             max_method_lines=self.settings["max_method_lines"],

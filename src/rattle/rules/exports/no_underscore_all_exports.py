@@ -3,10 +3,11 @@ from __future__ import annotations
 import libcst as cst
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rules.helpers import is_name
 
 
 def _is_all_target(target: cst.BaseAssignTargetExpression) -> bool:
-    return isinstance(target, cst.Name) and target.value == "__all__"
+    return is_name(target, "__all__")
 
 
 def _exported_names(expression: cst.BaseExpression) -> list[tuple[cst.CSTNode, str]]:

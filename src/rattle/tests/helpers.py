@@ -20,7 +20,7 @@ class CliResult:
         return self.stdout + self.stderr
 
 
-class _InputStream(io.StringIO):
+class InputStream(io.StringIO):
     def __init__(self, value: str) -> None:
         super().__init__(value)
         self._buffer = io.BytesIO(value.encode())
@@ -30,8 +30,8 @@ class _InputStream(io.StringIO):
         return self._buffer
 
 
-class _OutputBuffer:
-    def __init__(self, stream: _OutputStream) -> None:
+class OutputBuffer:
+    def __init__(self, stream: OutputStream) -> None:
         self._stream = stream
 
     def write(self, value: bytes) -> int:
@@ -43,13 +43,13 @@ class _OutputBuffer:
         self._stream.flush()
 
 
-class _OutputStream:
+class OutputStream:
     def __init__(self) -> None:
         self._stream = io.StringIO()
-        self._buffer = _OutputBuffer(self)
+        self._buffer = OutputBuffer(self)
 
     @property
-    def buffer(self) -> _OutputBuffer:
+    def buffer(self) -> OutputBuffer:
         return self._buffer
 
     def write(self, value: str) -> int:
@@ -62,14 +62,14 @@ class _OutputStream:
         return self._stream.getvalue()
 
 
-class _Stdin(contextlib.AbstractContextManager[None]):
+class Stdin(contextlib.AbstractContextManager[None]):
     def __init__(self, value: str | None) -> None:
         self._value = value
         self._previous: Any = None
 
     def __enter__(self) -> None:
         self._previous = sys.stdin
-        sys.stdin = _InputStream(self._value or "")
+        sys.stdin = InputStream(self._value or "")
 
     def __exit__(
         self,
@@ -88,12 +88,12 @@ class CliRunner:
         input: str | None = None,
         catch_exceptions: bool = True,
     ) -> CliResult:
-        stdout = _OutputStream()
-        stderr = _OutputStream()
+        stdout = OutputStream()
+        stderr = OutputStream()
         exit_code = 0
         exception: BaseException | None = None
         with (
-            _Stdin(input),
+            Stdin(input),
             contextlib.redirect_stdout(stdout),
             contextlib.redirect_stderr(stderr),
         ):

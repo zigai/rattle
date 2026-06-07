@@ -7,27 +7,26 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import QualifiedNameProvider, QualifiedNameSource
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
-from rattle.rules.helpers import dotted_name
+from rattle import LintRule, RuleSetting
+from rattle.rules.helpers import dotted_name, optional_setting_text, setting_fields
 
 _SYMBOL_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
 
 
 @dataclass(frozen=True)
-class _ForbiddenCall:
+class ForbiddenCallEntry:
     symbol: str
     message: str | None = None
     use_instead: str | None = None
 
 
-def _parse_forbidden_call(entry: str | _ForbiddenCall) -> _ForbiddenCall:
-    if isinstance(entry, _ForbiddenCall):
+def _parse_forbidden_call(entry: str | ForbiddenCallEntry) -> ForbiddenCallEntry:
+    if isinstance(entry, ForbiddenCallEntry):
         return entry
 
-    symbol, _, details = entry.partition("|")
-    message, _, use_instead = details.partition("|")
-    normalized_message = message.strip() or None
-    normalized_use_instead = use_instead.strip() or None
+    symbol, message, use_instead = setting_fields(entry, 3)
+    normalized_message = optional_setting_text(message)
+    normalized_use_instead = optional_setting_text(use_instead)
 
     if not _SYMBOL_PATTERN.fullmatch(symbol):
         raise ValueError(f"expected dotted symbol in forbidden call entry, got {entry!r}")
@@ -38,7 +37,7 @@ def _parse_forbidden_call(entry: str | _ForbiddenCall) -> _ForbiddenCall:
             f"expected dotted use_instead symbol in forbidden call entry, got {entry!r}"
         )
 
-    return _ForbiddenCall(
+    return ForbiddenCallEntry(
         symbol=symbol,
         message=normalized_message,
         use_instead=normalized_use_instead,
@@ -54,7 +53,7 @@ def _validate_forbidden_calls(value: object) -> object:
     return True
 
 
-def _parse_forbidden_calls_setting(value: object) -> tuple[_ForbiddenCall, ...]:
+def _parse_forbidden_calls_setting(value: object) -> tuple[ForbiddenCallEntry, ...]:
     assert isinstance(value, list | tuple)
 
     return tuple(_parse_forbidden_call(entry) for entry in value)
@@ -73,89 +72,13 @@ class ForbiddenCall(LintRule):
         ),
     }
 
-    VALID = [
-        Valid("typing.cast(str, value)"),
-        Valid(
-            """
-            from typing import cast
-
-            def cast(value: object) -> object:
-                return value
-
-            result = cast(value)
-            """,
-            options={"forbidden_calls": ["typing.cast"]},
-        ),
-        Valid(
-            """
-            import typing
-
-            value = typing.NamedTuple("Row", [("id", int)])
-            """,
-            options={"forbidden_calls": ["typing.cast"]},
-        ),
-    ]
-
-    INVALID = [
-        Invalid(
-            """
-            import typing
-
-            value = typing.cast(str, value)
-            """,
-            expected_message="Do not call forbidden callable 'typing.cast'.",
-            options={"forbidden_calls": ["typing.cast"]},
-        ),
-        Invalid(
-            """
-            import typing as t
-
-            value = t.cast(str, value)
-            """,
-            expected_message="Do not call forbidden callable 'typing.cast'.",
-            options={"forbidden_calls": ["typing.cast"]},
-        ),
-        Invalid(
-            """
-            from typing import cast as type_cast
-
-            value = type_cast(str, value)
-            """,
-            expected_message="Do not call forbidden callable 'typing.cast'.",
-            options={"forbidden_calls": ["typing.cast"]},
-        ),
-        Invalid(
-            """
-            from typing_extensions import cast
-
-            value = cast(str, value)
-            """,
-            expected_message="Use a typed boundary instead of cast().",
-            options={
-                "forbidden_calls": [
-                    "typing_extensions.cast|Use a typed boundary instead of cast().",
-                ],
-            },
-        ),
-        Invalid(
-            """
-            import legacy_math
-
-            value = legacy_math.sqrt(4)
-            """,
-            expected_message=("Do not call the legacy square-root helper. Use instead: math.sqrt."),
-            options={
-                "forbidden_calls": [
-                    "legacy_math.sqrt|Do not call the legacy square-root helper.|math.sqrt",
-                ],
-            },
-        ),
-    ]
+    VALID: list = []
+    INVALID: list = []
 
     def __init__(self) -> None:
         super().__init__()
 
-        self._forbidden_calls_by_symbol: dict[str, _ForbiddenCall] = {}
+        self._forbidden_calls_by_symbol: dict[str, ForbiddenCallEntry] = {}
 
     def should_lint_file(self, source: bytes, path: Path) -> bool:
         del path

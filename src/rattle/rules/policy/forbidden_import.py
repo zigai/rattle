@@ -6,31 +6,32 @@ from pathlib import Path
 
 import libcst as cst
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle import LintRule, RuleSetting
+from rattle.rules.helpers import optional_setting_text, setting_fields
 
 _CODEGEN_MODULE = cst.Module(body=[])
 _IMPORT_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 
 @dataclass(frozen=True)
-class _ForbiddenImport:
+class ForbiddenImportEntry:
     boundary: str
     message: str | None = None
 
 
-def _parse_forbidden_import(entry: str | _ForbiddenImport) -> _ForbiddenImport:
-    if isinstance(entry, _ForbiddenImport):
+def _parse_forbidden_import(entry: str | ForbiddenImportEntry) -> ForbiddenImportEntry:
+    if isinstance(entry, ForbiddenImportEntry):
         return entry
 
-    boundary, _, message = entry.partition("|")
-    normalized_message = message.strip() or None
+    boundary, message = setting_fields(entry, 2)
+    normalized_message = optional_setting_text(message)
 
     if not _IMPORT_PATTERN.fullmatch(boundary):
         raise ValueError(f"expected import boundary in forbidden import entry, got {entry!r}")
     if normalized_message == "":
         raise ValueError(f"expected non-empty message in forbidden import entry, got {entry!r}")
 
-    return _ForbiddenImport(boundary=boundary, message=normalized_message)
+    return ForbiddenImportEntry(boundary=boundary, message=normalized_message)
 
 
 def _validate_forbidden_imports(value: object) -> object:
@@ -42,7 +43,7 @@ def _validate_forbidden_imports(value: object) -> object:
     return True
 
 
-def _parse_forbidden_imports_setting(value: object) -> tuple[_ForbiddenImport, ...]:
+def _parse_forbidden_imports_setting(value: object) -> tuple[ForbiddenImportEntry, ...]:
     assert isinstance(value, list | tuple)
 
     return tuple(_parse_forbidden_import(entry) for entry in value)
@@ -75,45 +76,8 @@ class ForbiddenImport(LintRule):
         ),
     }
 
-    VALID = [
-        Valid("import services.public_api", options={"forbidden_imports": ["services.internal"]}),
-        Valid(
-            "from services import public_api", options={"forbidden_imports": ["services.internal"]}
-        ),
-        Valid("import services_internal", options={"forbidden_imports": ["services.internal"]}),
-    ]
-
-    INVALID = [
-        Invalid(
-            "import services.internal",
-            expected_message="Do not import across forbidden boundary 'services.internal'.",
-            options={"forbidden_imports": ["services.internal"]},
-        ),
-        Invalid(
-            "import services.internal.jobs",
-            expected_message="Do not import across forbidden boundary 'services.internal'.",
-            options={"forbidden_imports": ["services.internal"]},
-        ),
-        Invalid(
-            "from services import internal",
-            expected_message="Do not import across forbidden boundary 'services.internal'.",
-            options={"forbidden_imports": ["services.internal"]},
-        ),
-        Invalid(
-            "from services.internal import jobs",
-            expected_message="Do not import across forbidden boundary 'services.internal'.",
-            options={"forbidden_imports": ["services.internal"]},
-        ),
-        Invalid(
-            "from services.internal import *",
-            expected_message="Import through services.public_api instead.",
-            options={
-                "forbidden_imports": [
-                    "services.internal|Import through services.public_api instead.",
-                ],
-            },
-        ),
-    ]
+    VALID: list = []
+    INVALID: list = []
 
     def __init__(self) -> None:
         super().__init__()

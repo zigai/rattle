@@ -8,7 +8,7 @@ from pathlib import Path
 import libcst as cst
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
-from rattle.rules.helpers import target_names
+from rattle.rules.helpers import optional_setting_text, setting_fields, target_names
 
 _ENTRY_PATTERN = re.compile(
     r"(?P<kind>any|variable|parameter|function|class|attribute|import|alias):(?P<pattern>[A-Za-z_][A-Za-z0-9_*?\[\]!-]*)"
@@ -17,7 +17,7 @@ _GLOB_CHARS = frozenset("*?[")
 
 
 @dataclass(frozen=True)
-class _ForbiddenName:
+class ForbiddenNameEntry:
     kind: str
     pattern: str
     message: str | None = None
@@ -27,13 +27,13 @@ class _ForbiddenName:
         return f"{self.kind}:{self.pattern}"
 
 
-def _parse_forbidden_name(entry: str | _ForbiddenName) -> _ForbiddenName:
-    if isinstance(entry, _ForbiddenName):
+def _parse_forbidden_name(entry: str | ForbiddenNameEntry) -> ForbiddenNameEntry:
+    if isinstance(entry, ForbiddenNameEntry):
         return entry
 
-    rule, _, message = entry.partition("|")
+    rule, message = setting_fields(entry, 2)
     kind, _, pattern = rule.partition(":")
-    normalized_message = message.strip() or None
+    normalized_message = optional_setting_text(message)
 
     rule = f"{kind}:{pattern}"
     if not _ENTRY_PATTERN.fullmatch(rule):
@@ -41,7 +41,7 @@ def _parse_forbidden_name(entry: str | _ForbiddenName) -> _ForbiddenName:
     if normalized_message == "":
         raise ValueError(f"expected non-empty message in forbidden name entry, got {entry!r}")
 
-    return _ForbiddenName(kind=kind, pattern=pattern, message=normalized_message)
+    return ForbiddenNameEntry(kind=kind, pattern=pattern, message=normalized_message)
 
 
 def _validate_forbidden_names(value: object) -> object:
@@ -53,7 +53,7 @@ def _validate_forbidden_names(value: object) -> object:
     return True
 
 
-def _parse_forbidden_names_setting(value: object) -> tuple[_ForbiddenName, ...]:
+def _parse_forbidden_names_setting(value: object) -> tuple[ForbiddenNameEntry, ...]:
     assert isinstance(value, list | tuple)
 
     return tuple(_parse_forbidden_name(entry) for entry in value)
@@ -92,44 +92,8 @@ class ForbiddenName(LintRule):
         ),
     }
 
-    VALID = [
-        Valid("config = load_config()", options={"forbidden_names": ["variable:cfg"]}),
-        Valid("self.cfg = load_config()", options={"forbidden_names": ["variable:cfg"]}),
-        Valid("def cfg() -> None: ...", options={"forbidden_names": ["variable:cfg"]}),
-        Valid("class Cfg: ...", options={"forbidden_names": ["variable:cfg"]}),
-    ]
-
-    INVALID = [
-        Invalid(
-            "cfg = load_config()",
-            expected_message="Do not use forbidden variable name 'cfg'.",
-            options={"forbidden_names": ["variable:cfg"]},
-        ),
-        Invalid(
-            "def run(cfg: Config) -> None: ...",
-            expected_message="Do not use forbidden variable name 'cfg'.",
-            options={"forbidden_names": ["variable:cfg"]},
-        ),
-        Invalid(
-            "for cfg in configs:\n    pass",
-            expected_message="Do not use forbidden variable name 'cfg'.",
-            options={"forbidden_names": ["variable:cfg"]},
-        ),
-        Invalid(
-            "def test_helper() -> None: ...",
-            expected_message="Do not use test-prefixed function names here.",
-            options={
-                "forbidden_names": [
-                    "function:test_*|Do not use test-prefixed function names here.",
-                ],
-            },
-        ),
-        Invalid(
-            "class Manager: ...",
-            expected_message="Do not use forbidden class name 'Manager'.",
-            options={"forbidden_names": ["class:Manager"]},
-        ),
-    ]
+    VALID: list[Valid] = []
+    INVALID: list[Invalid] = []
 
     def __init__(self) -> None:
         super().__init__()

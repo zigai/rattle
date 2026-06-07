@@ -3,38 +3,31 @@ from __future__ import annotations
 import libcst as cst
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import is_name, ordinary_parameters, single_small_statement
 
 
 def _is_all_assignment(statement: cst.BaseSmallStatement) -> bool:
     if isinstance(statement, cst.Assign):
-        return any(
-            isinstance(target.target, cst.Name) and target.target.value == "__all__"
-            for target in statement.targets
-        )
+        return any(is_name(target.target, "__all__") for target in statement.targets)
 
     if not isinstance(statement, cst.AnnAssign):
         return False
 
-    return isinstance(statement.target, cst.Name) and statement.target.value == "__all__"
+    return is_name(statement.target, "__all__")
 
 
 def _module_uses_future_annotations(node: cst.Module) -> bool:
     for statement in node.body:
-        if not isinstance(statement, cst.SimpleStatementLine):
-            continue
-        if len(statement.body) != 1:
-            continue
-
-        import_from = statement.body[0]
+        import_from = single_small_statement(statement)
         if not isinstance(import_from, cst.ImportFrom):
             continue
-        if not isinstance(import_from.module, cst.Name) or import_from.module.value != "__future__":
+        if not is_name(import_from.module, "__future__"):
             continue
         if isinstance(import_from.names, cst.ImportStar):
             continue
 
         for alias in import_from.names:
-            if isinstance(alias.name, cst.Name) and alias.name.value == "annotations":
+            if is_name(alias.name, "annotations"):
                 return True
 
     return False
@@ -53,19 +46,7 @@ def _parameters_are_safe(
     *,
     future_annotations_enabled: bool,
 ) -> bool:
-    ordinary_parameters: list[cst.Param] = [
-        *parameters.posonly_params,
-        *parameters.params,
-        *parameters.kwonly_params,
-    ]
-
-    if isinstance(parameters.star_arg, cst.Param):
-        ordinary_parameters.append(parameters.star_arg)
-
-    if parameters.star_kwarg is not None:
-        ordinary_parameters.append(parameters.star_kwarg)
-
-    for parameter in ordinary_parameters:
+    for parameter in ordinary_parameters(parameters):
         if parameter.default is not None:
             return False
         if not _parameter_annotation_is_safe(
@@ -100,13 +81,11 @@ def _is_safe_function_definition(
 def _all_assignment_indices(node: cst.Module) -> list[int]:
     indices: list[int] = []
     for index, statement in enumerate(node.body):
-        if not isinstance(statement, cst.SimpleStatementLine):
+        small_statement = single_small_statement(statement)
+        if small_statement is None:
             continue
 
-        if len(statement.body) != 1:
-            continue
-
-        if not _is_all_assignment(statement.body[0]):
+        if not _is_all_assignment(small_statement):
             continue
         indices.append(index)
 

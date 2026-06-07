@@ -9,18 +9,31 @@ from libcst import MaybeSentinel
 DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
 
 
-def is_docstring_statement(statement: cst.BaseStatement) -> bool:
+def single_small_statement(
+    statement: cst.BaseStatement,
+    *,
+    allow_leading_lines: bool = True,
+) -> cst.BaseSmallStatement | None:
     if not isinstance(statement, cst.SimpleStatementLine):
-        return False
-
+        return None
+    if not allow_leading_lines and statement.leading_lines:
+        return None
     if len(statement.body) != 1:
-        return False
+        return None
 
-    expression = statement.body[0]
+    return statement.body[0]
+
+
+def is_docstring_statement(statement: cst.BaseStatement) -> bool:
+    expression = single_small_statement(statement)
     if not isinstance(expression, cst.Expr):
         return False
 
     return isinstance(expression.value, DOCSTRING_VALUE_NODES)
+
+
+def is_name(node: cst.CSTNode | None, value: str) -> bool:
+    return isinstance(node, cst.Name) and node.value == value
 
 
 def dotted_name(node: cst.CSTNode | None) -> str | None:
@@ -64,6 +77,22 @@ def alias_name(alias: cst.AsName | None, default: str) -> str:
         return alias.name.value
 
     return default
+
+
+def ordinary_parameters(parameters: cst.Parameters) -> list[cst.Param]:
+    ordinary_params: list[cst.Param] = [
+        *parameters.posonly_params,
+        *parameters.params,
+        *parameters.kwonly_params,
+    ]
+
+    if isinstance(parameters.star_arg, cst.Param):
+        ordinary_params.append(parameters.star_arg)
+
+    if parameters.star_kwarg is not None:
+        ordinary_params.append(parameters.star_kwarg)
+
+    return ordinary_params
 
 
 def normalize_import_alias(alias: cst.ImportAlias) -> cst.ImportAlias:
@@ -116,6 +145,15 @@ def is_excluded_path(path: Path, excluded_path_parts: list[str]) -> bool:
     return any(part in excluded_path_parts for part in path.parts)
 
 
+def setting_fields(entry: str, field_count: int) -> tuple[str, ...]:
+    parts = entry.split("|", field_count - 1)
+    return (*parts, *("" for _ in range(field_count - len(parts))))
+
+
+def optional_setting_text(value: str) -> str | None:
+    return value.strip() or None
+
+
 def validate_non_negative_int(value: object) -> object:
     if not isinstance(value, int):
         raise TypeError("must be an integer")
@@ -132,11 +170,16 @@ __all__ = [
     "dotted_name",
     "is_docstring_statement",
     "is_excluded_path",
+    "is_name",
     "matches_any_pattern",
     "matches_exact_path",
     "matches_path",
     "normalize_import_alias",
+    "optional_setting_text",
+    "ordinary_parameters",
     "path_candidates",
+    "setting_fields",
+    "single_small_statement",
     "target_names",
     "validate_non_negative_int",
 ]
