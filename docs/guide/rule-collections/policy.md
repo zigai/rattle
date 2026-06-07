@@ -25,4 +25,6 @@ enable = ["policy"]
 | [forbidden-import](../rules/forbidden-import.md) | Do not import across forbidden boundary '{boundary}'. | Any | No |
 | [forbidden-name](../rules/forbidden-name.md) | Do not use forbidden {kind} name '{name}'. | Any | No |
 | [line-count-limit](../rules/line-count-limit.md) | {target} has {actual_lines} lines, exceeding the configured limit of {max_lines}. | Any | No |
+| [no-relative-imports](../rules/no-relative-imports.md) | Use absolute imports instead of relative imports. | Any | No |
+| [no-underscore-import-aliases](../rules/no-underscore-import-aliases.md) | Import aliases must not start with an underscore. | Any | No |
 | [no-unsafe-tempfile-factories](../rules/no-unsafe-tempfile-factories.md) | Use tempfile context managers instead of mkstemp or mkdtemp. | Any | No |

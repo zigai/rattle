@@ -62,6 +62,8 @@ enable = ["policy"]
 | [forbidden-import](rules/forbidden-import.md) | Do not import across forbidden boundary '{boundary}'. | Any | No |
 | [forbidden-name](rules/forbidden-name.md) | Do not use forbidden {kind} name '{name}'. | Any | No |
 | [line-count-limit](rules/line-count-limit.md) | {target} has {actual_lines} lines, exceeding the configured limit of {max_lines}. | Any | No |
+| [no-relative-imports](rules/no-relative-imports.md) | Use absolute imports instead of relative imports. | Any | No |
+| [no-underscore-import-aliases](rules/no-underscore-import-aliases.md) | Import aliases must not start with an underscore. | Any | No |
 | [no-unsafe-tempfile-factories](rules/no-unsafe-tempfile-factories.md) | Use tempfile context managers instead of mkstemp or mkdtemp. | Any | No |
 
 ## Style
@@ -77,7 +79,24 @@ enable = ["style"]
 | Rule | Message | Python | Autofix |
 | --- | --- | --- | :---: |
 | [no-annotated-self](rules/no-annotated-self.md) | Do not annotate self in instance methods. | Any | Yes |
+| [no-exception-message-variables](rules/no-exception-message-variables.md) | Inline exception message strings instead of assigning throwaway variables. | Any | Yes |
+| [no-str-exception-translation](rules/no-str-exception-translation.md) | Do not translate exceptions by passing str(exc); use a stable message and chain the cause. | Any | No |
+| [no-underscore-class](rules/no-underscore-class.md) | Class names must not start with an underscore prefix. | Any | No |
 | [public-method-order](rules/public-method-order.md) | Define public methods before private helpers in behavior classes. | Any | No |
+
+## Typing
+
+Rules for type annotations and modern typing syntax.
+
+Enable with:
+
+```toml
+enable = ["typing"]
+```
+
+| Rule | Message | Python | Autofix |
+| --- | --- | --- | :---: |
+| [no-bare-object-annotations](rules/no-bare-object-annotations.md) | Use a narrower type than bare object in annotations. | Any | No |
 
 ## Fixit
 
@@ -141,6 +160,7 @@ rule-collections/blank-lines
 rule-collections/exports
 rule-collections/policy
 rule-collections/style
+rule-collections/typing
 rule-collections/fixit
 rule-collections/fixit-extra
 ```

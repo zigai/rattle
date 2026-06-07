@@ -44,60 +44,8 @@ Do not import across forbidden boundary '{boundary}'.
 
 ## Valid examples
 
-```python
-import services.public_api
-```
-```python
-from services import public_api
-```
-```python
-import services_internal
-```
+No valid examples are documented.
 
 ## Invalid examples
 
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-import services.internal
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-import services.internal.jobs
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-from services import internal
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-from services.internal import jobs
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-from services.internal import *
-```
-```{raw} html
-</div>
-```
+No invalid examples are documented.

@@ -39,6 +39,7 @@ CATEGORY_TITLES = {
     "fixit-extra": "Fixit Extra",
     "policy": "Policy",
     "style": "Style",
+    "typing": "Typing",
 }
 CATEGORY_DESCRIPTIONS = {
     "blank-lines": "Whitespace and statement-separation rules.",
@@ -47,12 +48,14 @@ CATEGORY_DESCRIPTIONS = {
     "fixit-extra": "Additional Fixit-derived rules that can be enabled separately.",
     "policy": "Configurable policy rules for architecture and naming boundaries.",
     "style": "Rules for code style and structure.",
+    "typing": "Rules for type annotations and modern typing syntax.",
 }
 CATEGORY_ORDER = (
     "blank-lines",
     "exports",
     "policy",
     "style",
+    "typing",
     "fixit",
     "fixit-extra",
 )

@@ -44,64 +44,8 @@ Do not use forbidden {kind} name '{name}'.
 
 ## Valid examples
 
-```python
-config = load_config()
-```
-```python
-self.cfg = load_config()
-```
-```python
-def cfg() -> None: ...
-```
-```python
-class Cfg: ...
-```
+No valid examples are documented.
 
 ## Invalid examples
 
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-cfg = load_config()
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-def run(cfg: Config) -> None: ...
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-for cfg in configs:
-    pass
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-def test_helper() -> None: ...
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-class Manager: ...
-```
-```{raw} html
-</div>
-```
+No invalid examples are documented.
