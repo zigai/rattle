@@ -3,7 +3,10 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from __future__ import annotations
+
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 import libcst as cst
 import libcst.matchers as m
@@ -15,6 +18,12 @@ _ISINSTANCE_NAMES = (
     QualifiedName(name="builtins.isinstance", source=QualifiedNameSource.BUILTIN),
     QualifiedName(name="builtins.isinstance", source=QualifiedNameSource.IMPORT),
 )
+
+
+@dataclass
+class IsinstanceTargetInfo:
+    func: cst.BaseExpression
+    matches: list[cst.BaseExpression]
 
 
 class CollapseIsinstanceChecks(LintRule):
@@ -102,7 +111,7 @@ class CollapseIsinstanceChecks(LintRule):
             expected_replacement="""
             import builtins
 
-            isinstance(x, (A, B))
+            builtins.isinstance(x, (A, B))
             """,
         ),
         Invalid(
@@ -114,7 +123,7 @@ class CollapseIsinstanceChecks(LintRule):
             expected_replacement="""
             from builtins import isinstance as check
 
-            isinstance(x, (A, B))
+            check(x, (A, B))
             """,
         ),
     ]
@@ -137,12 +146,14 @@ class CollapseIsinstanceChecks(LintRule):
         replacement = None
         for operand in operands:
             if operand in targets:
-                matches = targets[operand]
+                target_info = targets[operand]
+                call_func = target_info.func
+                matches = target_info.matches
                 if len(matches) == 1:
                     arg = cst.Arg(value=matches[0])
                 else:
                     arg = cst.Arg(cst.Tuple([cst.Element(match) for match in matches]))
-                operand = cst.Call(cst.Name("isinstance"), [cst.Arg(operand), arg])
+                operand = cst.Call(call_func, [cst.Arg(operand), arg])
 
             if replacement is None:
                 replacement = operand
@@ -165,8 +176,8 @@ class CollapseIsinstanceChecks(LintRule):
 
     def collect_targets(
         self, stack: tuple[cst.BaseExpression, ...]
-    ) -> tuple[list[cst.BaseExpression], dict[cst.BaseExpression, list[cst.BaseExpression]]]:
-        targets: dict[cst.BaseExpression, list[cst.BaseExpression]] = {}
+    ) -> tuple[list[cst.BaseExpression], dict[cst.BaseExpression, IsinstanceTargetInfo]]:
+        targets: dict[cst.BaseExpression, IsinstanceTargetInfo] = {}
         operands = []
 
         for operand in stack:
@@ -186,11 +197,11 @@ class CollapseIsinstanceChecks(LintRule):
 
                 for possible_target, matches in targets.items():
                     if target.deep_equals(possible_target):
-                        matches.append(match)
+                        matches.matches.append(match)
                         break
                 else:
                     operands.append(target)
-                    targets[target] = [match]
+                    targets[target] = IsinstanceTargetInfo(func=call.func, matches=[match])
             else:
                 operands.append(operand)
 
