@@ -417,7 +417,7 @@ def _default_worker_count(
         return 1
 
     if total_bytes is not None and total_bytes < 2_000_000:
-        return min(4, available, file_count)
+        return min(available, file_count, max(4, file_count // 4))
 
     return min(8, available, max(1, file_count // 8))
 

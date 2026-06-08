@@ -64,10 +64,10 @@ class TestApi:
             (2, 2),
             (3, 3),
             (4, 4),
-            (6, 4),
-            (8, 4),
-            (12, 4),
-            (16, 4),
+            (6, 6),
+            (8, 8),
+            (12, 12),
+            (16, 16),
         ):
             assert (
                 _default_worker_count(file_count=100, total_bytes=100_000, cpu_count=cpu_count)
