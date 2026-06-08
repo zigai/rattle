@@ -6,7 +6,7 @@
 
 import libcst as cst
 import libcst.matchers as m
-from libcst.metadata import ParentNodeProvider, QualifiedNameProvider
+from libcst.metadata import ParentNodeProvider
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
@@ -251,9 +251,16 @@ class NoStringTypeAnnotation(LintRule):
             """,
             range=CodeRange(start=CodePosition(7, 45), end=CodePosition(7, 52)),
         ),
+        Invalid(
+            """
+            from __future__ import annotations
+
+            value: b"\\xff"
+            """,
+        ),
     ]
 
-    METADATA_DEPENDENCIES = (ParentNodeProvider, QualifiedNameProvider)
+    METADATA_DEPENDENCIES = (ParentNodeProvider,)
 
     def __init__(self) -> None:
         super().__init__()
@@ -261,6 +268,16 @@ class NoStringTypeAnnotation(LintRule):
         self.in_literal: set[cst.Subscript] = set()
         self.in_annotated: set[cst.Subscript] = set()
         self.has_future_annotations_import = False
+        self.typing_module_names: set[str] = set()
+        self.literal_names: set[str] = set()
+        self.annotated_names: set[str] = set()
+
+    def visit_Import(self, node: cst.Import) -> None:
+        for alias in node.names:
+            if not isinstance(alias, cst.ImportAlias):
+                continue
+            if m.matches(alias.name, m.Name("typing") | m.Name("typing_extensions")):
+                self.typing_module_names.add(self._imported_name(alias))
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
         if m.matches(
@@ -276,6 +293,21 @@ class NoStringTypeAnnotation(LintRule):
         ):
             self.has_future_annotations_import = True
 
+        if not m.matches(node.module, m.Name("typing") | m.Name("typing_extensions")):
+            return
+        if isinstance(node.names, cst.ImportStar):
+            self.literal_names.add("Literal")
+            self.annotated_names.add("Annotated")
+            return
+
+        for alias in node.names:
+            if not isinstance(alias, cst.ImportAlias):
+                continue
+            if m.matches(alias.name, m.Name("Literal")):
+                self.literal_names.add(self._imported_name(alias))
+            if m.matches(alias.name, m.Name("Annotated")):
+                self.annotated_names.add(self._imported_name(alias))
+
     def visit_Annotation(self, node: cst.Annotation) -> None:
         self.in_annotation.add(node)
 
@@ -285,40 +317,10 @@ class NoStringTypeAnnotation(LintRule):
     def visit_Subscript(self, node: cst.Subscript) -> None:
         if not self.has_future_annotations_import:
             return
-        if self.in_annotation and m.matches(
-            node,
-            m.Subscript(
-                metadata=m.MatchMetadataIfTrue(
-                    QualifiedNameProvider,
-                    lambda qualnames: any(
-                        n.name
-                        in (
-                            "typing.Literal",
-                            "typing_extensions.Literal",
-                        )
-                        for n in qualnames
-                    ),
-                )
-            ),
-            metadata_resolver=self,
-        ):
+        if self.in_annotation and self._is_typing_subscript(node, self.literal_names, "Literal"):
             self.in_literal.add(node)
-        if self.in_annotation and m.matches(
-            node,
-            m.Subscript(
-                metadata=m.MatchMetadataIfTrue(
-                    QualifiedNameProvider,
-                    lambda qualnames: any(
-                        n.name
-                        in (
-                            "typing.Annotated",
-                            "typing_extensions.Annotated",
-                        )
-                        for n in qualnames
-                    ),
-                )
-            ),
-            metadata_resolver=self,
+        if self.in_annotation and self._is_typing_subscript(
+            node, self.annotated_names, "Annotated"
         ):
             self.in_annotated.add(node)
 
@@ -336,12 +338,12 @@ class NoStringTypeAnnotation(LintRule):
         if self.in_annotation and not self.in_literal and not self._is_annotated_metadata(node):
             # This is not allowed past Python3.7 since it's no longer necessary.
             value = node.evaluated_value
-            if isinstance(value, bytes):
-                value = value.decode("utf-8")
             try:
+                if isinstance(value, bytes):
+                    value = value.decode("utf-8")
                 repl = cst.parse_expression(value)
                 self.report(node, self.MESSAGE, replacement=repl)
-            except cst.ParserSyntaxError:
+            except (UnicodeDecodeError, cst.ParserSyntaxError):
                 self.report(node, self.MESSAGE)
 
     def _is_annotated_metadata(self, node: cst.SimpleString) -> bool:
@@ -361,6 +363,30 @@ class NoStringTypeAnnotation(LintRule):
 
         elements = list(subscript.slice)
         return parent in elements[1:]
+
+    def _imported_name(self, alias: cst.ImportAlias) -> str:
+        if alias.asname is not None:
+            return alias.asname.name.value
+        if isinstance(alias.name, cst.Name):
+            return alias.name.value
+        return cst.Module([]).code_for_node(alias.name).split(".", 1)[0]
+
+    def _is_typing_subscript(
+        self,
+        node: cst.Subscript,
+        direct_names: set[str],
+        attr_name: str,
+    ) -> bool:
+        value = node.value
+        if isinstance(value, cst.Name):
+            return value.value in direct_names
+        if isinstance(value, cst.Attribute) and isinstance(value.attr, cst.Name):
+            return (
+                value.attr.value == attr_name
+                and isinstance(value.value, cst.Name)
+                and value.value.value in self.typing_module_names
+            )
+        return False
 
 
 __all__ = [
