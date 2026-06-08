@@ -106,6 +106,16 @@ class VariadicCallableSyntax(LintRule):
                 ...
             """,
         ),
+        Invalid(
+            """
+            from collections.abc import Callable
+            x: Callable[[...], int] = ...
+            """,
+            expected_replacement="""
+            from collections.abc import Callable
+            x: Callable[..., int] = ...
+            """,
+        ),
     ]
 
     def visit_Subscript(self, node: cst.Subscript) -> None:
@@ -113,6 +123,10 @@ class VariadicCallableSyntax(LintRule):
             self,
             node,
             QualifiedName(name="typing.Callable", source=QualifiedNameSource.IMPORT),
+        ) and not QualifiedNameProvider.has_name(
+            self,
+            node,
+            QualifiedName(name="collections.abc.Callable", source=QualifiedNameSource.IMPORT),
         ):
             return
         if len(node.slice) == 2 and m.matches(
@@ -124,7 +138,7 @@ class VariadicCallableSyntax(LintRule):
             new_node = node.with_changes(slice=slices)
             self.report(
                 node,
-                self.__doc__ or "",
+                self.MESSAGE,
                 replacement=node.deep_replace(node, new_node),
             )
 

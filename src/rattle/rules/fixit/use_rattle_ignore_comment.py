@@ -35,6 +35,7 @@ class UseRattleIgnoreComment(LintRule):
     ]
     INVALID = [
         Invalid("fn() # noqa"),
+        Invalid("fn()  # type: ignore  # noqa"),
         Invalid(
             """
             (
@@ -53,8 +54,7 @@ class UseRattleIgnoreComment(LintRule):
     ]
 
     def visit_Comment(self, node: cst.Comment) -> None:
-        target = "# noqa"
-        if node.value[: len(target)].lower() == target:
+        if "noqa" in node.value.lower():
             self.report(node, self.MESSAGE)
 
 

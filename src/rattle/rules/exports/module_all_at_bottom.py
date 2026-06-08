@@ -16,6 +16,23 @@ def _is_all_assignment(statement: cst.BaseSmallStatement) -> bool:
     return is_name(statement.target, "__all__")
 
 
+def _is_all_mutation(statement: cst.BaseSmallStatement) -> bool:
+    if not isinstance(statement, cst.Expr):
+        return False
+    if not isinstance(statement.value, cst.Call):
+        return False
+    if not isinstance(statement.value.func, cst.Attribute):
+        return False
+    if not is_name(statement.value.func.value, "__all__"):
+        return False
+
+    return statement.value.func.attr.value in {"append", "extend"}
+
+
+def _is_all_statement(statement: cst.BaseSmallStatement) -> bool:
+    return _is_all_assignment(statement) or _is_all_mutation(statement)
+
+
 def _module_uses_future_annotations(node: cst.Module) -> bool:
     for statement in node.body:
         import_from = single_small_statement(statement)
@@ -227,6 +244,15 @@ class ModuleAllAtBottom(LintRule):
             value = "updated"
             """
         ),
+        Invalid(
+            """
+            __all__ = []
+            __all__.append("build")
+
+            def build():
+                return "value"
+            """
+        ),
     ]
 
     def visit_Module(self, node: cst.Module) -> None:
@@ -242,7 +268,7 @@ class ModuleAllAtBottom(LintRule):
 
             last_small_statement_index = len(statement.body) - 1
             for small_statement_index, small_statement in enumerate(statement.body):
-                if not _is_all_assignment(small_statement):
+                if not _is_all_statement(small_statement):
                     continue
                 if (
                     statement_index == last_statement_index

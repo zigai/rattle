@@ -68,6 +68,14 @@ class UseClsInClassmethod(LintRule):
                     pass
             """
         ),
+        Valid(
+            """
+            class foo:
+                @classmethod
+                def cm(cls, /):
+                    pass
+            """
+        ),
     ]
     INVALID = [
         Invalid(
@@ -215,6 +223,20 @@ class UseClsInClassmethod(LintRule):
                     pass
             """,
         ),
+        Invalid(
+            """
+            class foo:
+                @classmethod
+                def cm(a, /):
+                    return a
+            """,
+            expected_replacement="""
+            class foo:
+                @classmethod
+                def cm(cls, /):
+                    return cls
+            """,
+        ),
     ]
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
@@ -229,7 +251,8 @@ class UseClsInClassmethod(LintRule):
             return  # If it's not a @classmethod, we are not interested.
 
         repl: cst.CSTNode | cst.RemovalSentinel | cst.FlattenSentinel[cst.FunctionDef]
-        if not node.params.params:
+        ordered_params = [*node.params.posonly_params, *node.params.params]
+        if not ordered_params:
             # No params, but there must be the 'cls' param.
             # Static analysis can catch this, but we also generate an autofix,
             # so it still makes sense for us to report it here.
@@ -238,7 +261,7 @@ class UseClsInClassmethod(LintRule):
             self.report(node, self.MESSAGE, replacement=repl)
             return
 
-        p0_name = node.params.params[0].name
+        p0_name = ordered_params[0].name
         if p0_name.value == CLS:
             return  # All good.
 

@@ -6,6 +6,7 @@
 
 import libcst as cst
 import libcst.matchers as m
+from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, Valid
 
@@ -25,6 +26,7 @@ class RewriteToComprehension(LintRule):
     NAME = "use-comprehension"
     MESSAGE = UNNECESSARY_GENERATOR
     SOURCE_PATTERNS = ("list(", "set(", "dict(")
+    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
 
     VALID = [
         Valid("[val for val in iterable]"),
@@ -32,6 +34,14 @@ class RewriteToComprehension(LintRule):
         Valid("{val: val+1 for val in iterable}"),
         # A function call is valid if the elt is a function that returns a tuple.
         Valid("dict(line.strip().split('=', 1) for line in attr_file)"),
+        Valid(
+            """
+            def list(value):
+                return value
+
+            list(val for val in iterable)
+            """
+        ),
     ]
 
     INVALID = [
@@ -100,6 +110,12 @@ class RewriteToComprehension(LintRule):
             ),
         ):
             call_name = cst.ensure_type(node.func, cst.Name).value
+            if not QualifiedNameProvider.has_name(
+                self,
+                node.func,
+                QualifiedName(name=f"builtins.{call_name}", source=QualifiedNameSource.BUILTIN),
+            ):
+                return
 
             exp: cst.GeneratorExp | cst.ListComp
             if m.matches(node.args[0].value, m.GeneratorExp()):

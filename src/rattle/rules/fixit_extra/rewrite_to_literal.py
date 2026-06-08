@@ -7,6 +7,7 @@ from collections.abc import Sequence
 
 import libcst as cst
 import libcst.matchers as m
+from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, Valid
 
@@ -27,6 +28,7 @@ class RewriteToLiteral(LintRule):
     NAME = "use-literal"
     MESSAGE = UNNECESSARY_LITERAL
     SOURCE_PATTERNS = ("tuple(", "list(", "set(", "dict(")
+    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
 
     VALID = [
         Valid("(1, 2)"),
@@ -37,6 +39,14 @@ class RewriteToLiteral(LintRule):
         Valid("set()"),
         Valid("{1: 2, 3: 4}"),
         Valid("{}"),
+        Valid(
+            """
+            def list():
+                return 1
+
+            list()
+            """
+        ),
     ]
 
     INVALID = [
@@ -94,6 +104,12 @@ class RewriteToLiteral(LintRule):
 
             exp = cst.ensure_type(node, cst.Call)
             call_name = cst.ensure_type(exp.func, cst.Name).value
+            if not QualifiedNameProvider.has_name(
+                self,
+                exp.func,
+                QualifiedName(name=f"builtins.{call_name}", source=QualifiedNameSource.BUILTIN),
+            ):
+                return
 
             # If this is a empty call, it's an Unnecessary Call where we rewrite the call
             # to literal, except set().

@@ -45,14 +45,21 @@ class AvoidOrInExcept(LintRule):
             except ValueError or TypeError:
                 pass
             """,
-        )
+        ),
+        Invalid(
+            """
+            try:
+                print()
+            except ValueError:
+                pass
+            except TypeError or OSError:
+                pass
+            """,
+        ),
     ]
 
-    def visit_Try(self, node: cst.Try) -> None:
-        if m.matches(
-            node,
-            m.Try(handlers=[m.ExceptHandler(type=m.BooleanOperation(operator=m.Or()))]),
-        ):
+    def visit_ExceptHandler(self, node: cst.ExceptHandler) -> None:
+        if m.matches(node, m.ExceptHandler(type=m.BooleanOperation(operator=m.Or()))):
             self.report(node, self.MESSAGE)
 
 

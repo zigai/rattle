@@ -96,17 +96,6 @@ def _is_overload_declaration(method: cst.FunctionDef) -> bool:
     return any(decorator_name in _OVERLOAD_DECORATOR_NAMES for decorator_name in decorator_names)
 
 
-def _has_duplicate_method_names(methods: list[cst.FunctionDef]) -> bool:
-    method_names: set[str] = set()
-    for method in methods:
-        method_name = method.name.value
-        if method_name in method_names:
-            return True
-        method_names.add(method_name)
-
-    return False
-
-
 def _has_order_sensitive_base(node: cst.ClassDef) -> bool:
     return any(
         base_name in _ORDER_SENSITIVE_BASE_NAMES
@@ -137,18 +126,17 @@ def _should_check_class(
 
 
 def _ordered_methods(node: cst.ClassDef) -> list[cst.FunctionDef] | None:
-    methods = [statement for statement in node.body.body if isinstance(statement, cst.FunctionDef)]
-    if _has_duplicate_method_names(methods):
-        return None
-
-    return methods
+    return [statement for statement in node.body.body if isinstance(statement, cst.FunctionDef)]
 
 
 def _first_order_violation(methods: list[cst.FunctionDef]) -> tuple[cst.FunctionDef, str] | None:
     first_private_helper_name: str | None = None
+    overload_names = {method.name.value for method in methods if _is_overload_declaration(method)}
     for method in methods:
         method_name = method.name.value
         if _is_dunder(method_name):
+            continue
+        if method_name in overload_names:
             continue
         if _is_public_accessor(method):
             continue
@@ -285,19 +273,6 @@ class PublicMethodOrder(LintRule):
         ),
         Valid(
             """
-            class Workflow:
-                def _normalize(self, value: str) -> str:
-                    return value
-
-                def build(self, value: str) -> str:
-                    return self._normalize(value)
-
-                def build(self, value: bytes) -> str:
-                    return value.decode()
-            """
-        ),
-        Valid(
-            """
             class Helper:
                 def _normalize(self, value: str) -> str:
                     return value
@@ -338,6 +313,23 @@ class PublicMethodOrder(LintRule):
                 "Public method 'list_models' appears after private helper '_normalize'."
             ),
             options={"class_name_patterns": ["*Service"]},
+        ),
+        Invalid(
+            """
+            class Workflow:
+                def _normalize(self) -> str:
+                    return "ok"
+
+                def build(self) -> str:
+                    return "ok"
+
+                def build(self, value: str) -> str:
+                    return value
+            """,
+            expected_message=(
+                "Define public methods before private helpers in behavior classes. "
+                "Public method 'build' appears after private helper '_normalize'."
+            ),
         ),
     ]
 

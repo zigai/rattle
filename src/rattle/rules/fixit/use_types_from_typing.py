@@ -23,11 +23,11 @@ class UseTypesFromTyping(LintRule):
     """
     Enforces the use of types from the ``typing`` module in type annotations in place
     of ``builtins.{builtin_type}`` since the type system doesn't recognize the latter
-    as a valid type before Python ``3.10``.
+    as a valid type before Python ``3.9``.
     """
 
     MESSAGE = REPLACE_BUILTIN_TYPE_ANNOTATION
-    PYTHON_VERSION = "< 3.10"
+    PYTHON_VERSION = "< 3.9"
 
     METADATA_DEPENDENCIES = (
         QualifiedNameProvider,

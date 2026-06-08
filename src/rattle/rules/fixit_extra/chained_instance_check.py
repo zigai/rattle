@@ -11,7 +11,10 @@ from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameS
 
 from rattle import Invalid, LintRule, Valid
 
-_ISINSTANCE = QualifiedName(name="builtins.isinstance", source=QualifiedNameSource.BUILTIN)
+_ISINSTANCE_NAMES = (
+    QualifiedName(name="builtins.isinstance", source=QualifiedNameSource.BUILTIN),
+    QualifiedName(name="builtins.isinstance", source=QualifiedNameSource.IMPORT),
+)
 
 
 class CollapseIsinstanceChecks(LintRule):
@@ -90,6 +93,30 @@ class CollapseIsinstanceChecks(LintRule):
                 " or isinstance(q, (f, g, h))"
             ),
         ),
+        Invalid(
+            """
+            import builtins
+
+            builtins.isinstance(x, A) or builtins.isinstance(x, B)
+            """,
+            expected_replacement="""
+            import builtins
+
+            isinstance(x, (A, B))
+            """,
+        ),
+        Invalid(
+            """
+            from builtins import isinstance as check
+
+            check(x, A) or check(x, B)
+            """,
+            expected_replacement="""
+            from builtins import isinstance as check
+
+            isinstance(x, (A, B))
+            """,
+        ),
     ]
 
     def __init__(self) -> None:
@@ -145,7 +172,10 @@ class CollapseIsinstanceChecks(LintRule):
         for operand in stack:
             if m.matches(operand, m.Call(func=m.DoNotCare(), args=[m.Arg(), m.Arg(~m.Tuple())])):
                 call = cst.ensure_type(operand, cst.Call)
-                if not QualifiedNameProvider.has_name(self, call, _ISINSTANCE):
+                if not any(
+                    QualifiedNameProvider.has_name(self, call, qualified_name)
+                    for qualified_name in _ISINSTANCE_NAMES
+                ):
                     operands.append(operand)
                     continue
 

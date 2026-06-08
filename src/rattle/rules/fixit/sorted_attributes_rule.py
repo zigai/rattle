@@ -52,8 +52,27 @@ class SortedAttributes(LintRule):
                 def get_foo(cls) -> str:
                     return "some random thing"
            """,
-        )
+        ),
+        Invalid(
+            """
+            class MyUnsortedConstants:
+                \"\"\"
+                @sorted-attributes
+                \"\"\"
+                z: int = 1
+                a: int = 2
+           """,
+            expected_replacement="""
+            class MyUnsortedConstants:
+                \"\"\"
+                @sorted-attributes
+                \"\"\"
+                a: int = 2
+                z: int = 1
+           """,
+        ),
     ]
+    MESSAGE: str = "It appears you are using the @sorted-attributes directive and the class variables are unsorted. See the lint autofix suggestion."
     VALID = [
         Valid(
             """
@@ -68,54 +87,82 @@ class SortedAttributes(LintRule):
                 B = 'aaa234'
                 A = 'zzz123'
            """
-        )
+        ),
+        Valid(
+            """
+            class MyConstants:
+                \"\"\"
+                @sorted-attributes
+                \"\"\"
+                z = side_effect("z")
+
+                def method(self):
+                    pass
+
+                a = side_effect("a")
+            """
+        ),
     ]
-    MESSAGE: str = "It appears you are using the @sorted-attributes directive and the class variables are unsorted. See the lint autofix suggestion."
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         doc_string = node.get_docstring()
         if not doc_string or "@sorted-attributes" not in doc_string:
             return
 
-        found_any_assign: bool = False
-        pre_assign_lines: list[LineType] = []
+        replacement_lines: list[LineType] = []
         assign_lines: list[LineType] = []
-        post_assign_lines: list[LineType] = []
+        changed = False
 
-        def _add_unmatched_line(line: LineType) -> None:
-            (post_assign_lines.append(line) if found_any_assign else pre_assign_lines.append(line))
+        def _flush_assign_lines() -> None:
+            nonlocal changed
+            if not assign_lines:
+                return
+
+            sorted_assign_lines = sorted(
+                assign_lines,
+                key=self._get_assign_name,
+            )
+            changed = changed or sorted_assign_lines != assign_lines
+            replacement_lines.extend(sorted_assign_lines)
+            assign_lines.clear()
 
         for line in node.body.body:
-            if m.matches(
-                line,
-                m.SimpleStatementLine(body=[m.Assign(targets=[m.AssignTarget(target=m.Name())])]),
-            ):
-                found_any_assign = True
+            if self._is_sortable_assignment(line):
                 assign_lines.append(line)
             else:
-                _add_unmatched_line(line)
-                continue
+                _flush_assign_lines()
+                replacement_lines.append(line)
 
-        sorted_assign_lines = sorted(
-            assign_lines,
-            key=self._get_assign_name,
-        )
-        if sorted_assign_lines == assign_lines:
+        _flush_assign_lines()
+        if not changed:
             return
         self.report(
             node,
             self.MESSAGE,
-            replacement=node.with_changes(
-                body=node.body.with_changes(
-                    body=pre_assign_lines + sorted_assign_lines + post_assign_lines
-                )
+            replacement=node.with_changes(body=node.body.with_changes(body=replacement_lines)),
+        )
+
+    def _is_sortable_assignment(self, line: LineType) -> bool:
+        return m.matches(
+            line,
+            m.SimpleStatementLine(
+                body=[
+                    m.OneOf(
+                        m.Assign(targets=[m.AssignTarget(target=m.Name())]),
+                        m.AnnAssign(target=m.Name()),
+                    )
+                ]
             ),
         )
 
     def _get_assign_name(self, line: LineType) -> str:
         statement_line = cst.ensure_type(line, cst.SimpleStatementLine)
-        assign = cst.ensure_type(statement_line.body[0], cst.Assign)
-        target = cst.ensure_type(assign.targets[0].target, cst.Name)
+        statement = statement_line.body[0]
+        if isinstance(statement, cst.Assign):
+            target = cst.ensure_type(statement.targets[0].target, cst.Name)
+        else:
+            assign = cst.ensure_type(statement, cst.AnnAssign)
+            target = cst.ensure_type(assign.target, cst.Name)
         return target.value
 
 

@@ -9,7 +9,7 @@ class NoUnderscoreClass(LintRule):
     """Forbid underscore-prefixed class names."""
 
     MESSAGE = "Class names must not start with an underscore prefix."
-    SOURCE_PATTERNS = (b"class _",)
+    SOURCE_PATTERNS = (b"class ",)
 
     VALID = [
         Valid("class MyClass: ..."),
@@ -17,6 +17,7 @@ class NoUnderscoreClass(LintRule):
 
     INVALID = [
         Invalid("class _Internal: ..."),
+        Invalid("class\t_Internal: ..."),
         Invalid("class __Private: ..."),
         Invalid("class _MyClass: ..."),
         Invalid("class _ASTVisitor: ..."),

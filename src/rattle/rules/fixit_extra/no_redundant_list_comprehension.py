@@ -5,6 +5,7 @@
 
 import libcst as cst
 import libcst.matchers as m
+from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, Valid
 
@@ -18,6 +19,7 @@ class NoRedundantListComprehension(LintRule):
 
     MESSAGE = UNNECESSARY_LIST_COMPREHENSION
     SOURCE_PATTERNS = ("any(", "all(")
+    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
 
     VALID = [
         Valid("any(val for val in iterable)"),
@@ -29,6 +31,14 @@ class NoRedundantListComprehension(LintRule):
         Valid("sorted([val for val in iterable])"),
         Valid("sum([val for val in iterable])"),
         Valid("tuple([val for val in iterable])"),
+        Valid(
+            """
+            def any(value):
+                return value
+
+            any([val for val in iterable])
+            """
+        ),
     ]
     INVALID = [
         Invalid(
@@ -48,12 +58,17 @@ class NoRedundantListComprehension(LintRule):
             node,
             m.Call(func=m.Name("all") | m.Name("any"), args=[m.Arg(value=m.ListComp())]),
         ):
+            call_name = cst.ensure_type(node.func, cst.Name).value
+            if not QualifiedNameProvider.has_name(
+                self,
+                node.func,
+                QualifiedName(name=f"builtins.{call_name}", source=QualifiedNameSource.BUILTIN),
+            ):
+                return
             list_comp = cst.ensure_type(node.args[0].value, cst.ListComp)
             self.report(
                 node,
-                UNNECESSARY_LIST_COMPREHENSION.format(
-                    func=cst.ensure_type(node.func, cst.Name).value
-                ),
+                UNNECESSARY_LIST_COMPREHENSION.format(func=call_name),
                 replacement=node.deep_replace(
                     list_comp,
                     cst.GeneratorExp(elt=list_comp.elt, for_in=list_comp.for_in, lpar=[], rpar=[]),

@@ -6,20 +6,67 @@ import libcst as cst
 from libcst.metadata import FilePathProvider
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
-from rattle.rules.helpers import is_excluded_path, is_name, ordinary_parameters
+from rattle.rules.helpers import (
+    callable_dotted_name,
+    is_excluded_path,
+    is_name,
+    ordinary_parameters,
+)
 
 
 def _is_bare_object_annotation(expression: cst.BaseExpression) -> bool:
+    if isinstance(expression, cst.SimpleString):
+        return _is_bare_object_string_annotation(expression)
+
     if is_name(expression, "object"):
         return True
 
-    if not isinstance(expression, cst.BinaryOperation):
+    if _is_object_none_union(expression):
+        return True
+
+    if isinstance(expression, cst.Subscript):
+        return _is_bare_object_subscript_annotation(expression)
+
+    return False
+
+
+def _is_bare_object_string_annotation(expression: cst.SimpleString) -> bool:
+    value = expression.evaluated_value
+    if not isinstance(value, str):
         return False
-    if not isinstance(expression.operator, cst.BitOr):
+    try:
+        parsed_expression = cst.parse_expression(value)
+    except cst.ParserSyntaxError:
         return False
 
-    return (is_name(expression.left, "object") and is_name(expression.right, "None")) or (
-        is_name(expression.left, "None") and is_name(expression.right, "object")
+    return _is_bare_object_annotation(parsed_expression)
+
+
+def _is_object_none_union(expression: cst.BaseExpression) -> bool:
+    if not isinstance(expression, cst.BinaryOperation) or not isinstance(
+        expression.operator, cst.BitOr
+    ):
+        return False
+
+    return _is_object_none_pair(expression.left, expression.right)
+
+
+def _is_bare_object_subscript_annotation(expression: cst.Subscript) -> bool:
+    subscript_name = callable_dotted_name(expression.value)
+    elements = [
+        element.slice.value for element in expression.slice if isinstance(element.slice, cst.Index)
+    ]
+    if subscript_name in {"Optional", "typing.Optional"} and len(elements) == 1:
+        return _is_bare_object_annotation(elements[0])
+    if subscript_name in {"Union", "typing.Union"} and len(elements) == 2:
+        return _is_object_none_pair(elements[0], elements[1])
+
+    return False
+
+
+def _is_object_none_pair(left: cst.BaseExpression, right: cst.BaseExpression) -> bool:
+    return (is_name(left, "object") and is_name(right, "None")) or (
+        is_name(left, "None") and is_name(right, "object")
     )
 
 
@@ -100,6 +147,28 @@ class NoBareObjectAnnotations(LintRule):
         Invalid(
             """
             value: None | object = None
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
+        Invalid(
+            """
+            from typing import Optional
+
+            value: Optional[object] = None
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
+        Invalid(
+            """
+            from typing import Union
+
+            value: Union[object, None] = None
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
+        Invalid(
+            """
+            value: "object" = payload
             """,
             expected_message="Use a narrower type than bare object in annotations.",
         ),

@@ -3,31 +3,51 @@ from __future__ import annotations
 import libcst as cst
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import is_name, single_small_statement
+from rattle.rules.helpers import callable_dotted_name, is_name, single_small_statement
 
 SuiteNode = cst.Module | cst.IndentedBlock
 
 
 def _message_assignment(statement: cst.BaseStatement) -> tuple[str, cst.BaseExpression] | None:
     small_statement = single_small_statement(statement, allow_leading_lines=False)
-    if not isinstance(small_statement, cst.Assign):
+    if isinstance(small_statement, cst.Assign):
+        if len(small_statement.targets) != 1:
+            return None
+        target = small_statement.targets[0].target
+        value = small_statement.value
+    elif isinstance(small_statement, cst.AnnAssign):
+        target = small_statement.target
+        value = small_statement.value
+        if value is None:
+            return None
+    else:
         return None
-    if len(small_statement.targets) != 1:
-        return None
-
-    target = small_statement.targets[0].target
     if not isinstance(target, cst.Name):
         return None
+    if _looks_like_exception_object(value):
+        return None
 
-    return target.value, small_statement.value
+    return target.value, value
 
 
 def _raise_statement(statement: cst.BaseStatement) -> cst.Raise | None:
-    small_statement = single_small_statement(statement, allow_leading_lines=False)
+    small_statement = single_small_statement(statement)
     if isinstance(small_statement, cst.Raise):
         return small_statement
 
     return None
+
+
+def _looks_like_exception_object(value: cst.BaseExpression) -> bool:
+    if not isinstance(value, cst.Call):
+        return False
+
+    name = callable_dotted_name(value.func)
+    if name is None:
+        return False
+
+    class_name = name.rsplit(".", 1)[-1]
+    return class_name.endswith(("Error", "Exception"))
 
 
 def _inline_exception_argument(
@@ -122,6 +142,12 @@ class NoExceptionMessageVariables(LintRule):
             raise ValueError("invalid value")
             """
         ),
+        Valid(
+            """
+            err = PermissionError("invalid value")
+            raise RuntimeError(err)
+            """
+        ),
     ]
 
     INVALID = [
@@ -140,6 +166,26 @@ class NoExceptionMessageVariables(LintRule):
             raise ValueError(msg)
             """,
             expected_replacement="""
+            raise ValueError("invalid value")
+            """,
+        ),
+        Invalid(
+            """
+            msg: str = "invalid value"
+            raise ValueError(msg)
+            """,
+            expected_replacement="""
+            raise ValueError("invalid value")
+            """,
+        ),
+        Invalid(
+            """
+            msg = "invalid value"
+            # keep this comment attached to the raise
+            raise ValueError(msg)
+            """,
+            expected_replacement="""
+            # keep this comment attached to the raise
             raise ValueError("invalid value")
             """,
         ),

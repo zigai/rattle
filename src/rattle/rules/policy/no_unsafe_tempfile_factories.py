@@ -43,6 +43,24 @@ class NoUnsafeTempfileFactories(LintRule):
             factory().mkstemp()
             """
         ),
+        Valid(
+            """
+            class tempfile:
+                @staticmethod
+                def mkstemp():
+                    pass
+
+            tempfile.mkstemp()
+            """
+        ),
+        Valid(
+            """
+            import tempfile
+
+            tempfile = fake
+            tempfile.mkstemp()
+            """
+        ),
     ]
 
     INVALID = [
@@ -62,6 +80,14 @@ class NoUnsafeTempfileFactories(LintRule):
             """,
             expected_message="Use tempfile context managers instead of mkstemp or mkdtemp.",
         ),
+        Invalid(
+            """
+            from tempfile import *
+
+            fd, path = mkstemp()
+            """,
+            expected_message="Use tempfile context managers instead of mkstemp or mkdtemp.",
+        ),
     ]
 
     _BLOCKED_NAMES = frozenset({"mkdtemp", "mkstemp"})
@@ -74,7 +100,7 @@ class NoUnsafeTempfileFactories(LintRule):
         self._current_file_path: Path | None = None
 
     def visit_Module(self, node: cst.Module) -> None:
-        self._tempfile_aliases = {"tempfile"}
+        self._tempfile_aliases = set()
         self._factory_aliases = set()
         file_path = self.get_metadata(FilePathProvider, node)
         self._current_file_path = file_path if isinstance(file_path, Path) else None
@@ -104,6 +130,7 @@ class NoUnsafeTempfileFactories(LintRule):
         if dotted_name(node.module) != "tempfile":
             return
         if isinstance(node.names, cst.ImportStar):
+            self._factory_aliases.update(self._BLOCKED_NAMES)
             return
 
         for import_alias in node.names:
@@ -113,6 +140,26 @@ class NoUnsafeTempfileFactories(LintRule):
                 continue
 
             self._factory_aliases.add(alias_name(import_alias.asname, import_alias.name.value))
+
+    def visit_Assign(self, node: cst.Assign) -> None:
+        if self._should_skip_current_file():
+            return
+
+        for target in node.targets:
+            self._remove_shadowed_alias(target.target)
+
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
+        if self._should_skip_current_file():
+            return
+
+        self._remove_shadowed_alias(node.target)
+
+    def _remove_shadowed_alias(self, target: cst.BaseAssignTargetExpression) -> None:
+        if not isinstance(target, cst.Name):
+            return
+
+        self._tempfile_aliases.discard(target.value)
+        self._factory_aliases.discard(target.value)
 
     def visit_Call(self, node: cst.Call) -> None:
         if self._should_skip_current_file():

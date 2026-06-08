@@ -6,7 +6,7 @@
 
 import libcst as cst
 import libcst.matchers as m
-from libcst.metadata import QualifiedNameProvider
+from libcst.metadata import ParentNodeProvider, QualifiedNameProvider
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
@@ -92,6 +92,14 @@ class NoStringTypeAnnotation(LintRule):
 
             def foo() -> typing.Optional[typing.Literal["class", "function"]]:
                 return "class"
+            """
+        ),
+        Valid(
+            """
+            from __future__ import annotations
+            from typing import Annotated
+
+            value: Annotated[int, "units"]
             """
         ),
     ]
@@ -245,12 +253,13 @@ class NoStringTypeAnnotation(LintRule):
         ),
     ]
 
-    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
+    METADATA_DEPENDENCIES = (ParentNodeProvider, QualifiedNameProvider)
 
     def __init__(self) -> None:
         super().__init__()
         self.in_annotation: set[cst.Annotation] = set()
         self.in_literal: set[cst.Subscript] = set()
+        self.in_annotated: set[cst.Subscript] = set()
         self.has_future_annotations_import = False
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
@@ -294,17 +303,37 @@ class NoStringTypeAnnotation(LintRule):
             metadata_resolver=self,
         ):
             self.in_literal.add(node)
+        if self.in_annotation and m.matches(
+            node,
+            m.Subscript(
+                metadata=m.MatchMetadataIfTrue(
+                    QualifiedNameProvider,
+                    lambda qualnames: any(
+                        n.name
+                        in (
+                            "typing.Annotated",
+                            "typing_extensions.Annotated",
+                        )
+                        for n in qualnames
+                    ),
+                )
+            ),
+            metadata_resolver=self,
+        ):
+            self.in_annotated.add(node)
 
     def leave_Subscript(self, original_node: cst.Subscript) -> None:
         if not self.has_future_annotations_import:
             return
         if original_node in self.in_literal:
             self.in_literal.remove(original_node)
+        if original_node in self.in_annotated:
+            self.in_annotated.remove(original_node)
 
     def visit_SimpleString(self, node: cst.SimpleString) -> None:
         if not self.has_future_annotations_import:
             return
-        if self.in_annotation and not self.in_literal:
+        if self.in_annotation and not self.in_literal and not self._is_annotated_metadata(node):
             # This is not allowed past Python3.7 since it's no longer necessary.
             value = node.evaluated_value
             if isinstance(value, bytes):
@@ -314,6 +343,24 @@ class NoStringTypeAnnotation(LintRule):
                 self.report(node, self.MESSAGE, replacement=repl)
             except cst.ParserSyntaxError:
                 self.report(node, self.MESSAGE)
+
+    def _is_annotated_metadata(self, node: cst.SimpleString) -> bool:
+        if not self.in_annotated:
+            return False
+
+        parent = self.get_metadata(ParentNodeProvider, node, None)
+        while parent is not None and not isinstance(parent, cst.SubscriptElement):
+            parent = self.get_metadata(ParentNodeProvider, parent, None)
+
+        if not isinstance(parent, cst.SubscriptElement):
+            return False
+
+        subscript = self.get_metadata(ParentNodeProvider, parent, None)
+        if subscript not in self.in_annotated or not isinstance(subscript, cst.Subscript):
+            return False
+
+        elements = list(subscript.slice)
+        return parent in elements[1:]
 
 
 __all__ = [

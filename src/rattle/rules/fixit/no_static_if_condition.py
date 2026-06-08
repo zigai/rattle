@@ -56,6 +56,24 @@ class NoStaticIfCondition(LintRule):
         ),
         Invalid(
             """
+            if 1:
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if None:
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
+            if "":
+                do_something()
+            """,
+        ),
+        Invalid(
+            """
             if crazy_expression or True:
                 do_something()
             """,
@@ -116,11 +134,10 @@ class NoStaticIfCondition(LintRule):
         if m.matches(node, m.Call()):
             # cannot reason about function calls
             return None
-        if m.matches(node, m.Name("True")):
-            return True
 
-        if m.matches(node, m.Name("False")):
-            return False
+        literal_value = cls._extract_literal_truthiness(node)
+        if literal_value is not None:
+            return literal_value
 
         if m.matches(node, m.UnaryOperation(operator=m.Not())):
             unary_node = cst.ensure_type(node, cst.UnaryOperation)
@@ -130,6 +147,21 @@ class NoStaticIfCondition(LintRule):
             return cls._extract_static_bool_from_operation(
                 cst.ensure_type(node, cst.BooleanOperation)
             )
+
+        return None
+
+    @staticmethod
+    def _extract_literal_truthiness(node: cst.BaseExpression) -> bool | None:
+        if m.matches(node, m.Name("True")):
+            return True
+        if m.matches(node, m.Name("False") | m.Name("None")):
+            return False
+        if isinstance(node, cst.Integer):
+            return int(node.value.replace("_", ""), 0) != 0
+        if isinstance(node, cst.SimpleString) and isinstance(node.evaluated_value, str):
+            return bool(node.evaluated_value)
+        if isinstance(node, cst.Tuple | cst.List | cst.Set | cst.Dict):
+            return bool(node.elements)
 
         return None
 

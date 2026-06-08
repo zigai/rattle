@@ -50,6 +50,21 @@ class NoRedundantArgumentsSuper(LintRule):
                         super(InnerBar, self).foo(bar)
             """
         ),
+        Valid(
+            """
+            class Foo(Bar):
+                def foo(self, other):
+                    super(Foo, other).foo()
+            """
+        ),
+        Valid(
+            """
+            class Foo(Bar):
+                @classmethod
+                def foo(cls, other):
+                    super(Foo, other).foo()
+            """
+        ),
     ]
     INVALID = [
         Invalid(
@@ -113,6 +128,7 @@ class NoRedundantArgumentsSuper(LintRule):
     def __init__(self) -> None:
         super().__init__()
         self.current_classes: list[str] = []
+        self.current_first_params: list[str | None] = []
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         self.current_classes.append(node.name.value)
@@ -121,14 +137,29 @@ class NoRedundantArgumentsSuper(LintRule):
         del original_node
         self.current_classes.pop()
 
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        first_param = None
+        params = [*node.params.posonly_params, *node.params.params]
+        if params:
+            first_param = params[0].name.value
+        self.current_first_params.append(first_param)
+
+    def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
+        del original_node
+        self.current_first_params.pop()
+
     def leave_Call(self, original_node: cst.Call) -> None:
+        current_first_param = self.current_first_params[-1] if self.current_first_params else None
+        if current_first_param is None:
+            return
+
         if self.current_classes and m.matches(
             original_node,
             m.Call(
                 func=m.Name("super"),
                 args=[
                     m.Arg(value=self._build_arg_class_matcher()),
-                    m.Arg(),
+                    m.Arg(value=m.Name(current_first_param)),
                 ],
             ),
         ):

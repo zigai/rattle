@@ -10,6 +10,7 @@ from rattle.ftypes import LintViolation
 from rattle.rules.policy.forbidden_call import ForbiddenCall
 from rattle.rules.policy.forbidden_import import ForbiddenImport
 from rattle.rules.policy.forbidden_name import ForbiddenName
+from rattle.rules.policy.line_count_limit import LineCountLimit
 
 
 def _dedent(source: str) -> str:
@@ -19,11 +20,13 @@ def _dedent(source: str) -> str:
 def _run_rule(
     rule: LintRule,
     source: str,
+    *,
+    path: Path = Path("fixture.py"),
+    root: Path | None = None,
 ) -> list[LintViolation]:
-    path = Path("fixture.py")
     runner = LintRunner(path, _dedent(source).encode())
 
-    return list(runner.collect_violations([rule], Config(path=path, root=Path.cwd())))
+    return list(runner.collect_violations([rule], Config(path=path, root=root or Path.cwd())))
 
 
 def _run_forbidden_call(
@@ -54,6 +57,19 @@ def _run_forbidden_name(
     rule.configure({"forbidden_names": forbidden_names})
 
     return _run_rule(rule, source)
+
+
+def _run_line_count_limit(
+    source: str,
+    options: dict[str, object],
+    *,
+    path: Path = Path("fixture.py"),
+    root: Path | None = None,
+) -> list[LintViolation]:
+    rule = LineCountLimit()
+    rule.configure(options)
+
+    return _run_rule(rule, source, path=path, root=root)
 
 
 def test_forbidden_call_allows_unconfigured_calls() -> None:
@@ -110,6 +126,46 @@ def test_forbidden_call_reports_imported_symbol_with_custom_message() -> None:
     )
 
     assert [report.message for report in reports] == ["Use allowed_module.allowed_call instead."]
+
+
+def test_forbidden_call_reports_direct_builtin_call() -> None:
+    reports = _run_forbidden_call(
+        """
+        value = open("path.txt")
+        """,
+        ["builtins.open"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not call forbidden callable 'builtins.open'."
+    ]
+
+
+def test_forbidden_call_accepts_plain_callable_name() -> None:
+    reports = _run_forbidden_call(
+        """
+        print("debug")
+        """,
+        ["print"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'print'."]
+
+
+def test_forbidden_call_reports_local_alias_to_imported_symbol() -> None:
+    reports = _run_forbidden_call(
+        """
+        from blocked_module import blocked_call
+
+        alias = blocked_call
+        alias()
+        """,
+        ["blocked_module.blocked_call"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not call forbidden callable 'blocked_module.blocked_call'."
+    ]
 
 
 def test_forbidden_call_appends_use_instead_when_configured() -> None:
@@ -192,6 +248,32 @@ def test_forbidden_import_reports_custom_message() -> None:
     ]
 
 
+def test_forbidden_import_reports_relative_boundary() -> None:
+    reports = _run_forbidden_import(
+        """
+        from .private import X
+        """,
+        ["private"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not import across forbidden boundary 'private'."
+    ]
+
+
+def test_forbidden_import_reports_relative_boundary_tail() -> None:
+    reports = _run_forbidden_import(
+        """
+        from .private import X
+        """,
+        ["pkg.private"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not import across forbidden boundary 'pkg.private'."
+    ]
+
+
 def test_forbidden_name_allows_unconfigured_names() -> None:
     reports = _run_forbidden_name(
         """
@@ -237,4 +319,98 @@ def test_forbidden_name_reports_configured_class_name() -> None:
 
     assert [report.message for report in reports] == [
         "Do not use forbidden class name 'BlockedType'."
+    ]
+
+
+def test_forbidden_name_does_not_report_parameter_as_variable() -> None:
+    reports = _run_forbidden_name(
+        """
+        def f(blocked_name):
+            pass
+        """,
+        ["variable:blocked_name"],
+    )
+
+    assert reports == []
+
+
+def test_forbidden_name_reports_named_expression_target() -> None:
+    reports = _run_forbidden_name(
+        """
+        if (blocked_name := load_value()):
+            pass
+        """,
+        ["variable:blocked_name"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not use forbidden variable name 'blocked_name'."
+    ]
+
+
+def test_forbidden_name_reports_comprehension_target() -> None:
+    reports = _run_forbidden_name(
+        """
+        values = [blocked_name for blocked_name in items]
+        """,
+        ["variable:blocked_name"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not use forbidden variable name 'blocked_name'.",
+    ]
+
+
+def test_forbidden_name_reports_dotted_import_component() -> None:
+    reports = _run_forbidden_name(
+        """
+        import pkg.blocked_name
+        """,
+        ["import:blocked_name"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not use forbidden import name 'blocked_name'."
+    ]
+
+
+def test_line_count_limit_per_file_limits_match_repo_relative_path(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    path = root / "src" / "fixture.py"
+    reports = _run_line_count_limit(
+        """
+        one()
+        two()
+        three()
+        """,
+        {
+            "max_file_lines": 10,
+            "per_file_limits": {"src/fixture.py": {"max_file_lines": 2}},
+        },
+        path=path,
+        root=root,
+    )
+
+    assert [report.message for report in reports] == [
+        "File has 3 lines, exceeding the configured limit of 2."
+    ]
+
+
+def test_line_count_limit_nested_class_method_uses_method_limit() -> None:
+    reports = _run_line_count_limit(
+        """
+        def outer():
+            class Service:
+                def oversized(self):
+                    first()
+                    second()
+        """,
+        {
+            "max_function_lines": 10,
+            "max_method_lines": 2,
+        },
+    )
+
+    assert [report.message for report in reports] == [
+        "Method 'oversized' has 3 lines, exceeding the configured limit of 2."
     ]

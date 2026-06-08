@@ -5,6 +5,7 @@
 
 import libcst as cst
 import libcst.matchers as m
+from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
@@ -16,12 +17,22 @@ class NoInheritFromObject(LintRule):
     """
 
     MESSAGE = "Inheriting from object is a no-op.  'class Foo:' is just fine =)"
+    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
     VALID = [
         Valid("class A(something):    pass"),
         Valid(
             """
             class A:
                 pass"""
+        ),
+        Valid(
+            """
+            class object:
+                pass
+
+            class A(object):
+                pass
+            """
         ),
     ]
     INVALID = [
@@ -47,7 +58,16 @@ class NoInheritFromObject(LintRule):
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         new_bases = tuple(
-            base for base in node.bases if not m.matches(base.value, m.Name("object"))
+            base
+            for base in node.bases
+            if not (
+                m.matches(base.value, m.Name("object"))
+                and QualifiedNameProvider.has_name(
+                    self,
+                    base.value,
+                    QualifiedName(name="builtins.object", source=QualifiedNameSource.BUILTIN),
+                )
+            )
         )
 
         if tuple(node.bases) != new_bases:

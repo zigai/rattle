@@ -64,6 +64,14 @@ def _matches_import_boundary(imported_name: str, boundary: str) -> bool:
     return imported_name == boundary or imported_name.startswith(f"{boundary}.")
 
 
+def _matches_relative_import_boundary(imported_name: str, boundary: str) -> bool:
+    if _matches_import_boundary(imported_name, boundary):
+        return True
+
+    boundary_tail = boundary.rsplit(".", 1)[-1]
+    return imported_name == boundary_tail or imported_name.startswith(f"{boundary_tail}.")
+
+
 class ForbiddenImport(LintRule):
     """Ban imports that cross configured package or module boundaries."""
 
@@ -90,6 +98,9 @@ class ForbiddenImport(LintRule):
         for entry in _parse_forbidden_imports_setting(self.settings.get("forbidden_imports", ())):
             boundary = entry.boundary
             if boundary.encode() in source:
+                return True
+            boundary_tail = boundary.rsplit(".", 1)[-1]
+            if boundary_tail.encode() in source:
                 return True
 
             module_name, separator, _imported_name = boundary.rpartition(".")
@@ -121,14 +132,12 @@ class ForbiddenImport(LintRule):
             self.report(imported_alias, self._message_for_boundary(boundary))
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
-        if node.relative:
-            return
         if node.module is None:
             return
 
         module_name = _node_name(node.module)
         if isinstance(node.names, cst.ImportStar):
-            boundary = self._forbidden_boundary_for_import_name(module_name)
+            boundary = self._forbidden_boundary_for_import_name(module_name, relative=node.relative)
             if boundary is not None:
                 self.report(node.names, self._message_for_boundary(boundary))
 
@@ -137,7 +146,7 @@ class ForbiddenImport(LintRule):
         for imported_alias in node.names:
             imported_name = _node_name(imported_alias.name)
             full_name = _full_imported_name(module_name, imported_name)
-            boundary = self._forbidden_boundary_for_import_name(full_name)
+            boundary = self._forbidden_boundary_for_import_name(full_name, relative=node.relative)
             if boundary is None:
                 continue
 
@@ -150,9 +159,16 @@ class ForbiddenImport(LintRule):
 
         return message
 
-    def _forbidden_boundary_for_import_name(self, imported_name: str) -> str | None:
+    def _forbidden_boundary_for_import_name(
+        self, imported_name: str, *, relative: object = False
+    ) -> str | None:
         for boundary in self._messages_by_boundary:
-            if _matches_import_boundary(imported_name, boundary):
+            matches = (
+                _matches_relative_import_boundary(imported_name, boundary)
+                if relative
+                else _matches_import_boundary(imported_name, boundary)
+            )
+            if matches:
                 return boundary
 
         return None

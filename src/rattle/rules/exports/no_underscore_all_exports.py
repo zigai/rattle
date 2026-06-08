@@ -11,12 +11,16 @@ def _is_all_target(target: cst.BaseAssignTargetExpression) -> bool:
 
 
 def _exported_names(expression: cst.BaseExpression) -> list[tuple[cst.CSTNode, str]]:
+    if isinstance(expression, cst.SimpleString) and isinstance(expression.evaluated_value, str):
+        return [(expression, expression.evaluated_value)]
+
     if not isinstance(expression, cst.List | cst.Set | cst.Tuple):
         return []
 
     exported_names: list[tuple[cst.CSTNode, str]] = []
     for element in expression.elements:
         if isinstance(element, cst.StarredElement):
+            exported_names.extend(_exported_names(element.value))
             continue
 
         if not isinstance(element.value, cst.SimpleString):
@@ -98,6 +102,27 @@ class NoUnderscoreAllExports(LintRule):
                 "Either remove it from __all__ or rename it to be public."
             ),
         ),
+        Invalid(
+            '__all__.append("_private_name")',
+            expected_message=(
+                "Do not export underscore-prefixed symbol '_private_name' in __all__. "
+                "Either remove it from __all__ or rename it to be public."
+            ),
+        ),
+        Invalid(
+            '__all__.extend(["_private_name"])',
+            expected_message=(
+                "Do not export underscore-prefixed symbol '_private_name' in __all__. "
+                "Either remove it from __all__ or rename it to be public."
+            ),
+        ),
+        Invalid(
+            '__all__ = [*["_private_name"]]',
+            expected_message=(
+                "Do not export underscore-prefixed symbol '_private_name' in __all__. "
+                "Either remove it from __all__ or rename it to be public."
+            ),
+        ),
     ]
 
     def __init__(self) -> None:
@@ -153,6 +178,20 @@ class NoUnderscoreAllExports(LintRule):
             return
 
         self._report_exported_names(node.value)
+
+    def visit_Call(self, node: cst.Call) -> None:
+        if not self._is_module_level():
+            return
+        if not isinstance(node.func, cst.Attribute):
+            return
+        if not is_name(node.func.value, "__all__"):
+            return
+        if node.func.attr.value not in {"append", "extend"}:
+            return
+        if len(node.args) != 1 or node.args[0].keyword is not None:
+            return
+
+        self._report_exported_names(node.args[0].value)
 
     def _is_module_level(self) -> bool:
         return self._class_depth == 0 and self._function_depth == 0

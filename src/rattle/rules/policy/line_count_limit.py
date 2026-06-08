@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import libcst as cst
-from libcst.metadata import FilePathProvider, PositionProvider
+from libcst.metadata import FilePathProvider, ParentNodeProvider, PositionProvider
 
 from rattle import CodePosition, Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import matches_exact_path, matches_path
@@ -75,7 +75,12 @@ class LineCountLimit(LintRule):
     """Limit file, function, and method length with optional path-specific settings."""
 
     MESSAGE = "{target} has {actual_lines} lines, exceeding the configured limit of {max_lines}."
-    METADATA_DEPENDENCIES = (*LintRule.METADATA_DEPENDENCIES, FilePathProvider, PositionProvider)
+    METADATA_DEPENDENCIES = (
+        *LintRule.METADATA_DEPENDENCIES,
+        FilePathProvider,
+        ParentNodeProvider,
+        PositionProvider,
+    )
     SETTINGS = {
         "max_file_lines": RuleSetting(
             int,
@@ -189,7 +194,6 @@ class LineCountLimit(LintRule):
             max_function_lines=0,
             max_method_lines=0,
         )
-        self._class_depth = 0
         self._function_depth = 0
 
     def visit_Module(self, node: cst.Module) -> None:
@@ -225,18 +229,8 @@ class LineCountLimit(LintRule):
             max_method_lines=0,
         )
 
-    def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        del node
-
-        self._class_depth += 1
-
-    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
-        del original_node
-
-        self._class_depth -= 1
-
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-        is_method = self._class_depth > 0 and self._function_depth == 0
+        is_method = self._is_direct_class_member(node)
         max_lines = (
             self._current_limits.max_method_lines
             if is_method
@@ -290,9 +284,27 @@ class LineCountLimit(LintRule):
 
         per_file_limits = self.settings["per_file_limits"]
         for path_pattern, configured_limits in per_file_limits.items():
-            if not matches_exact_path(path_pattern, self._current_file_path):
+            if not self._matches_per_file_path(path_pattern, self._current_file_path):
                 continue
 
             limits = _apply_limits(limits, configured_limits)
 
         return limits
+
+    def _is_direct_class_member(self, node: cst.FunctionDef) -> bool:
+        parent = self.get_metadata(ParentNodeProvider, node, None)
+        if not isinstance(parent, cst.IndentedBlock):
+            return False
+
+        grandparent = self.get_metadata(ParentNodeProvider, parent, None)
+        return isinstance(grandparent, cst.ClassDef)
+
+    def _matches_per_file_path(self, path_pattern: str, file_path: Path) -> bool:
+        if matches_exact_path(path_pattern, file_path):
+            return True
+
+        normalized_path = file_path.as_posix()
+        normalized_pattern = Path(path_pattern).as_posix()
+        return normalized_path == normalized_pattern or normalized_path.endswith(
+            f"/{normalized_pattern}"
+        )

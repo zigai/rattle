@@ -70,14 +70,14 @@ def _matches_pattern(pattern: str, name: str) -> bool:
     return name == pattern
 
 
-def _leftmost_name(node: cst.BaseExpression) -> cst.Name | None:
+def _dotted_names(node: cst.BaseExpression) -> list[cst.Name]:
     if isinstance(node, cst.Name):
-        return node
+        return [node]
 
     if isinstance(node, cst.Attribute):
-        return _leftmost_name(node.value)
+        return [*_dotted_names(node.value), node.attr]
 
-    return None
+    return []
 
 
 class ForbiddenName(LintRule):
@@ -133,7 +133,6 @@ class ForbiddenName(LintRule):
 
     def visit_Param(self, node: cst.Param) -> None:
         self._report_for_name(node.name, "parameter")
-        self._report_for_name(node.name, "variable")
 
     def visit_AssignTarget(self, node: cst.AssignTarget) -> None:
         self._report_for_target(node.target)
@@ -145,6 +144,12 @@ class ForbiddenName(LintRule):
         self._report_for_target(node.target)
 
     def visit_For(self, node: cst.For) -> None:
+        self._report_for_target(node.target)
+
+    def visit_CompFor(self, node: cst.CompFor) -> None:
+        self._report_for_target(node.target)
+
+    def visit_NamedExpr(self, node: cst.NamedExpr) -> None:
         self._report_for_target(node.target)
 
     def visit_WithItem(self, node: cst.WithItem) -> None:
@@ -170,11 +175,8 @@ class ForbiddenName(LintRule):
 
             return
 
-        root_name = _leftmost_name(node.name)
-        if root_name is None:
-            return
-
-        self._report_for_name(root_name, "import")
+        for name in _dotted_names(node.name):
+            self._report_for_name(name, "import")
 
     def _report_for_target(self, target: cst.BaseExpression) -> None:
         for name in target_names(target):

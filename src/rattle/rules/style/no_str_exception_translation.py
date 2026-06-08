@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import libcst as cst
+from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, Valid
 from rattle.rules.helpers import callable_dotted_name
@@ -12,6 +13,7 @@ class NoStrExceptionTranslation(LintRule):
     MESSAGE = (
         "Do not translate exceptions by passing str(exc); use a stable message and chain the cause."
     )
+    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
 
     VALID = [
         Valid(
@@ -25,6 +27,15 @@ class NoStrExceptionTranslation(LintRule):
         Valid(
             """
             message = str(value)
+            """
+        ),
+        Valid(
+            """
+            try:
+                run()
+            except ValueError as exc:
+                str = lambda value: "fixed"
+                raise RuntimeError(str(exc)) from exc
             """
         ),
     ]
@@ -45,6 +56,53 @@ class NoStrExceptionTranslation(LintRule):
                 run()
             except ValueError as error:
                 raise RuntimeError(str(error)) from error
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            try:
+                run()
+            except ValueError as exc:
+                raise RuntimeError(message=str(exc)) from exc
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            try:
+                run()
+            except ValueError as exc:
+                raise RuntimeError(f"{exc}") from exc
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            try:
+                run()
+            except ValueError as exc:
+                raise RuntimeError("{}".format(exc)) from exc
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            try:
+                run()
+            except ValueError as exc:
+                raise RuntimeError("%s" % exc) from exc
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            import builtins
+
+            try:
+                run()
+            except ValueError as exc:
+                raise RuntimeError(builtins.str(exc)) from exc
             """,
             expected_message=MESSAGE,
         ),
@@ -71,19 +129,10 @@ class NoStrExceptionTranslation(LintRule):
         if exception_name is None:
             return
 
-        first_arg_value = self._first_exception_argument(node)
-        if first_arg_value is None:
-            return
-
-        str_arg = self._single_str_argument(first_arg_value)
-        if str_arg is None:
-            return
-        if str_arg.keyword is not None or not isinstance(str_arg.value, cst.Name):
-            return
-        if str_arg.value.value != exception_name:
-            return
-
-        self.report(first_arg_value, self.MESSAGE)
+        for argument in self._exception_arguments(node):
+            if self._translates_exception(argument.value, exception_name):
+                self.report(argument.value, self.MESSAGE)
+                return
 
     def _current_exception_name(self) -> str | None:
         if not self._exception_name_stack:
@@ -91,24 +140,69 @@ class NoStrExceptionTranslation(LintRule):
 
         return self._exception_name_stack[-1]
 
-    def _first_exception_argument(self, node: cst.Raise) -> cst.Call | None:
+    def _exception_arguments(self, node: cst.Raise) -> tuple[cst.Arg, ...]:
         if node.exc is None or not isinstance(node.exc, cst.Call):
+            return ()
+
+        return tuple(node.exc.args)
+
+    def _translates_exception(self, node: cst.BaseExpression, exception_name: str) -> bool:
+        if isinstance(node, cst.Call):
+            str_arg = self._single_builtin_str_argument(node)
+            if str_arg is not None:
+                return self._is_exception_name(str_arg.value, exception_name)
+
+            format_arg = self._single_format_argument(node)
+            if format_arg is not None:
+                return self._is_exception_name(format_arg.value, exception_name)
+
+        if isinstance(node, cst.FormattedString):
+            return self._is_exception_only_f_string(node, exception_name)
+
+        if isinstance(node, cst.BinaryOperation) and isinstance(node.operator, cst.Modulo):
+            return self._is_exception_name(node.right, exception_name)
+
+        return False
+
+    def _single_builtin_str_argument(self, node: cst.Call) -> cst.Arg | None:
+        if callable_dotted_name(node.func) not in {"str", "builtins.str"}:
             return None
-        if not node.exc.args:
+        if len(node.args) != 1:
             return None
 
-        first_arg = node.exc.args[0]
-        if first_arg.keyword is not None:
-            return None
-        if not isinstance(first_arg.value, cst.Call):
+        if (
+            not QualifiedNameProvider.has_name(
+                self,
+                node.func,
+                QualifiedName(name="builtins.str", source=QualifiedNameSource.BUILTIN),
+            )
+            and callable_dotted_name(node.func) != "builtins.str"
+        ):
             return None
 
-        return first_arg.value
+        return node.args[0]
 
-    def _single_str_argument(self, node: cst.Call) -> cst.Arg | None:
-        if callable_dotted_name(node.func) != "str":
+    def _single_format_argument(self, node: cst.Call) -> cst.Arg | None:
+        if callable_dotted_name(node.func) != "format":
             return None
         if len(node.args) != 1:
             return None
 
         return node.args[0]
+
+    def _is_exception_only_f_string(self, node: cst.FormattedString, exception_name: str) -> bool:
+        expressions = [
+            part for part in node.parts if isinstance(part, cst.FormattedStringExpression)
+        ]
+        text_parts = [
+            part.value
+            for part in node.parts
+            if isinstance(part, cst.FormattedStringText) and part.value
+        ]
+        if text_parts or len(expressions) != 1:
+            return False
+
+        return self._is_exception_name(expressions[0].expression, exception_name)
+
+    def _is_exception_name(self, node: cst.BaseExpression, exception_name: str) -> bool:
+        return isinstance(node, cst.Name) and node.value == exception_name

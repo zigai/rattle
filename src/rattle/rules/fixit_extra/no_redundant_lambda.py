@@ -34,14 +34,12 @@ class NoRedundantLambda(LintRule):
         Valid("lambda x, y: foo(y=x, x=y)"),
         Valid("lambda x, y, *z: foo(x, y, z)"),
         Valid("lambda x, y, **z: foo(x, y, z)"),
+        Valid("lambda: self.func()"),
+        Valid("lambda x, y, z: (t + u).math_call(x, y, z)"),
+        Valid("lambda x: obj.method(x)"),
     ]
     INVALID = [
-        Invalid("lambda: self.func()", expected_replacement="self.func"),
         Invalid("lambda x: foo(x)", expected_replacement="foo"),
-        Invalid(
-            "lambda x, y, z: (t + u).math_call(x, y, z)",
-            expected_replacement="(t + u).math_call",
-        ),
     ]
 
     @staticmethod
@@ -70,6 +68,9 @@ class NoRedundantLambda(LintRule):
             ),
         ):
             call = cst.ensure_type(node.body, cst.Call)
+            if not isinstance(call.func, cst.Name):
+                return
+
             full_name = get_full_name_for_node(call)
             if full_name is None:
                 full_name = "function"

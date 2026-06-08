@@ -78,6 +78,13 @@ class NoNamedTuple(LintRule):
                 pass
             """
         ),
+        Valid(
+            """
+            from typing import NamedTuple as NT
+
+            Other = NT
+            """
+        ),
     ]
     INVALID = [
         Invalid(
@@ -175,6 +182,55 @@ class NoNamedTuple(LintRule):
                 pass
             """,
         ),
+        Invalid(
+            code="""
+            from dataclasses import dataclass
+            from typing import NamedTuple
+
+            class Foo(NamedTuple):
+                pass
+            """,
+            expected_replacement="""
+            from dataclasses import dataclass
+
+            @dataclass(frozen=True)
+            class Foo:
+                pass
+            """,
+        ),
+        Invalid(
+            code="""
+            import dataclasses as dc
+            from typing import NamedTuple
+
+            class Foo(NamedTuple):
+                pass
+            """,
+            expected_replacement="""
+            import dataclasses as dc
+
+            @dc.dataclass(frozen=True)
+            class Foo:
+                pass
+            """,
+        ),
+        Invalid(
+            code="""
+            from collections import namedtuple
+
+            Point = namedtuple("Point", ["x", "y"])
+            """,
+        ),
+        Invalid(
+            code="""
+            from typing import NamedTuple as NT
+
+            class Foo(NT):
+                pass
+
+            Other = NT
+            """,
+        ),
     ]
 
     qualified_namedtuple = QualifiedName(
@@ -184,26 +240,49 @@ class NoNamedTuple(LintRule):
     def __init__(self) -> None:
         super().__init__()
         self.namedtuple_classes: dict[cst.ClassDef, tuple[cst.Arg, ...]] = {}
+        self.namedtuple_base_nodes: set[cst.BaseExpression] = set()
+        self.has_unsafe_namedtuple_reference = False
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         (namedtuple_base, new_bases) = self.partition_bases(node.bases)
         if namedtuple_base is not None:
             self.namedtuple_classes[node] = tuple(new_bases)
+            self.namedtuple_base_nodes.add(namedtuple_base.value)
+
+    def visit_Call(self, node: cst.Call) -> None:
+        if QualifiedNameProvider.has_name(
+            self,
+            node.func,
+            QualifiedName(name="collections.namedtuple", source=QualifiedNameSource.IMPORT),
+        ):
+            self.report(node, self.MESSAGE)
+
+    def visit_Name(self, node: cst.Name) -> None:
+        if node in self.namedtuple_base_nodes:
+            return
+        if QualifiedNameProvider.has_name(self, node, self.qualified_namedtuple):
+            self.has_unsafe_namedtuple_reference = True
 
     def leave_Module(self, original_node: cst.Module) -> None:
         if not self.namedtuple_classes:
             return
-
-        decorator = cst.Decorator(
-            decorator=ensure_type(
-                parse_expression("dataclasses.dataclass(frozen=True)"),
-                cst.Call,
+        if self.has_unsafe_namedtuple_reference:
+            first_violation = next(iter(self.namedtuple_classes))
+            self.report(
+                first_violation,
+                self.MESSAGE,
             )
+            return
+
+        decorator_expression, dataclasses_import_available = _dataclass_decorator_expression(
+            original_node
         )
+        decorator = cst.Decorator(decorator=decorator_expression)
         replacement = original_node.visit(
             NoNamedTupleTransformer(
                 namedtuple_classes=self.namedtuple_classes,
                 decorator=decorator,
+                dataclasses_import_available=dataclasses_import_available,
             )
         )
         first_violation = next(iter(self.namedtuple_classes))
@@ -241,12 +320,67 @@ def _is_future_import_statement(statement: cst.BaseStatement) -> bool:
 
 
 def _is_dataclasses_import(statement: cst.BaseSmallStatement) -> bool:
-    return isinstance(statement, cst.Import) and any(
-        isinstance(alias.name, cst.Name)
-        and alias.name.value == "dataclasses"
-        and alias.asname is None
-        for alias in statement.names
+    if isinstance(statement, cst.Import):
+        return any(
+            isinstance(alias.name, cst.Name) and alias.name.value == "dataclasses"
+            for alias in statement.names
+        )
+
+    return (
+        isinstance(statement, cst.ImportFrom)
+        and isinstance(statement.module, cst.Name)
+        and statement.module.value == "dataclasses"
     )
+
+
+def _dataclass_decorator_from_import(statement: cst.Import) -> cst.Call | None:
+    for alias in statement.names:
+        if not isinstance(alias.name, cst.Name) or alias.name.value != "dataclasses":
+            continue
+        alias_value = "dataclasses"
+        if alias.asname is not None and isinstance(alias.asname.name, cst.Name):
+            alias_value = alias.asname.name.value
+        return ensure_type(parse_expression(f"{alias_value}.dataclass(frozen=True)"), cst.Call)
+
+    return None
+
+
+def _dataclass_decorator_from_import_from(statement: cst.ImportFrom) -> cst.Call | None:
+    if not (
+        isinstance(statement.module, cst.Name)
+        and statement.module.value == "dataclasses"
+        and isinstance(statement.names, tuple)
+    ):
+        return None
+
+    for alias in statement.names:
+        if not isinstance(alias.name, cst.Name) or alias.name.value != "dataclass":
+            continue
+        alias_value = "dataclass"
+        if alias.asname is not None and isinstance(alias.asname.name, cst.Name):
+            alias_value = alias.asname.name.value
+        return ensure_type(parse_expression(f"{alias_value}(frozen=True)"), cst.Call)
+
+    return None
+
+
+def _dataclass_decorator_expression(module: cst.Module) -> tuple[cst.Call, bool]:
+    for statement in module.body:
+        if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
+            continue
+
+        small_statement = statement.body[0]
+        if isinstance(small_statement, cst.Import):
+            decorator = _dataclass_decorator_from_import(small_statement)
+        elif isinstance(small_statement, cst.ImportFrom):
+            decorator = _dataclass_decorator_from_import_from(small_statement)
+        else:
+            decorator = None
+
+        if decorator is not None:
+            return decorator, True
+
+    return (ensure_type(parse_expression("dataclasses.dataclass(frozen=True)"), cst.Call), False)
 
 
 def _rewrite_typing_import(
@@ -293,10 +427,11 @@ class NoNamedTupleTransformer(cst.CSTTransformer):
         *,
         namedtuple_classes: dict[cst.ClassDef, tuple[cst.Arg, ...]],
         decorator: cst.Decorator,
+        dataclasses_import_available: bool,
     ) -> None:
         self.namedtuple_classes = namedtuple_classes
         self.decorator = decorator
-        self.has_dataclasses_import = False
+        self.has_dataclasses_import = dataclasses_import_available
 
     def leave_ClassDef(
         self, original_node: cst.ClassDef, updated_node: cst.ClassDef

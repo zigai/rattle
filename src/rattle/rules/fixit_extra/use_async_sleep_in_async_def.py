@@ -87,6 +87,13 @@ class UseAsyncSleepInAsyncDef(LintRule):
         ),
         Invalid(
             """
+            import time
+            async\tdef func():
+                time.sleep(1)
+            """
+        ),
+        Invalid(
+            """
             from time import sleep
             async def func():
                 sleep(1)
@@ -127,7 +134,7 @@ class UseAsyncSleepInAsyncDef(LintRule):
 
     def should_lint_file(self, source: FileContent, path: Path) -> bool:
         del path
-        return b"sleep" in source and b"async def" in source
+        return b"sleep" in source and b"async" in source
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         self.function_stack.append(node.asynchronous is not None)

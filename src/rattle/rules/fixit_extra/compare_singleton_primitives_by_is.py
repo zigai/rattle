@@ -36,6 +36,9 @@ class CompareSingletonPrimitivesByIs(LintRule):
         Valid("False is x"),
         Valid("x == 2"),
         Valid("2 != x"),
+        Valid("1 == True"),
+        Valid("True == 1"),
+        Valid("1 != False"),
         Valid('"True" == "True"'),
         Valid('"True" != "False".lower()'),
     ]
@@ -73,6 +76,19 @@ class CompareSingletonPrimitivesByIs(LintRule):
     def is_singleton(self, node: cst.BaseExpression) -> bool:
         return isinstance(node, cst.Name) and node.value in {"True", "False", "None"}
 
+    def is_bool_singleton_number_comparison(
+        self, left: cst.BaseExpression, right: cst.BaseExpression
+    ) -> bool:
+        return (
+            isinstance(left, cst.Name)
+            and left.value in {"True", "False"}
+            and isinstance(right, cst.BaseNumber)
+        ) or (
+            isinstance(right, cst.Name)
+            and right.value in {"True", "False"}
+            and isinstance(left, cst.BaseNumber)
+        )
+
     def visit_Comparison(self, node: cst.Comparison) -> None:
         # Initialize the needs_report flag as False to begin with
         needs_report = False
@@ -80,6 +96,10 @@ class CompareSingletonPrimitivesByIs(LintRule):
         altered_comparisons = []
         for target in node.comparisons:
             operator, right_comp = target.operator, target.comparator
+            if self.is_bool_singleton_number_comparison(left_comp, right_comp):
+                altered_comparisons.append(target)
+                left_comp = right_comp
+                continue
             if isinstance(operator, (cst.Equal, cst.NotEqual)) and (
                 self.is_singleton(left_comp) or self.is_singleton(right_comp)
             ):

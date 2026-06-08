@@ -29,6 +29,9 @@ class ComparePrimitivesByEqual(LintRule):
         Valid("a is b > 1"),
         Valid("a is b is c"),
         Valid("1 > b is c"),
+        Valid("1 is True"),
+        Valid("True is 1"),
+        Valid("1 is not False"),
     ]
     INVALID = [
         Invalid("a is 1", expected_replacement="a == 1"),
@@ -57,10 +60,26 @@ class ComparePrimitivesByEqual(LintRule):
     ]
     PRIMITIVES = (cst.BaseNumber, cst.BaseString)
 
+    def is_bool_singleton_number_comparison(
+        self, left: cst.BaseExpression, right: cst.BaseExpression
+    ) -> bool:
+        return (
+            isinstance(left, cst.Name)
+            and left.value in {"True", "False"}
+            and isinstance(right, cst.BaseNumber)
+        ) or (
+            isinstance(right, cst.Name)
+            and right.value in {"True", "False"}
+            and isinstance(left, cst.BaseNumber)
+        )
+
     def visit_Comparison(self, node: cst.Comparison) -> None:
         prev_comparator = node.left
         for target in node.comparisons:
             op, comparator = target.operator, target.comparator
+            if self.is_bool_singleton_number_comparison(prev_comparator, comparator):
+                prev_comparator = comparator
+                continue
             if isinstance(op, (cst.Is, cst.IsNot)) and (
                 isinstance(prev_comparator, self.PRIMITIVES)
                 or isinstance(comparator, self.PRIMITIVES)
@@ -74,6 +93,10 @@ class ComparePrimitivesByEqual(LintRule):
         comparisons = []
         for target in node.comparisons:
             op, comparator = target.operator, target.comparator
+            if self.is_bool_singleton_number_comparison(prev_comparator, comparator):
+                comparisons.append(target)
+                prev_comparator = comparator
+                continue
             if isinstance(op, (cst.Is, cst.IsNot)) and (
                 isinstance(prev_comparator, self.PRIMITIVES)
                 or isinstance(comparator, self.PRIMITIVES)

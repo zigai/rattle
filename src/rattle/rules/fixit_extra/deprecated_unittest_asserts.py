@@ -78,6 +78,21 @@ class DeprecatedUnittestAsserts(LintRule):
             expected_message="assertRaisesRegexp is deprecated, use assertRaisesRegex instead",
             expected_replacement="self.assertRaisesRegex(exception, regex)",
         ),
+        Invalid(
+            "case.assertEquals(a, b)",
+            expected_message="assertEquals is deprecated, use assertEqual instead",
+            expected_replacement="case.assertEqual(a, b)",
+        ),
+        Invalid(
+            "cls.assertEquals(a, b)",
+            expected_message="assertEquals is deprecated, use assertEqual instead",
+            expected_replacement="cls.assertEqual(a, b)",
+        ),
+        Invalid(
+            "super().assertEquals(a, b)",
+            expected_message="assertEquals is deprecated, use assertEqual instead",
+            expected_replacement="super().assertEqual(a, b)",
+        ),
     ]
 
     def visit_Call(self, node: cst.Call) -> None:
@@ -93,7 +108,17 @@ class DeprecatedUnittestAsserts(LintRule):
         for deprecated, replacement in replacements.items():
             if m.matches(
                 node,
-                m.Call(func=m.Attribute(value=m.Name("self"), attr=m.Name(deprecated))),
+                m.Call(
+                    func=m.Attribute(
+                        value=m.OneOf(
+                            m.Name("self"),
+                            m.Name("case"),
+                            m.Name("cls"),
+                            m.Call(func=m.Name("super"), args=[]),
+                        ),
+                        attr=m.Name(deprecated),
+                    )
+                ),
             ):
                 new_call = node.with_deep_changes(
                     old_node=cst.ensure_type(node.func, cst.Attribute).attr,

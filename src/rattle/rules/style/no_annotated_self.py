@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import libcst as cst
+from libcst.metadata import (
+    ParentNodeProvider,
+    QualifiedName,
+    QualifiedNameProvider,
+    QualifiedNameSource,
+)
 
 from rattle import Invalid, LintRule, Valid
 
@@ -18,6 +24,7 @@ class NoAnnotatedSelf(LintRule):
     """Forbid explicit type annotations on instance-method self parameters."""
 
     MESSAGE = "Do not annotate self in instance methods."
+    METADATA_DEPENDENCIES = (ParentNodeProvider, QualifiedNameProvider)
 
     VALID = [
         Valid(
@@ -39,6 +46,14 @@ class NoAnnotatedSelf(LintRule):
                 @classmethod
                 def build(cls, value: int) -> "A":
                     return cls()
+            """
+        ),
+        Valid(
+            """
+            class A:
+                @staticmethod
+                def helper(self: int) -> None:
+                    pass
             """
         ),
     ]
@@ -68,29 +83,26 @@ class NoAnnotatedSelf(LintRule):
                     return None
             """,
         ),
+        Invalid(
+            """
+            def outer():
+                class A:
+                    def method(self: "A") -> None:
+                        pass
+            """,
+            expected_replacement="""
+            def outer():
+                class A:
+                    def method(self) -> None:
+                        pass
+            """,
+        ),
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
-
-        self._class_depth = 0
-        self._function_depth = 0
-
-    def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        del node
-
-        self._class_depth += 1
-
-    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
-        del original_node
-
-        self._class_depth -= 1
-
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-        is_direct_class_method = self._class_depth > 0 and self._function_depth == 0
-        self._function_depth += 1
-
-        if not is_direct_class_method:
+        if not self._is_direct_class_member(node):
+            return
+        if self._is_staticmethod(node):
             return
 
         parameter = _first_parameter(node.params)
@@ -107,7 +119,20 @@ class NoAnnotatedSelf(LintRule):
             replacement=parameter.with_changes(annotation=None),
         )
 
-    def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
-        del original_node
+    def _is_direct_class_member(self, node: cst.FunctionDef) -> bool:
+        parent = self.get_metadata(ParentNodeProvider, node, None)
+        if not isinstance(parent, cst.IndentedBlock):
+            return False
 
-        self._function_depth -= 1
+        grandparent = self.get_metadata(ParentNodeProvider, parent, None)
+        return isinstance(grandparent, cst.ClassDef)
+
+    def _is_staticmethod(self, node: cst.FunctionDef) -> bool:
+        return any(
+            QualifiedNameProvider.has_name(
+                self,
+                decorator.decorator,
+                QualifiedName(name="builtins.staticmethod", source=QualifiedNameSource.BUILTIN),
+            )
+            for decorator in node.decorators
+        )

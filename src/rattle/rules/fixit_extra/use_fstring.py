@@ -104,12 +104,14 @@ class UseFstring(LintRule):
         Valid('"hey"'),
         Valid('"hey" + "there"'),
         Valid('b"a type %s" % var'),
+        Valid('u"plain unicode string"'),
     ]
 
     INVALID = [
         Invalid('"Hey, {somebody}.".format(somebody="you")'),
         Invalid('"%s" % "hi"', expected_replacement='''f"{'hi'}"'''),
         Invalid('"a name: %s" % name', expected_replacement='f"a name: {name}"'),
+        Invalid('u"%s" % name', expected_replacement='f"{name}"'),
         Invalid(
             '"an attribute %s ." % obj.attr',
             expected_replacement='f"an attribute {obj.attr} ."',
@@ -220,7 +222,8 @@ class UseFstring(LintRule):
                 if len(token) > 0:
                     parts.append(cst.FormattedStringText(value=token))
                 i += 1
-            start = f"f{simple_string.prefix}{simple_string.quote}"
+            prefix = simple_string.prefix.replace("u", "").replace("U", "")
+            start = f"f{prefix}{simple_string.quote}"
             replacement = cst.FormattedString(parts=parts, start=start, end=simple_string.quote)
             self.report(node, self.MESSAGE, replacement=replacement)
         elif m.matches(

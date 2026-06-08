@@ -10,7 +10,7 @@ from libcst.metadata import QualifiedNameProvider, QualifiedNameSource
 from rattle import LintRule, RuleSetting
 from rattle.rules.helpers import dotted_name, optional_setting_text, setting_fields
 
-_SYMBOL_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
+_SYMBOL_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 
 @dataclass(frozen=True)
@@ -29,12 +29,12 @@ def _parse_forbidden_call(entry: str | ForbiddenCallEntry) -> ForbiddenCallEntry
     normalized_use_instead = optional_setting_text(use_instead)
 
     if not _SYMBOL_PATTERN.fullmatch(symbol):
-        raise ValueError(f"expected dotted symbol in forbidden call entry, got {entry!r}")
+        raise ValueError(f"expected callable symbol in forbidden call entry, got {entry!r}")
     if normalized_message == "":
         raise ValueError(f"expected non-empty message in forbidden call entry, got {entry!r}")
     if normalized_use_instead is not None and not _SYMBOL_PATTERN.fullmatch(normalized_use_instead):
         raise ValueError(
-            f"expected dotted use_instead symbol in forbidden call entry, got {entry!r}"
+            f"expected callable use_instead symbol in forbidden call entry, got {entry!r}"
         )
 
     return ForbiddenCallEntry(
@@ -79,6 +79,7 @@ class ForbiddenCall(LintRule):
         super().__init__()
 
         self._forbidden_calls_by_symbol: dict[str, ForbiddenCallEntry] = {}
+        self._local_aliases_by_name: dict[str, str] = {}
 
     def should_lint_file(self, source: bytes, path: Path) -> bool:
         del path
@@ -95,11 +96,27 @@ class ForbiddenCall(LintRule):
             entry.symbol: entry
             for entry in _parse_forbidden_calls_setting(self.settings["forbidden_calls"])
         }
+        self._local_aliases_by_name = {}
 
     def leave_Module(self, original_node: cst.Module) -> None:
         del original_node
 
         self._forbidden_calls_by_symbol = {}
+        self._local_aliases_by_name = {}
+
+    def visit_Assign(self, node: cst.Assign) -> None:
+        if len(node.targets) != 1:
+            return
+        target = node.targets[0].target
+        if not isinstance(target, cst.Name):
+            return
+
+        forbidden_symbol = self._forbidden_symbol_for_expression(node.value)
+        if forbidden_symbol is None:
+            self._local_aliases_by_name.pop(target.value, None)
+            return
+
+        self._local_aliases_by_name[target.value] = forbidden_symbol
 
     def visit_Call(self, node: cst.Call) -> None:
         symbol = self._forbidden_symbol_for_call(node)
@@ -109,20 +126,31 @@ class ForbiddenCall(LintRule):
         self.report(node.func, self._message_for_symbol(symbol))
 
     def _forbidden_symbol_for_call(self, node: cst.Call) -> str | None:
+        if isinstance(node.func, cst.Name):
+            alias_symbol = self._local_aliases_by_name.get(node.func.value)
+            if alias_symbol is not None:
+                return alias_symbol
+
+        return self._forbidden_symbol_for_expression(node.func)
+
+    def _forbidden_symbol_for_expression(self, node: cst.BaseExpression) -> str | None:
         forbidden_symbols = set(self._forbidden_calls_by_symbol)
-        qualified_names = self.get_metadata(QualifiedNameProvider, node.func, set())
+        qualified_names = self.get_metadata(QualifiedNameProvider, node, set())
         if any(
             qualified_name.source is QualifiedNameSource.LOCAL for qualified_name in qualified_names
         ):
             return None
 
         for qualified_name in qualified_names:
-            if qualified_name.source is not QualifiedNameSource.IMPORT:
+            if qualified_name.source not in {
+                QualifiedNameSource.IMPORT,
+                QualifiedNameSource.BUILTIN,
+            }:
                 continue
             if qualified_name.name in forbidden_symbols:
                 return qualified_name.name
 
-        call_name = dotted_name(node.func)
+        call_name = dotted_name(node)
         if call_name in forbidden_symbols:
             return call_name
 

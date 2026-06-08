@@ -9,7 +9,7 @@ class NoRelativeImports(LintRule):
     """Require absolute imports instead of package-relative imports."""
 
     MESSAGE = "Use absolute imports instead of relative imports."
-    SOURCE_PATTERNS = (b"from .",)
+    SOURCE_PATTERNS = (b"from ",)
 
     VALID = [
         Valid("from package.subpackage.types import ItemType"),
@@ -18,6 +18,7 @@ class NoRelativeImports(LintRule):
 
     INVALID = [
         Invalid("from .types import ItemType"),
+        Invalid("from\t.types import ItemType"),
         Invalid("from ..utilities import create_page"),
         Invalid("from . import helpers"),
     ]
