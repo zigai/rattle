@@ -150,6 +150,7 @@ class UseFstring(LintRule):
             '"a list: %s" % " ".join(var)',
             expected_replacement='''f"a list: {' '.join(var)}"''',
         ),
+        Invalid('"%s" % (first, second)'),
     ]
 
     _codegen: Callable[[cst.CSTNode], str] | None
@@ -199,6 +200,9 @@ class UseFstring(LintRule):
             expressions = (
                 [elm.value for elm in expr.elements] if isinstance(expr, cst.Tuple) else [expr]
             )
+            if len(expressions) != len(tokens) - 1:
+                self.report(node, self.MESSAGE)
+                return
             escape_transformer = EscapeStringQuote(simple_string.quote)
             i = 1
             while i < len(tokens):
