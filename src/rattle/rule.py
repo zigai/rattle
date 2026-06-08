@@ -615,10 +615,10 @@ class LintRule(BatchableCSTVisitor):
         return result
 
     def get_visitors(self) -> Mapping[str, VisitorMethod]:
-        visitors = super().get_visitors()
+        # Use cached visitor names below to avoid repeated LibCST introspection.
         visitor_names = self._visitor_names()
         if self._visit_hook is None:
-            return {name: visitors[name] for name in visitor_names}
+            return {name: getattr(self, name) for name in visitor_names}
 
         def _wrap(name: str, func: VisitorMethod) -> VisitorMethod:
             @functools.wraps(func)
@@ -629,7 +629,7 @@ class LintRule(BatchableCSTVisitor):
 
             return wrapper
 
-        return {name: _wrap(f"{self.name}.{name}", visitors[name]) for name in visitor_names}
+        return {name: _wrap(f"{self.name}.{name}", getattr(self, name)) for name in visitor_names}
 
 
 __all__ = [
