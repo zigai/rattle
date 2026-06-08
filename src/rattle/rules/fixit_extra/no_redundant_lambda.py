@@ -6,6 +6,7 @@
 import libcst as cst
 import libcst.matchers as m
 from libcst.helpers import get_full_name_for_node
+from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
 
@@ -16,6 +17,7 @@ UNNECESSARY_LAMBDA: str = (
 
 class NoRedundantLambda(LintRule):
     MESSAGE = UNNECESSARY_LAMBDA
+    METADATA_DEPENDENCIES = (ParentNodeProvider,)
 
     """
     A lambda function which has a single objective of
@@ -37,6 +39,12 @@ class NoRedundantLambda(LintRule):
         Valid("lambda: self.func()"),
         Valid("lambda x, y, z: (t + u).math_call(x, y, z)"),
         Valid("lambda x: obj.method(x)"),
+        Valid(
+            """
+            class C:
+                callback = lambda x: foo(x)
+            """
+        ),
     ]
     INVALID = [
         Invalid("lambda x: foo(x)", expected_replacement="foo"),
@@ -55,6 +63,9 @@ class NoRedundantLambda(LintRule):
         return all(param.default is None for param in node.params)
 
     def visit_Lambda(self, node: cst.Lambda) -> None:
+        if self._is_in_class_scope(node):
+            return
+
         if m.matches(
             node,
             m.Lambda(
@@ -80,6 +91,16 @@ class NoRedundantLambda(LintRule):
                 UNNECESSARY_LAMBDA.format(function=full_name),
                 replacement=call.func,
             )
+
+    def _is_in_class_scope(self, node: cst.CSTNode) -> bool:
+        parent = self.get_metadata(ParentNodeProvider, node, None)
+        while parent is not None:
+            if isinstance(parent, cst.ClassDef):
+                return True
+            if isinstance(parent, (cst.FunctionDef, cst.Lambda)):
+                return False
+            parent = self.get_metadata(ParentNodeProvider, parent, None)
+        return False
 
 
 __all__ = [
