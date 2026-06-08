@@ -73,6 +73,15 @@ x == 2
 2 != x
 ```
 ```python
+1 == True
+```
+```python
+True == 1
+```
+```python
+1 != False
+```
+```python
 "True" == "True"
 ```
 ```python

@@ -63,6 +63,11 @@ class Foo:
 class Foo(SomeOtherBase):
     pass
 ```
+```python
+from typing import NamedTuple as NT
+
+Other = NT
+```
 ```{raw} html
 </details>
 ```
@@ -181,7 +186,7 @@ class OuterClass(SomeBase):
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 from typing import NamedTuple
@@ -199,6 +204,75 @@ import dataclasses
 @dataclasses.dataclass(frozen=True)
 class Foo:
     pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+from dataclasses import dataclass
+from typing import NamedTuple
+
+class Foo(NamedTuple):
+    pass
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Foo:
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+import dataclasses as dc
+from typing import NamedTuple
+
+class Foo(NamedTuple):
+    pass
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+import dataclasses as dc
+
+@dc.dataclass(frozen=True)
+class Foo:
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from collections import namedtuple
+
+Point = namedtuple("Point", ["x", "y"])
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import NamedTuple as NT
+
+class Foo(NT):
+    pass
+
+Other = NT
 ```
 ```{raw} html
 </div>

@@ -69,6 +69,39 @@ if True:
 <div class="rule-invalid-example">
 ```
 ```python
+if 1:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if None:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if "":
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 if crazy_expression or True:
     do_something()
 ```
@@ -84,9 +117,6 @@ if crazy_expression and False:
 ```
 ```{raw} html
 </div>
-```
-```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
 <div class="rule-invalid-example">

@@ -61,6 +61,15 @@ lambda x, y, *z: foo(x, y, z)
 ```python
 lambda x, y, **z: foo(x, y, z)
 ```
+```python
+lambda: self.func()
+```
+```python
+lambda x, y, z: (t + u).math_call(x, y, z)
+```
+```python
+lambda x: obj.method(x)
+```
 ```{raw} html
 </details>
 ```
@@ -68,21 +77,7 @@ lambda x, y, **z: foo(x, y, z)
 ## Invalid examples
 
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-lambda: self.func()
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-self.func
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 lambda x: foo(x)
@@ -91,20 +86,6 @@ lambda x: foo(x)
 
 ```python
 foo
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-lambda x, y, z: (t + u).math_call(x, y, z)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-(t + u).math_call
 ```
 ```{raw} html
 </div>

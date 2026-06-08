@@ -112,3 +112,30 @@ __all__ += ["__version__"]
 ```{raw} html
 </div>
 ```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+__all__.append("_private_name")
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+__all__.extend(["_private_name"])
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+__all__ = [*["_private_name"]]
+```
+```{raw} html
+</div>
+```

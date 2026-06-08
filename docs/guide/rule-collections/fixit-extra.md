@@ -31,7 +31,7 @@ enable = ["fixit-extra"]
 | [no-redundant-list-comprehension](../rules/no-redundant-list-comprehension.md) | Unnecessary list comprehension inside {func}(). Use a generator expression instead. | Any | Yes |
 | [no-string-type-annotation](../rules/no-string-type-annotation.md) | String type hints are no longer necessary in Python, use the type identifier directly. | Any | Yes |
 | [replace-union-with-optional](../rules/replace-union-with-optional.md) | `Optional[T]` is preferred over `Union[T, None]` or `Union[None, T]`. | Any | Yes |
-| [use-assert-equal](../rules/use-assert-equal.md) | "assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions. | Any | Yes |
+| [use-assert-equal](../rules/use-assert-equal.md) | "assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions. | Any | No |
 | [use-assert-in](../rules/use-assert-in.md) | Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check. | Any | Yes |
 | [use-assert-is-not-none](../rules/use-assert-is-not-none.md) | "assertTrue" and "assertFalse" are deprecated. Use "assertIsNotNone" and "assertIsNone" instead. | Any | Yes |
 | [use-async-sleep-in-async-def](../rules/use-async-sleep-in-async-def.md) | Use asyncio.sleep in async function | Any | No |

@@ -86,6 +86,12 @@ import typing
 def foo() -> typing.Optional[typing.Literal["class", "function"]]:
     return "class"
 ```
+```python
+from __future__ import annotations
+from typing import Annotated
+
+value: Annotated[int, "units"]
+```
 ```{raw} html
 </details>
 ```

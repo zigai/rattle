@@ -116,7 +116,7 @@ x: C[..., int] = ...
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 from typing import Callable
@@ -129,6 +129,22 @@ def foo(bar: Optional[Callable[[...], int]]) -> Callable[[...], int]:
 from typing import Callable
 def foo(bar: Optional[Callable[..., int]]) -> Callable[..., int]:
     ...
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from collections.abc import Callable
+x: Callable[[...], int] = ...
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+from collections.abc import Callable
+x: Callable[..., int] = ...
 ```
 ```{raw} html
 </div>

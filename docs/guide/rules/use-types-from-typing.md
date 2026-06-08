@@ -14,12 +14,12 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 <p class="rule-metadata">
   <span>Collection: <code>fixit</code></span>
   <span>Autofix: Yes</span>
-  <span>Python: `< 3.10`</span>
+  <span>Python: `< 3.9`</span>
 </p>
 
 Enforces the use of types from the ``typing`` module in type annotations in place
 of ``builtins.{builtin_type}`` since the type system doesn't recognize the latter
-as a valid type before Python ``3.10``.
+as a valid type before Python ``3.9``.
 
 ## Message
 

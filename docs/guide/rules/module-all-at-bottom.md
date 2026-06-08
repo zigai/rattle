@@ -99,5 +99,18 @@ value = "updated"
 </div>
 ```
 ```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+__all__ = []
+__all__.append("build")
+
+def build():
+    return "value"
+```
+```{raw} html
+</div>
+```
+```{raw} html
 </details>
 ```

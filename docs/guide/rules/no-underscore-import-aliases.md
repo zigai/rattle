@@ -54,6 +54,24 @@ import json as _json
 <div class="rule-invalid-example">
 ```
 ```python
+import json as  _json
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import json as	_json
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 from collections import deque as _deque
 ```
 ```{raw} html

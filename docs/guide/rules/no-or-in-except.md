@@ -50,3 +50,23 @@ except ValueError or TypeError:
 ```{raw} html
 </div>
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+try:
+    print()
+except ValueError:
+    pass
+except TypeError or OSError:
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
+```

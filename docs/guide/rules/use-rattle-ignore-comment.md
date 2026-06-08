@@ -54,6 +54,15 @@ fn() # noqa
 <div class="rule-invalid-example">
 ```
 ```python
+fn()  # type: ignore  # noqa
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 (
  1,
  2,  # noqa

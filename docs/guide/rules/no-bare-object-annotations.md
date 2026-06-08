@@ -124,5 +124,36 @@ value: None | object = None
 </div>
 ```
 ```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import Optional
+
+value: Optional[object] = None
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import Union
+
+value: Union[object, None] = None
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+value: "object" = payload
+```
+```{raw} html
+</div>
+```
+```{raw} html
 </details>
 ```

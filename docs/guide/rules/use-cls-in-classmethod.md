@@ -49,6 +49,12 @@ class foo:
     def sm(a):
         pass
 ```
+```python
+class foo:
+    @classmethod
+    def cm(cls, /):
+        pass
+```
 ```{raw} html
 </details>
 ```
@@ -214,7 +220,7 @@ class foo:
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 def another_decorator(x): pass
@@ -239,6 +245,26 @@ class foo:
     @another_decorator
     async def cm(cls, b, c):
         pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+class foo:
+    @classmethod
+    def cm(a, /):
+        return a
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+class foo:
+    @classmethod
+    def cm(cls, /):
+        return cls
 ```
 ```{raw} html
 </div>

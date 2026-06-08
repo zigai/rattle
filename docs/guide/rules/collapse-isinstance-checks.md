@@ -173,7 +173,7 @@ isinstance(x, (a, b)) or isinstance(y, (c, d)) or isinstance(z, e)
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d) or isinstance(z, e) or isinstance(q, f) or isinstance(q, g) or isinstance(q, h)
@@ -182,6 +182,42 @@ isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d) or 
 
 ```python
 isinstance(x, (a, b)) or isinstance(y, (c, d)) or isinstance(z, e) or isinstance(q, (f, g, h))
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+import builtins
+
+builtins.isinstance(x, A) or builtins.isinstance(x, B)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+import builtins
+
+isinstance(x, (A, B))
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from builtins import isinstance as check
+
+check(x, A) or check(x, B)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+from builtins import isinstance as check
+
+isinstance(x, (A, B))
 ```
 ```{raw} html
 </div>

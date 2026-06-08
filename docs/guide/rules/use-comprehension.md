@@ -38,6 +38,18 @@ It's unnecessary to use {func} around a generator expression, since there are eq
 ```python
 dict(line.strip().split('=', 1) for line in attr_file)
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+def list(value):
+    return value
+
+list(val for val in iterable)
+```
+```{raw} html
+</details>
+```
 
 ## Invalid examples
 

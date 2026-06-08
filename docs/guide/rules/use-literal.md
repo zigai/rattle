@@ -53,6 +53,12 @@ set()
 ```python
 {}
 ```
+```python
+def list():
+    return 1
+
+list()
+```
 ```{raw} html
 </details>
 ```

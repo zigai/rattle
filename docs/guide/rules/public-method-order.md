@@ -134,17 +134,6 @@ class Workflow:
         return self._normalize(value)
 ```
 ```python
-class Workflow:
-    def _normalize(self, value: str) -> str:
-        return value
-
-    def build(self, value: str) -> str:
-        return self._normalize(value)
-
-    def build(self, value: bytes) -> str:
-        return value.decode()
-```
-```python
 class Helper:
     def _normalize(self, value: str) -> str:
         return value
@@ -185,6 +174,23 @@ class AiModelsService:
 
     def list_models(self) -> list[str]:
         return []
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+class Workflow:
+    def _normalize(self) -> str:
+        return "ok"
+
+    def build(self) -> str:
+        return "ok"
+
+    def build(self, value: str) -> str:
+        return value
 ```
 ```{raw} html
 </div>

@@ -35,6 +35,19 @@ except ValueError as exc:
 ```python
 message = str(value)
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+try:
+    run()
+except ValueError as exc:
+    str = lambda value: "fixed"
+    raise RuntimeError(str(exc)) from exc
+```
+```{raw} html
+</details>
+```
 
 ## Invalid examples
 
@@ -61,6 +74,68 @@ try:
     run()
 except ValueError as error:
     raise RuntimeError(str(error)) from error
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+try:
+    run()
+except ValueError as exc:
+    raise RuntimeError(message=str(exc)) from exc
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+try:
+    run()
+except ValueError as exc:
+    raise RuntimeError(f"{exc}") from exc
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+try:
+    run()
+except ValueError as exc:
+    raise RuntimeError("{}".format(exc)) from exc
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+try:
+    run()
+except ValueError as exc:
+    raise RuntimeError("%s" % exc) from exc
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import builtins
+
+try:
+    run()
+except ValueError as exc:
+    raise RuntimeError(builtins.str(exc)) from exc
 ```
 ```{raw} html
 </div>

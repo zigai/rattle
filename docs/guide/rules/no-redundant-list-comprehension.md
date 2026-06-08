@@ -53,6 +53,12 @@ sum([val for val in iterable])
 ```python
 tuple([val for val in iterable])
 ```
+```python
+def any(value):
+    return value
+
+any([val for val in iterable])
+```
 ```{raw} html
 </details>
 ```

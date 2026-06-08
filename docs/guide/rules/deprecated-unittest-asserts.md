@@ -153,7 +153,7 @@ self.assertNotRegex(text, regex)
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 self.assertRaisesRegexp(exception, regex)
@@ -162,6 +162,48 @@ self.assertRaisesRegexp(exception, regex)
 
 ```python
 self.assertRaisesRegex(exception, regex)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+case.assertEquals(a, b)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+case.assertEqual(a, b)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+cls.assertEquals(a, b)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+cls.assertEqual(a, b)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+super().assertEquals(a, b)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+super().assertEqual(a, b)
 ```
 ```{raw} html
 </div>

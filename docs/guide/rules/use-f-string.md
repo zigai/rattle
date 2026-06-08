@@ -59,6 +59,9 @@ somebody='you'; f"Hey, {somebody}."
 ```python
 b"a type %s" % var
 ```
+```python
+u"plain unicode string"
+```
 
 ## Invalid examples
 
@@ -101,6 +104,20 @@ f"a name: {name}"
 ```
 ```{raw} html
 <details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+u"%s" % name
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+f"{name}"
+```
+```{raw} html
+</div>
 ```
 ```{raw} html
 <div class="rule-invalid-example rule-invalid-example-separated">

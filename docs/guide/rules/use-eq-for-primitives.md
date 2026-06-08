@@ -63,6 +63,15 @@ a is b is c
 ```python
 1 > b is c
 ```
+```python
+1 is True
+```
+```python
+True is 1
+```
+```python
+1 is not False
+```
 ```{raw} html
 </details>
 ```

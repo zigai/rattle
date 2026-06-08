@@ -27,4 +27,4 @@ enable = ["fixit"]
 | [sorted-attributes](../rules/sorted-attributes.md) | It appears you are using the @sorted-attributes directive and the class variables are unsorted. See the lint autofix suggestion. | Any | Yes |
 | [use-callable-ellipsis](../rules/use-callable-ellipsis.md) | Use Callable[..., T] instead of Callable[[...], T]. | Any | Yes |
 | [use-rattle-ignore-comment](../rules/use-rattle-ignore-comment.md) | noqa is deprecated. Use `rattle: ignore[rule-name]` instead. | Any | No |
-| [use-types-from-typing](../rules/use-types-from-typing.md) | You are using builtins.{builtin_type} as a type annotation but the type system doesn't recognize it as a valid type. Use typing.{correct_type} instead. | `< 3.10` | Yes |
+| [use-types-from-typing](../rules/use-types-from-typing.md) | You are using builtins.{builtin_type} as a type annotation but the type system doesn't recognize it as a valid type. Use typing.{correct_type} instead. | `< 3.9` | Yes |

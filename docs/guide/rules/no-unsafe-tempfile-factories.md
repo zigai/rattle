@@ -64,6 +64,20 @@ from tempfile import mkstemp
 
 factory().mkstemp()
 ```
+```python
+class tempfile:
+    @staticmethod
+    def mkstemp():
+        pass
+
+tempfile.mkstemp()
+```
+```python
+import tempfile
+
+tempfile = fake
+tempfile.mkstemp()
+```
 ```{raw} html
 </details>
 ```
@@ -91,4 +105,21 @@ path = make_temp_dir()
 ```
 ```{raw} html
 </div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from tempfile import *
+
+fd, path = mkstemp()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
 ```

@@ -38,6 +38,16 @@ raise ValueError(f"{msg}: {value}")
 ```python
 raise ValueError("invalid value")
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+err = PermissionError("invalid value")
+raise RuntimeError(err)
+```
+```{raw} html
+</details>
+```
 
 ## Invalid examples
 
@@ -73,6 +83,38 @@ raise ValueError("invalid value")
 ```
 ```{raw} html
 <details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+msg: str = "invalid value"
+raise ValueError(msg)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+raise ValueError("invalid value")
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+msg = "invalid value"
+# keep this comment attached to the raise
+raise ValueError(msg)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+# keep this comment attached to the raise
+raise ValueError("invalid value")
+```
+```{raw} html
+</div>
 ```
 ```{raw} html
 <div class="rule-invalid-example rule-invalid-example-separated">

@@ -58,6 +58,17 @@ class Foo:
         def foo(self, bar):
             super(InnerBar, self).foo(bar)
 ```
+```python
+class Foo(Bar):
+    def foo(self, other):
+        super(Foo, other).foo()
+```
+```python
+class Foo(Bar):
+    @classmethod
+    def foo(cls, other):
+        super(Foo, other).foo()
+```
 ```{raw} html
 </details>
 ```

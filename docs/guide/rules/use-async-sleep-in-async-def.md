@@ -94,15 +94,26 @@ async def func():
 <div class="rule-invalid-example">
 ```
 ```python
-from time import sleep
-async def func():
-    sleep(1)
+import time
+async	def func():
+    time.sleep(1)
 ```
 ```{raw} html
 </div>
 ```
 ```{raw} html
 <details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from time import sleep
+async def func():
+    sleep(1)
+```
+```{raw} html
+</div>
 ```
 ```{raw} html
 <div class="rule-invalid-example">

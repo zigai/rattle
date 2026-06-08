@@ -45,6 +45,15 @@ class _Internal: ...
 <div class="rule-invalid-example">
 ```
 ```python
+class	_Internal: ...
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 class __Private: ...
 ```
 ```{raw} html

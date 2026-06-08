@@ -44,6 +44,12 @@ class A:
     def build(cls, value: int) -> "A":
         return cls()
 ```
+```python
+class A:
+    @staticmethod
+    def helper(self: int) -> None:
+        pass
+```
 ```{raw} html
 </details>
 ```
@@ -72,7 +78,7 @@ class A:
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 class A:
@@ -85,6 +91,26 @@ class A:
 class A:
     async def method(self) -> None:
         return None
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+def outer():
+    class A:
+        def method(self: "A") -> None:
+            pass
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+def outer():
+    class A:
+        def method(self) -> None:
+            pass
 ```
 ```{raw} html
 </div>

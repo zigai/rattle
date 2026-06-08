@@ -42,6 +42,24 @@ class MyUnsortedConstants:
     B = 'aaa234'
     A = 'zzz123'
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+class MyConstants:
+    """
+    @sorted-attributes
+    """
+    z = side_effect("z")
+
+    def method(self):
+        pass
+
+    a = side_effect("a")
+```
+```{raw} html
+</details>
+```
 
 ## Invalid examples
 
@@ -82,4 +100,34 @@ class MyUnsortedConstants:
 ```
 ```{raw} html
 </div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+class MyUnsortedConstants:
+    """
+    @sorted-attributes
+    """
+    z: int = 1
+    a: int = 2
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+class MyUnsortedConstants:
+    """
+    @sorted-attributes
+    """
+    a: int = 2
+    z: int = 1
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
 ```

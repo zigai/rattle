@@ -34,6 +34,19 @@ class A(something):    pass
 class A:
     pass
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+class object:
+    pass
+
+class A(object):
+    pass
+```
+```{raw} html
+</details>
+```
 
 ## Invalid examples
 

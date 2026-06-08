@@ -48,6 +48,15 @@ from .types import ItemType
 <div class="rule-invalid-example">
 ```
 ```python
+from	.types import ItemType
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 from ..utilities import create_page
 ```
 ```{raw} html
