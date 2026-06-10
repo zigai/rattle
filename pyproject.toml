@@ -42,7 +42,7 @@ docs = [
 ]
 dev = [
     "attribution == 1.8.0",
-    "black == 25.11.0",
+    "black == 26.5.1",
     "build > 1",
     "codespell>=2.4.2",
     "coverage>=7.14.1",
