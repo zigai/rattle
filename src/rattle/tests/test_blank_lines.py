@@ -11,6 +11,7 @@ from rattle.config import QualifiedRule, find_rules, resolve_rule_settings
 from rattle.engine import LintRunner
 from rattle.rules.blank_lines import (
     BlankLineAfterControlBlock,
+    BlankLineAfterTerminalControlBlock,
     BlankLineBeforeBranchInLargeSuite,
     BlockHeaderCuddleRelaxed,
     NoSuiteLeadingTrailingBlankLines,
@@ -21,6 +22,7 @@ from rattle.rules.blank_lines.match_case_separation import MatchCaseSeparation
 
 RULE_CLASSES: tuple[type[LintRule], ...] = (
     NoSuiteLeadingTrailingBlankLines,
+    BlankLineAfterTerminalControlBlock,
     BlankLineBeforeAssignment,
     BlankLineBeforeBranchInLargeSuite,
     BlockHeaderCuddleRelaxed,
@@ -31,7 +33,7 @@ RULE_CLASSES: tuple[type[LintRule], ...] = (
 
 DEFAULT_RULE_COLLECTION: tuple[type[LintRule], ...] = (
     NoSuiteLeadingTrailingBlankLines,
-    BlankLineBeforeAssignment,
+    BlankLineAfterTerminalControlBlock,
     BlankLineBeforeBranchInLargeSuite,
     BlockHeaderCuddleRelaxed,
     BlankLineAfterControlBlock,
@@ -161,7 +163,7 @@ def test_rule_settings_resolve_from_short_selectors() -> None:
         root=Path.cwd(),
         options={
             "blank-line-before-branch": {"max_suite_non_empty_lines": 4},
-            "blank-line-before-assignment": {"short_control_flow_max_statements": 1},
+            "blank-line-after-terminal-control-block": {"allow_compact_guard_ladders": False},
             "match-case-separation": {"max_case_non_empty_lines": 5},
         },
     )
@@ -170,14 +172,14 @@ def test_rule_settings_resolve_from_short_selectors() -> None:
         config,
         {
             BlankLineBeforeBranchInLargeSuite,
-            BlankLineBeforeAssignment,
+            BlankLineAfterTerminalControlBlock,
             MatchCaseSeparation,
         },
     )
 
     assert resolved == {
         BlankLineBeforeBranchInLargeSuite: {"max_suite_non_empty_lines": 4},
-        BlankLineBeforeAssignment: {"short_control_flow_max_statements": 1},
+        BlankLineAfterTerminalControlBlock: {"allow_compact_guard_ladders": False},
         MatchCaseSeparation: {"max_case_non_empty_lines": 5},
     }
 
@@ -291,13 +293,53 @@ def test_default_rule_collection_converges_after_guard_to_assignment_fix() -> No
                 return label
 
             cleaned = label.strip()
-
             return cleaned
         """
     )
 
     _, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
     assert fixed_reports == []
+
+
+def test_default_rule_collection_keeps_compact_loop_exit_tail() -> None:
+    _, reports = _run_rules(
+        DEFAULT_RULE_COLLECTION,
+        """
+        def f(name: str) -> str:
+            parts: list[str] = []
+            index = 0
+            while index < len(name):
+                ch = name[index]
+                if ch in {"'", '"'}:
+                    end = _consume_quoted_segment(name, index)
+                    parts.append(name[index:end])
+                    index = end
+                    continue
+
+                parts.append(ch)
+                index += 1
+
+            return "".join(parts)
+        """,
+    )
+
+    assert reports == []
+
+
+def test_default_rule_collection_keeps_compact_guard_return_chain() -> None:
+    _, reports = _run_rules(
+        DEFAULT_RULE_COLLECTION,
+        """
+        def f(shell_name: str, interactive: bool) -> list[str]:
+            if shell_name == "zsh":
+                return ["-lic"]
+            if interactive:
+                return ["-ic"]
+            return ["-lc"]
+        """,
+    )
+
+    assert reports == []
 
 
 def test_default_rule_collection_allows_compact_terminal_simple_return_tail() -> None:
@@ -376,6 +418,10 @@ def test_default_rule_collection_converges_after_nested_guard_chain_assignment_f
     assert reports
 
     fixed_code = runner.apply_replacements(reports).code
+    second_runner, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
+    assert fixed_reports
+
+    fixed_code = second_runner.apply_replacements(fixed_reports).code
     _, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
     assert fixed_reports == []
 

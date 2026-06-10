@@ -158,7 +158,6 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
                     return ["-lic"]
                 if interactive:
                     return ["-ic"]
-
                 return ["-lc"]
             """
         ),
@@ -169,9 +168,28 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
                     return primary
                 if fallback is not None:
                     return fallback
-
                 return "guest"
             """
+        ),
+        Valid(
+            """
+            def f(value: int, other: int) -> int:
+                if value > 0:
+                    log(value)
+                    audit(value)
+                    return value
+                if other > 0:
+                    return other
+                return 0
+            """,
+        ),
+        Valid(
+            """
+            def f(flag: bool, label: str) -> str:
+                if not flag:
+                    return label
+                return label.strip()
+            """,
         ),
     ]
     INVALID = [
@@ -206,46 +224,6 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
                     total += value
 
                 return total
-            """,
-            expected_message=MESSAGE,
-        ),
-        Invalid(
-            """
-            def f(value: int, other: int) -> int:
-                if value > 0:
-                    log(value)
-                    audit(value)
-                    return value
-                if other > 0:
-                    return other
-                return 0
-            """,
-            expected_replacement="""
-            def f(value: int, other: int) -> int:
-                if value > 0:
-                    log(value)
-                    audit(value)
-                    return value
-                if other > 0:
-                    return other
-
-                return 0
-            """,
-            expected_message=MESSAGE,
-        ),
-        Invalid(
-            """
-            def f(flag: bool, label: str) -> str:
-                if not flag:
-                    return label
-                return label.strip()
-            """,
-            expected_replacement="""
-            def f(flag: bool, label: str) -> str:
-                if not flag:
-                    return label
-
-                return label.strip()
             """,
             expected_message=MESSAGE,
         ),
@@ -321,7 +299,7 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
         if not self._allow_compact_guard_ladders() or not is_compact_guard_if(current_statement):
             return False
 
-        return is_compact_guard_if(next_statement)
+        return is_compact_guard_if(next_statement) or is_branch_statement(next_statement)
 
     def _is_with_immediate_inspection(
         self,

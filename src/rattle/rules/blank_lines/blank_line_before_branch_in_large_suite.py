@@ -322,6 +322,7 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             or self._follows_suite_docstring(body, index, suite_can_have_docstring)
             or is_terminal_exception_cleanup_run(body, index - 1, suite_parent)
             or is_compact_loop_exit_tail(body, index)
+            or self._is_immediate_assignment_branch_tail(body, index, statement)
             or (self._allow_related_return_tails() and self._is_compact_related_tail(body, index))
             or (
                 self._allow_guard_ladder_final_branch()
@@ -368,23 +369,42 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
         references_assigned = bool(assigned) and bool(
             statement_reference_names(branch_statement).intersection(assigned)
         )
-        if not references_assigned:
-            return False
+        return references_assigned
 
-        plain_single_assignment_return = False
-        if (
-            isinstance(branch_statement, cst.SimpleStatementLine)
+    def _is_immediate_assignment_branch_tail(
+        self,
+        body: Sequence[cst.BaseStatement],
+        branch_index: int,
+        branch_statement: cst.BaseStatement,
+    ) -> bool:
+        if not (
+            branch_index > 1
+            and is_control_block_statement(body[branch_index - 2])
+            and self._allow_related_return_tails()
+            and isinstance(branch_statement, cst.SimpleStatementLine)
             and len(branch_statement.body) == 1
         ):
-            branch = branch_statement.body[0]
-            plain_single_assignment_return = (
-                isinstance(branch, cst.Return)
-                and isinstance(branch.value, cst.Name)
-                and branch.value.value in assigned
-                and len(run) == 1
-            )
+            return False
 
-        return not plain_single_assignment_return
+        assigned = assigned_names(body[branch_index - 1])
+        if not assigned:
+            return False
+
+        branch = branch_statement.body[0]
+        return self._branch_uses_assigned_name(branch, assigned)
+
+    def _branch_uses_assigned_name(
+        self,
+        branch: cst.BaseSmallStatement,
+        assigned: set[str],
+    ) -> bool:
+        if isinstance(branch, cst.Return):
+            return isinstance(branch.value, cst.Name) and branch.value.value in assigned
+
+        if isinstance(branch, cst.Raise):
+            return isinstance(branch.exc, cst.Name) and branch.exc.value in assigned
+
+        return False
 
     def _is_immediate_annotated_return_binding(
         self,

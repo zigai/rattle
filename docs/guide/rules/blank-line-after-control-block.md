@@ -146,7 +146,6 @@ def f(shell_name: str, interactive: bool) -> list[str]:
         return ["-lic"]
     if interactive:
         return ["-ic"]
-
     return ["-lc"]
 ```
 ```python
@@ -155,8 +154,23 @@ def f(primary: str | None, fallback: str | None) -> str:
         return primary
     if fallback is not None:
         return fallback
-
     return "guest"
+```
+```python
+def f(value: int, other: int) -> int:
+    if value > 0:
+        log(value)
+        audit(value)
+        return value
+    if other > 0:
+        return other
+    return 0
+```
+```python
+def f(flag: bool, label: str) -> str:
+    if not flag:
+        return label
+    return label.strip()
 ```
 ```{raw} html
 </details>
@@ -189,74 +203,24 @@ def f(value: int) -> int:
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-def f(values: list[int]) -> int:
-    total = 0
-    for value in values:
-        total += value
-    return total
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-def f(values: list[int]) -> int:
-    total = 0
-    for value in values:
-        total += value
-
-    return total
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-def f(value: int, other: int) -> int:
-    if value > 0:
-        log(value)
-        audit(value)
-        return value
-    if other > 0:
-        return other
-    return 0
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-def f(value: int, other: int) -> int:
-    if value > 0:
-        log(value)
-        audit(value)
-        return value
-    if other > 0:
-        return other
-
-    return 0
-```
-```{raw} html
-</div>
-```
-```{raw} html
 <div class="rule-invalid-example">
 ```
 ```python
-def f(flag: bool, label: str) -> str:
-    if not flag:
-        return label
-    return label.strip()
+def f(values: list[int]) -> int:
+    total = 0
+    for value in values:
+        total += value
+    return total
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-def f(flag: bool, label: str) -> str:
-    if not flag:
-        return label
+def f(values: list[int]) -> int:
+    total = 0
+    for value in values:
+        total += value
 
-    return label.strip()
+    return total
 ```
 ```{raw} html
 </div>
