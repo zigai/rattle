@@ -15,3 +15,12 @@ repos:
       - id: ruff-check
         args: [--fix, --exit-zero]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: document-rule-docs
+        name: document rule docs
+        entry: uv run --extra docs python scripts/document_rules.py
+        language: system
+        pass_filenames: false
+        always_run: true
