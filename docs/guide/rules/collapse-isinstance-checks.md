@@ -199,7 +199,7 @@ builtins.isinstance(x, A) or builtins.isinstance(x, B)
 ```python
 import builtins
 
-isinstance(x, (A, B))
+builtins.isinstance(x, (A, B))
 ```
 ```{raw} html
 </div>
@@ -217,7 +217,7 @@ check(x, A) or check(x, B)
 ```python
 from builtins import isinstance as check
 
-isinstance(x, (A, B))
+check(x, (A, B))
 ```
 ```{raw} html
 </div>

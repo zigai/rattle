@@ -254,7 +254,7 @@ module_var: Class = Class()
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 from __future__ import annotations
@@ -277,6 +277,17 @@ from a.b import Class
 
 def foo() -> typing.Tuple[Literal["a", "b"], Class]:
     return Class()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from __future__ import annotations
+
+value: b"\xff"
 ```
 ```{raw} html
 </div>

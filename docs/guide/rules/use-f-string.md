@@ -255,7 +255,7 @@ f"var1: {class_object.attribute}, var2: {dict_lookup['some_key']}, var3: {some_m
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 "a list: %s" % " ".join(var)
@@ -264,6 +264,15 @@ f"var1: {class_object.attribute}, var2: {dict_lookup['some_key']}, var3: {some_m
 
 ```python
 f"a list: {' '.join(var)}"
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+"%s" % (first, second)
 ```
 ```{raw} html
 </div>

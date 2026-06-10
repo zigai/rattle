@@ -70,6 +70,10 @@ lambda x, y, z: (t + u).math_call(x, y, z)
 ```python
 lambda x: obj.method(x)
 ```
+```python
+class C:
+    callback = lambda x: foo(x)
+```
 ```{raw} html
 </details>
 ```
