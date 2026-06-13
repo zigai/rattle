@@ -78,6 +78,42 @@ import tempfile
 tempfile = fake
 tempfile.mkstemp()
 ```
+```python
+import tempfile
+
+def write_temp(tempfile):
+    tempfile.mkstemp()
+```
+```python
+from tempfile import mkstemp
+
+def write_temp(mkstemp):
+    mkstemp()
+```
+```python
+from tempfile import *
+
+def write_temp(mkstemp):
+    mkstemp()
+```
+```python
+import tempfile
+
+make_temp = tempfile.mkstemp
+
+def write_temp(make_temp):
+    make_temp()
+```
+```python
+import tempfile
+
+make_temp = tempfile.mkstemp
+
+def make_temp():
+    pass
+
+make_temp()
+```
 ```{raw} html
 </details>
 ```
@@ -116,6 +152,57 @@ path = make_temp_dir()
 from tempfile import *
 
 fd, path = mkstemp()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from tempfile import mkstemp
+
+def write_temp():
+    mkstemp = factory()
+    mkstemp()
+
+fd, path = mkstemp()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import tempfile
+
+make_temp = tempfile.mkstemp
+fd, path = make_temp()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from tempfile import mkdtemp
+
+make_temp_dir = mkdtemp
+path = make_temp_dir()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from tempfile import mkdtemp
+
+make_temp_dir = other_make_temp_dir = mkdtemp
+path = other_make_temp_dir()
 ```
 ```{raw} html
 </div>

@@ -45,6 +45,10 @@ raise ValueError("invalid value")
 err = PermissionError("invalid value")
 raise RuntimeError(err)
 ```
+```python
+msg = "invalid value"
+raise ValueError(msg) from msg
+```
 ```{raw} html
 </details>
 ```

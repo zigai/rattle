@@ -53,6 +53,20 @@ from dataclasses import dataclass as dc
 @dc(frozen=False)
 class Cls: pass
 ```
+```python
+from dataclasses import dataclass
+dc = dataclass
+@dc(frozen=True)
+class Cls: pass
+```
+```python
+from dataclasses import dataclass
+dc = dataclass
+def dc(cls):
+    return cls
+@dc
+class Cls: pass
+```
 ```{raw} html
 </details>
 ```
@@ -191,6 +205,54 @@ class Cls: pass
 ```python
 import dataclasses as dc
 @dc.dataclass(other_kwarg=False)
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from dataclasses import *
+@dataclass
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from dataclasses import dataclass
+dc = dataclass
+@dc
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from dataclasses import dataclass
+dc = dataclass
+dc2 = dc
+@dc2
+class Cls: pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from dataclasses import dataclass
+dc = dc2 = dataclass
+@dc2
 class Cls: pass
 ```
 ```{raw} html

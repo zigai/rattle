@@ -44,8 +44,18 @@ Do not import across forbidden boundary '{boundary}'.
 
 ## Valid examples
 
-No valid examples are documented.
+```python
+import allowed_package.public_api
+```
 
 ## Invalid examples
 
-No invalid examples are documented.
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from . import private
+```
+```{raw} html
+</div>
+```

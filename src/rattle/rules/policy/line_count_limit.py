@@ -164,6 +164,16 @@ class LineCountLimit(LintRule):
         ),
         Invalid(
             """
+            def outer() -> None:
+                def inner() -> None:
+                    first()
+                    second()
+            """,
+            expected_message=("Function 'outer' has 4 lines, exceeding the configured limit of 2."),
+            options={"max_function_lines": 2},
+        ),
+        Invalid(
+            """
             class Service:
                 def oversized(self) -> None:
                     first()
@@ -231,6 +241,7 @@ class LineCountLimit(LintRule):
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         is_method = self._is_direct_class_member(node)
+        is_nested_function = self._function_depth > 0 and not is_method
         max_lines = (
             self._current_limits.max_method_lines
             if is_method
@@ -238,7 +249,7 @@ class LineCountLimit(LintRule):
         )
         self._function_depth += 1
 
-        if max_lines <= 0:
+        if is_nested_function or max_lines <= 0:
             return
 
         code_range = self.get_metadata(PositionProvider, node, None)

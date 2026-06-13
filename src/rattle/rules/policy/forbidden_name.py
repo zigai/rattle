@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import libcst as cst
+from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import optional_setting_text, setting_fields, target_names
@@ -84,6 +85,7 @@ class ForbiddenName(LintRule):
     """Ban configured names by identifier kind and pattern."""
 
     MESSAGE = "Do not use forbidden {kind} name '{name}'."
+    METADATA_DEPENDENCIES = (ParentNodeProvider,)
     SETTINGS = {
         "forbidden_names": RuleSetting(
             list[str],
@@ -92,8 +94,55 @@ class ForbiddenName(LintRule):
         ),
     }
 
-    VALID: list[Valid] = []
-    INVALID: list[Invalid] = []
+    VALID = [
+        Valid(
+            "import foo.bar",
+            options={"forbidden_names": ["attribute:bar"]},
+        ),
+        Valid(
+            "import foo.bar as fb",
+            options={"forbidden_names": ["attribute:bar"]},
+        ),
+    ]
+    INVALID = [
+        Invalid(
+            "from foo import bar as baz",
+            options={"forbidden_names": ["import:bar"]},
+            expected_message="Do not use forbidden import name 'bar'.",
+        ),
+        Invalid(
+            "import foo.bar as baz",
+            options={"forbidden_names": ["import:bar"]},
+            expected_message="Do not use forbidden import name 'bar'.",
+        ),
+        Invalid(
+            """
+            match value:
+                case {"x": bad}:
+                    pass
+            """,
+            options={"forbidden_names": ["variable:bad"]},
+            expected_message="Do not use forbidden variable name 'bad'.",
+        ),
+        Invalid(
+            """
+            match value:
+                case [*bad]:
+                    pass
+            """,
+            options={"forbidden_names": ["variable:bad"]},
+            expected_message="Do not use forbidden variable name 'bad'.",
+        ),
+        Invalid(
+            """
+            match value:
+                case {"x": value, **bad}:
+                    pass
+            """,
+            options={"forbidden_names": ["variable:bad"]},
+            expected_message="Do not use forbidden variable name 'bad'.",
+        ),
+    ]
 
     def __init__(self) -> None:
         super().__init__()
@@ -152,6 +201,18 @@ class ForbiddenName(LintRule):
     def visit_NamedExpr(self, node: cst.NamedExpr) -> None:
         self._report_for_target(node.target)
 
+    def visit_MatchAs(self, node: cst.MatchAs) -> None:
+        if node.name is not None:
+            self._report_for_name(node.name, "variable")
+
+    def visit_MatchMapping(self, node: cst.MatchMapping) -> None:
+        if node.rest is not None:
+            self._report_for_name(node.rest, "variable")
+
+    def visit_MatchStar(self, node: cst.MatchStar) -> None:
+        if node.name is not None:
+            self._report_for_name(node.name, "variable")
+
     def visit_WithItem(self, node: cst.WithItem) -> None:
         if node.asname is None:
             return
@@ -165,18 +226,21 @@ class ForbiddenName(LintRule):
         self._report_for_target(node.name.name)
 
     def visit_Attribute(self, node: cst.Attribute) -> None:
+        if self._is_import_alias_name_attribute(node):
+            return
+
         self._report_for_name(node.attr, "attribute")
 
     def visit_ImportAlias(self, node: cst.ImportAlias) -> None:
+        for name in _dotted_names(node.name):
+            self._report_for_name(name, "import")
+
         if node.asname is not None:
             alias_name = node.asname.name
             if isinstance(alias_name, cst.Name):
                 self._report_for_name(alias_name, "alias")
 
             return
-
-        for name in _dotted_names(node.name):
-            self._report_for_name(name, "import")
 
     def _report_for_target(self, target: cst.BaseExpression) -> None:
         for name in target_names(target):
@@ -203,3 +267,12 @@ class ForbiddenName(LintRule):
                 return rule
 
         return None
+
+    def _is_import_alias_name_attribute(self, node: cst.Attribute) -> bool:
+        current: cst.CSTNode = node
+        parent = self.get_metadata(ParentNodeProvider, current, None)
+        while isinstance(parent, cst.Attribute):
+            current = parent
+            parent = self.get_metadata(ParentNodeProvider, current, None)
+
+        return isinstance(parent, cst.ImportAlias) and parent.name is current

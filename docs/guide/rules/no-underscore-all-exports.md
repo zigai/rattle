@@ -134,8 +134,32 @@ __all__.extend(["_private_name"])
 <div class="rule-invalid-example">
 ```
 ```python
+__all__.insert(0, "_private_name")
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 __all__ = [*["_private_name"]]
 ```
 ```{raw} html
 </div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+__all__ = ["_private" "_name"]
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
 ```

@@ -3,9 +3,13 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import re
+
 import libcst as cst
 
 from rattle import Invalid, LintRule, Valid
+
+NOQA_COMMENT_PATTERN = re.compile(r"(?:^|#)\s*(?:flake8:\s*)?noqa(?=$|[\s:,\[])", re.IGNORECASE)
 
 
 class UseRattleIgnoreComment(LintRule):
@@ -32,9 +36,13 @@ class UseRattleIgnoreComment(LintRule):
             'ab' 'cd'  # rattle: ignore[use-plus-for-string-concat]
             """
         ),
+        Valid("fn()  # noqaed by another tool"),
+        Valid("fn()  # See https://example.test/noqa-policy"),
     ]
     INVALID = [
         Invalid("fn() # noqa"),
+        Invalid("fn() # NOQA"),
+        Invalid("# flake8: noqa"),
         Invalid("fn()  # type: ignore  # noqa"),
         Invalid(
             """
@@ -54,7 +62,7 @@ class UseRattleIgnoreComment(LintRule):
     ]
 
     def visit_Comment(self, node: cst.Comment) -> None:
-        if "noqa" in node.value.lower():
+        if NOQA_COMMENT_PATTERN.search(node.value):
             self.report(node, self.MESSAGE)
 
 

@@ -55,6 +55,18 @@ from graphene import List
 def function(a: list[int]) -> List[int]:
         return []
 ```
+```python
+from builtins import list as ListType
+
+LT = ListType
+
+class LT:
+    def __class_getitem__(cls, item):
+        return cls
+
+def func(value: LT[str]) -> None:
+    pass
+```
 ```{raw} html
 </details>
 ```
@@ -113,7 +125,7 @@ def func() -> None:
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 from typing import Dict
@@ -126,6 +138,46 @@ def func() -> None:
 from typing import Dict
 def func() -> None:
     thing: Dict[str, str] = {}
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from builtins import list as ListType
+
+def func(value: ListType[str]) -> None:
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from builtins import list as ListType
+
+LT = ListType
+
+def func(value: LT[str]) -> None:
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from builtins import list as ListType
+
+LT = OtherLT = ListType
+
+def func(value: OtherLT[str]) -> None:
+    pass
 ```
 ```{raw} html
 </div>

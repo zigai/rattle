@@ -26,7 +26,7 @@ the pattern.
 $ rattle lint . --exclude "generated/**"
 ```
 
-### `--extend-exclude PATTERN`
+### `--extend-exclude / -ee PATTERN`
 
 Add exclude patterns. This option may be passed more than once. Direct path
 arguments are still checked unless they are excluded by configuration with

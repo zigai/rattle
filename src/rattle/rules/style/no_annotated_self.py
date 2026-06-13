@@ -51,7 +51,45 @@ class NoAnnotatedSelf(LintRule):
         Valid(
             """
             class A:
+                @classmethod
+                def build(self: type["A"]) -> "A":
+                    return self()
+            """
+        ),
+        Valid(
+            """
+            from builtins import classmethod as cm
+
+            class A:
+                @cm
+                def build(self: type["A"]) -> "A":
+                    return self()
+            """
+        ),
+        Valid(
+            """
+            class A:
                 @staticmethod
+                def helper(self: int) -> None:
+                    pass
+            """
+        ),
+        Valid(
+            """
+            from builtins import staticmethod as sm
+
+            class A:
+                @sm
+                def helper(self: int) -> None:
+                    pass
+            """
+        ),
+        Valid(
+            """
+            import builtins as builtin_values
+
+            class A:
+                @builtin_values.staticmethod
                 def helper(self: int) -> None:
                     pass
             """
@@ -102,7 +140,7 @@ class NoAnnotatedSelf(LintRule):
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         if not self._is_direct_class_member(node):
             return
-        if self._is_staticmethod(node):
+        if self._is_non_instance_method(node):
             return
 
         parameter = _first_parameter(node.params)
@@ -127,12 +165,18 @@ class NoAnnotatedSelf(LintRule):
         grandparent = self.get_metadata(ParentNodeProvider, parent, None)
         return isinstance(grandparent, cst.ClassDef)
 
-    def _is_staticmethod(self, node: cst.FunctionDef) -> bool:
+    def _is_non_instance_method(self, node: cst.FunctionDef) -> bool:
+        return any(
+            self._is_builtin_method_decorator(decorator.decorator) for decorator in node.decorators
+        )
+
+    def _is_builtin_method_decorator(self, node: cst.BaseExpression) -> bool:
         return any(
             QualifiedNameProvider.has_name(
                 self,
-                decorator.decorator,
-                QualifiedName(name="builtins.staticmethod", source=QualifiedNameSource.BUILTIN),
+                node,
+                QualifiedName(name=name, source=source),
             )
-            for decorator in node.decorators
+            for name in ("builtins.classmethod", "builtins.staticmethod")
+            for source in (QualifiedNameSource.BUILTIN, QualifiedNameSource.IMPORT)
         )

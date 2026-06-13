@@ -38,6 +38,12 @@ noqa is deprecated. Use `rattle: ignore[rule-name]` instead.
 ```python
 'ab' 'cd'  # rattle: ignore[use-plus-for-string-concat]
 ```
+```python
+fn()  # noqaed by another tool
+```
+```python
+fn()  # See https://example.test/noqa-policy
+```
 
 ## Invalid examples
 
@@ -54,10 +60,31 @@ fn() # noqa
 <div class="rule-invalid-example">
 ```
 ```python
+fn() # NOQA
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+# flake8: noqa
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 fn()  # type: ignore  # noqa
 ```
 ```{raw} html
 </div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
 <div class="rule-invalid-example">
@@ -70,9 +97,6 @@ fn()  # type: ignore  # noqa
 ```
 ```{raw} html
 </div>
-```
-```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
 <div class="rule-invalid-example">

@@ -110,6 +110,18 @@ def oversized() -> None:
 <div class="rule-invalid-example">
 ```
 ```python
+def outer() -> None:
+    def inner() -> None:
+        first()
+        second()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 class Service:
     def oversized(self) -> None:
         first()

@@ -97,12 +97,43 @@ class NoStrExceptionTranslation(LintRule):
         ),
         Invalid(
             """
+            try:
+                run()
+            except ValueError as exc:
+                raise RuntimeError("%s" % (exc,)) from exc
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
             import builtins
 
             try:
                 run()
             except ValueError as exc:
                 raise RuntimeError(builtins.str(exc)) from exc
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            import builtins as builtin_values
+
+            try:
+                run()
+            except ValueError as exc:
+                raise RuntimeError(builtin_values.str(exc)) from exc
+            """,
+            expected_message=MESSAGE,
+        ),
+        Invalid(
+            """
+            from builtins import str as stringify
+
+            try:
+                run()
+            except ValueError as exc:
+                raise RuntimeError(stringify(exc)) from exc
             """,
             expected_message=MESSAGE,
         ),
@@ -160,27 +191,29 @@ class NoStrExceptionTranslation(LintRule):
             return self._is_exception_only_f_string(node, exception_name)
 
         if isinstance(node, cst.BinaryOperation) and isinstance(node.operator, cst.Modulo):
-            return self._is_exception_name(node.right, exception_name)
+            return self._is_exception_name_or_singleton_tuple(node.right, exception_name)
 
         return False
 
     def _single_builtin_str_argument(self, node: cst.Call) -> cst.Arg | None:
-        if callable_dotted_name(node.func) not in {"str", "builtins.str"}:
-            return None
         if len(node.args) != 1:
             return None
 
-        if (
-            not QualifiedNameProvider.has_name(
-                self,
-                node.func,
-                QualifiedName(name="builtins.str", source=QualifiedNameSource.BUILTIN),
-            )
-            and callable_dotted_name(node.func) != "builtins.str"
-        ):
+        if not self._is_builtin_str(node.func):
             return None
 
         return node.args[0]
+
+    def _is_builtin_str(self, node: cst.BaseExpression) -> bool:
+        return QualifiedNameProvider.has_name(
+            self,
+            node,
+            QualifiedName(name="builtins.str", source=QualifiedNameSource.BUILTIN),
+        ) or QualifiedNameProvider.has_name(
+            self,
+            node,
+            QualifiedName(name="builtins.str", source=QualifiedNameSource.IMPORT),
+        )
 
     def _single_format_argument(self, node: cst.Call) -> cst.Arg | None:
         if callable_dotted_name(node.func) != "format":
@@ -206,3 +239,15 @@ class NoStrExceptionTranslation(LintRule):
 
     def _is_exception_name(self, node: cst.BaseExpression, exception_name: str) -> bool:
         return isinstance(node, cst.Name) and node.value == exception_name
+
+    def _is_exception_name_or_singleton_tuple(
+        self,
+        node: cst.BaseExpression,
+        exception_name: str,
+    ) -> bool:
+        if self._is_exception_name(node, exception_name):
+            return True
+        if not isinstance(node, cst.Tuple) or len(node.elements) != 1:
+            return False
+
+        return self._is_exception_name(node.elements[0].value, exception_name)

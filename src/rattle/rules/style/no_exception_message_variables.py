@@ -8,6 +8,26 @@ from rattle.rules.helpers import callable_dotted_name, is_name, single_small_sta
 SuiteNode = cst.Module | cst.IndentedBlock
 
 
+class NameUseCounter(cst.CSTVisitor):
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.count = 0
+
+    def visit_Name(self, node: cst.Name) -> None:
+        if node.value == self.name:
+            self.count += 1
+
+    def visit_Arg(self, node: cst.Arg) -> bool:
+        node.value.visit(self)
+        return False
+
+
+def _name_use_count(node: cst.CSTNode, name: str) -> int:
+    counter = NameUseCounter(name)
+    node.visit(counter)
+    return counter.count
+
+
 def _message_assignment(statement: cst.BaseStatement) -> tuple[str, cst.BaseExpression] | None:
     small_statement = single_small_statement(statement, allow_leading_lines=False)
     if isinstance(small_statement, cst.Assign):
@@ -56,6 +76,9 @@ def _inline_exception_argument(
     variable_name: str,
     value: cst.BaseExpression,
 ) -> cst.Raise | None:
+    if _name_use_count(raise_statement, variable_name) != 1:
+        return None
+
     exception = raise_statement.exc
     if not isinstance(exception, cst.Call):
         return None
@@ -146,6 +169,12 @@ class NoExceptionMessageVariables(LintRule):
             """
             err = PermissionError("invalid value")
             raise RuntimeError(err)
+            """
+        ),
+        Valid(
+            """
+            msg = "invalid value"
+            raise ValueError(msg) from msg
             """
         ),
     ]

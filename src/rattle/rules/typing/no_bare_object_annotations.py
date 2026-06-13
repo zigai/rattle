@@ -3,7 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import libcst as cst
-from libcst.metadata import FilePathProvider
+from libcst.metadata import (
+    FilePathProvider,
+    QualifiedNameProvider,
+    QualifiedNameSource,
+)
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import (
@@ -15,10 +19,10 @@ from rattle.rules.helpers import (
 
 
 def _is_bare_object_annotation(expression: cst.BaseExpression) -> bool:
-    if isinstance(expression, cst.SimpleString):
+    if isinstance(expression, cst.ConcatenatedString | cst.SimpleString):
         return _is_bare_object_string_annotation(expression)
 
-    if is_name(expression, "object"):
+    if _is_syntactic_object_annotation(expression):
         return True
 
     if _is_object_none_union(expression):
@@ -30,7 +34,13 @@ def _is_bare_object_annotation(expression: cst.BaseExpression) -> bool:
     return False
 
 
-def _is_bare_object_string_annotation(expression: cst.SimpleString) -> bool:
+def _is_syntactic_object_annotation(expression: cst.BaseExpression) -> bool:
+    return is_name(expression, "object") or callable_dotted_name(expression) == "builtins.object"
+
+
+def _is_bare_object_string_annotation(
+    expression: cst.ConcatenatedString | cst.SimpleString,
+) -> bool:
     value = expression.evaluated_value
     if not isinstance(value, str):
         return False
@@ -74,8 +84,11 @@ class NoBareObjectAnnotations(LintRule):
     """Require annotations to use a more precise boundary type than bare object."""
 
     MESSAGE = "Use a narrower type than bare object in annotations."
-    SOURCE_PATTERNS = (b"object",)
-    METADATA_DEPENDENCIES = (*LintRule.METADATA_DEPENDENCIES, FilePathProvider)
+    METADATA_DEPENDENCIES = (
+        *LintRule.METADATA_DEPENDENCIES,
+        FilePathProvider,
+        QualifiedNameProvider,
+    )
     SETTINGS = {
         "excluded_path_parts": RuleSetting(
             list[str],
@@ -112,6 +125,15 @@ class NoBareObjectAnnotations(LintRule):
                 pass
 
             def fn(value: object | SettingsProvider | None) -> None:
+                return None
+            """
+        ),
+        Valid(
+            """
+            class object:
+                pass
+
+            def fn(value: object) -> None:
                 return None
             """
         ),
@@ -172,6 +194,37 @@ class NoBareObjectAnnotations(LintRule):
             """,
             expected_message="Use a narrower type than bare object in annotations.",
         ),
+        Invalid(
+            """
+            value: "object" "" = payload
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
+        Invalid(
+            """
+            import builtins
+
+            value: builtins.object = payload
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
+        Invalid(
+            """
+            import builtins as builtin_types
+
+            value: builtin_types.object = payload
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
+        Invalid(
+            """
+            import builtins
+            from typing import Optional
+
+            value: Optional[builtins.object] = None
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
     ]
 
     def __init__(self) -> None:
@@ -195,22 +248,107 @@ class NoBareObjectAnnotations(LintRule):
         for parameter in ordinary_parameters(node.params):
             self._report_param_if_needed(parameter)
 
-        if node.returns is not None and _is_bare_object_annotation(node.returns.annotation):
+        if node.returns is not None and self._is_bare_object_annotation(node.returns.annotation):
             self.report(node.returns, self.MESSAGE)
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
         if self._should_skip_current_file():
             return
 
-        if _is_bare_object_annotation(node.annotation.annotation):
+        if self._is_bare_object_annotation(node.annotation.annotation):
             self.report(node.annotation, self.MESSAGE)
 
     def _report_param_if_needed(self, parameter: cst.Param) -> None:
         if parameter.annotation is None:
             return
 
-        if _is_bare_object_annotation(parameter.annotation.annotation):
+        if self._is_bare_object_annotation(parameter.annotation.annotation):
             self.report(parameter.annotation, self.MESSAGE)
+
+    def _is_bare_object_annotation(self, expression: cst.BaseExpression) -> bool:
+        if isinstance(expression, cst.ConcatenatedString | cst.SimpleString):
+            return _is_bare_object_string_annotation(expression)
+
+        if self._is_builtin_object_annotation(expression):
+            return True
+
+        if self._is_object_none_union(expression):
+            return True
+
+        if isinstance(expression, cst.Subscript):
+            return self._is_bare_object_subscript_annotation(expression)
+
+        return False
+
+    def _is_builtin_object_annotation(self, expression: cst.BaseExpression) -> bool:
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        if any(
+            qualified_name.source is QualifiedNameSource.LOCAL for qualified_name in qualified_names
+        ):
+            return False
+        if qualified_names:
+            return any(
+                qualified_name.name == "builtins.object"
+                and qualified_name.source
+                in {QualifiedNameSource.BUILTIN, QualifiedNameSource.IMPORT}
+                for qualified_name in qualified_names
+            )
+
+        return _is_syntactic_object_annotation(expression)
+
+    def _is_object_none_union(self, expression: cst.BaseExpression) -> bool:
+        if not isinstance(expression, cst.BinaryOperation) or not isinstance(
+            expression.operator, cst.BitOr
+        ):
+            return False
+
+        return self._is_object_none_pair(expression.left, expression.right)
+
+    def _is_bare_object_subscript_annotation(self, expression: cst.Subscript) -> bool:
+        elements = [
+            element.slice.value
+            for element in expression.slice
+            if isinstance(element.slice, cst.Index)
+        ]
+        if (
+            self._subscript_has_typing_name(
+                expression, qualified_name="typing.Optional", syntactic_names={"Optional"}
+            )
+            and len(elements) == 1
+        ):
+            return self._is_bare_object_annotation(elements[0])
+        if (
+            self._subscript_has_typing_name(
+                expression, qualified_name="typing.Union", syntactic_names={"Union"}
+            )
+            and len(elements) == 2
+        ):
+            return self._is_object_none_pair(elements[0], elements[1])
+
+        return False
+
+    def _subscript_has_typing_name(
+        self,
+        expression: cst.Subscript,
+        *,
+        qualified_name: str,
+        syntactic_names: set[str],
+    ) -> bool:
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression.value, set())
+        if any(name.source is QualifiedNameSource.LOCAL for name in qualified_names):
+            return False
+        if qualified_names:
+            return any(
+                name.name == qualified_name and name.source is QualifiedNameSource.IMPORT
+                for name in qualified_names
+            )
+
+        return callable_dotted_name(expression.value) in syntactic_names
+
+    def _is_object_none_pair(self, left: cst.BaseExpression, right: cst.BaseExpression) -> bool:
+        return (self._is_builtin_object_annotation(left) and is_name(right, "None")) or (
+            is_name(left, "None") and self._is_builtin_object_annotation(right)
+        )
 
     def _should_skip_current_file(self) -> bool:
         if self._current_file_path is None:

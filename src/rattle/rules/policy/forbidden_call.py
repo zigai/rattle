@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import libcst as cst
-from libcst.metadata import QualifiedNameProvider, QualifiedNameSource
+from libcst.metadata import QualifiedNameProvider, QualifiedNameSource, ScopeProvider
 
-from rattle import LintRule, RuleSetting
+from rattle import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import dotted_name, optional_setting_text, setting_fields
 
 _SYMBOL_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
@@ -63,7 +63,11 @@ class ForbiddenCall(LintRule):
     """Ban calls to configured functions, constructors, and helper APIs."""
 
     MESSAGE = "Do not call forbidden callable '{symbol}'."
-    METADATA_DEPENDENCIES = (*LintRule.METADATA_DEPENDENCIES, QualifiedNameProvider)
+    METADATA_DEPENDENCIES = (
+        *LintRule.METADATA_DEPENDENCIES,
+        QualifiedNameProvider,
+        ScopeProvider,
+    )
     SETTINGS = {
         "forbidden_calls": RuleSetting(
             list[str],
@@ -72,14 +76,143 @@ class ForbiddenCall(LintRule):
         ),
     }
 
-    VALID: list = []
-    INVALID: list = []
+    VALID = [
+        Valid(
+            """
+            import os
+
+            delete = os.remove
+
+            def cleanup(delete):
+                delete("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+        ),
+        Valid(
+            """
+            import os
+
+            delete = os.remove
+            remove_file = delete
+
+            def remove_file(path):
+                return path
+
+            remove_file("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+        ),
+        Valid(
+            """
+            import os
+
+            delete = os.remove
+
+            def cleanup():
+                delete = fake_delete
+                delete("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+        ),
+        Valid(
+            """
+            from os import *
+
+            def cleanup(remove):
+                remove("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+        ),
+        Valid(
+            """
+            import os
+
+            delete = os.remove
+
+            def delete(path):
+                return path
+
+            delete("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+        ),
+    ]
+    INVALID = [
+        Invalid(
+            """
+            import os
+
+            delete = os.remove
+
+            delete("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+            expected_message="Do not call forbidden callable 'os.remove'.",
+        ),
+        Invalid(
+            """
+            import os
+
+            delete = os.remove
+
+            def cleanup():
+                delete = fake_delete
+                delete("path")
+
+            delete("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+            expected_message="Do not call forbidden callable 'os.remove'.",
+        ),
+        Invalid(
+            """
+            import os
+
+            def cleanup():
+                delete = os.remove
+                delete("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+            expected_message="Do not call forbidden callable 'os.remove'.",
+        ),
+        Invalid(
+            """
+            from os import *
+
+            remove("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+            expected_message="Do not call forbidden callable 'os.remove'.",
+        ),
+        Invalid(
+            """
+            import os
+
+            delete = os.remove
+            remove_file = delete
+            remove_file("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+            expected_message="Do not call forbidden callable 'os.remove'.",
+        ),
+        Invalid(
+            """
+            import os
+
+            delete = remove_file = os.remove
+            remove_file("path")
+            """,
+            options={"forbidden_calls": ["os.remove"]},
+            expected_message="Do not call forbidden callable 'os.remove'.",
+        ),
+    ]
 
     def __init__(self) -> None:
         super().__init__()
 
         self._forbidden_calls_by_symbol: dict[str, ForbiddenCallEntry] = {}
-        self._local_aliases_by_name: dict[str, str] = {}
+        self._aliases_by_assignment_node: dict[cst.CSTNode, str] = {}
+        self._star_import_modules: set[str] = set()
 
     def should_lint_file(self, source: bytes, path: Path) -> bool:
         del path
@@ -96,27 +229,37 @@ class ForbiddenCall(LintRule):
             entry.symbol: entry
             for entry in _parse_forbidden_calls_setting(self.settings["forbidden_calls"])
         }
-        self._local_aliases_by_name = {}
+        self._aliases_by_assignment_node = {}
+        self._star_import_modules = set()
 
     def leave_Module(self, original_node: cst.Module) -> None:
         del original_node
 
         self._forbidden_calls_by_symbol = {}
-        self._local_aliases_by_name = {}
+        self._aliases_by_assignment_node = {}
+        self._star_import_modules = set()
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
+        if not isinstance(node.names, cst.ImportStar):
+            return
+
+        module_name = dotted_name(node.module)
+        if module_name is not None:
+            self._star_import_modules.add(module_name)
 
     def visit_Assign(self, node: cst.Assign) -> None:
-        if len(node.targets) != 1:
-            return
-        target = node.targets[0].target
-        if not isinstance(target, cst.Name):
-            return
-
         forbidden_symbol = self._forbidden_symbol_for_expression(node.value)
+        if forbidden_symbol is None and isinstance(node.value, cst.Name):
+            forbidden_symbol = self._alias_symbol_for_name(node.value)
         if forbidden_symbol is None:
-            self._local_aliases_by_name.pop(target.value, None)
+            for assign_target in node.targets:
+                if isinstance(assign_target.target, cst.Name):
+                    self._aliases_by_assignment_node.pop(assign_target.target, None)
             return
 
-        self._local_aliases_by_name[target.value] = forbidden_symbol
+        for assign_target in node.targets:
+            if isinstance(assign_target.target, cst.Name):
+                self._aliases_by_assignment_node[assign_target.target] = forbidden_symbol
 
     def visit_Call(self, node: cst.Call) -> None:
         symbol = self._forbidden_symbol_for_call(node)
@@ -127,11 +270,55 @@ class ForbiddenCall(LintRule):
 
     def _forbidden_symbol_for_call(self, node: cst.Call) -> str | None:
         if isinstance(node.func, cst.Name):
-            alias_symbol = self._local_aliases_by_name.get(node.func.value)
+            alias_symbol = self._alias_symbol_for_name(node.func)
             if alias_symbol is not None:
                 return alias_symbol
 
+            star_import_symbol = self._star_import_symbol_for_call_name(node.func)
+            if star_import_symbol is not None:
+                return star_import_symbol
+
         return self._forbidden_symbol_for_expression(node.func)
+
+    def _alias_symbol_for_name(self, node: cst.Name) -> str | None:
+        scope = self.get_metadata(ScopeProvider, node, None)
+        if scope is None:
+            return None
+
+        try:
+            assignments = scope[node.value]
+        except KeyError:
+            return None
+
+        alias_symbols = [
+            self._aliases_by_assignment_node.get(assignment_node)
+            if (assignment_node := getattr(assignment, "node", None)) is not None
+            else None
+            for assignment in assignments
+        ]
+        if any(symbol is None for symbol in alias_symbols):
+            return None
+
+        unique_symbols = {symbol for symbol in alias_symbols if symbol is not None}
+        if len(unique_symbols) != 1:
+            return None
+
+        return unique_symbols.pop()
+
+    def _star_import_symbol_for_call_name(self, node: cst.Name) -> str | None:
+        if not self._star_import_modules:
+            return None
+
+        qualified_names = self.get_metadata(QualifiedNameProvider, node, set())
+        if qualified_names:
+            return None
+
+        for symbol in self._forbidden_calls_by_symbol:
+            module_name, separator, call_name = symbol.rpartition(".")
+            if separator and call_name == node.value and module_name in self._star_import_modules:
+                return symbol
+
+        return None
 
     def _forbidden_symbol_for_expression(self, node: cst.BaseExpression) -> str | None:
         forbidden_symbols = set(self._forbidden_calls_by_symbol)

@@ -130,12 +130,52 @@ except ValueError as exc:
 <div class="rule-invalid-example">
 ```
 ```python
+try:
+    run()
+except ValueError as exc:
+    raise RuntimeError("%s" % (exc,)) from exc
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 import builtins
 
 try:
     run()
 except ValueError as exc:
     raise RuntimeError(builtins.str(exc)) from exc
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import builtins as builtin_values
+
+try:
+    run()
+except ValueError as exc:
+    raise RuntimeError(builtin_values.str(exc)) from exc
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from builtins import str as stringify
+
+try:
+    run()
+except ValueError as exc:
+    raise RuntimeError(stringify(exc)) from exc
 ```
 ```{raw} html
 </div>

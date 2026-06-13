@@ -58,6 +58,16 @@ x: t.Callable[..., int] = ...
 from typing import Callable
 x: Callable[..., int] = ...
 ```
+```python
+from typing import Callable
+C = Callable
+
+class C:
+    def __class_getitem__(cls, item):
+        return cls
+
+x: C[[...], int] = ...
+```
 ```{raw} html
 </details>
 ```
@@ -134,7 +144,7 @@ def foo(bar: Optional[Callable[..., int]]) -> Callable[..., int]:
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 from collections.abc import Callable
@@ -144,6 +154,58 @@ x: Callable[[...], int] = ...
 
 ```python
 from collections.abc import Callable
+x: Callable[..., int] = ...
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+from typing import Callable
+C = Callable
+x: C[[...], int] = ...
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+from typing import Callable
+C = Callable
+x: C[..., int] = ...
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+from typing import Callable
+C = OtherC = Callable
+x: OtherC[[...], int] = ...
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+from typing import Callable
+C = OtherC = Callable
+x: OtherC[..., int] = ...
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import *
+x: Callable[[...], int] = ...
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+from typing import *
 x: Callable[..., int] = ...
 ```
 ```{raw} html

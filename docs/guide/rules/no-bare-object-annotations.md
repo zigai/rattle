@@ -67,6 +67,13 @@ class SettingsProvider(Protocol):
 def fn(value: object | SettingsProvider | None) -> None:
     return None
 ```
+```python
+class object:
+    pass
+
+def fn(value: object) -> None:
+    return None
+```
 ```{raw} html
 </details>
 ```
@@ -150,6 +157,49 @@ value: Union[object, None] = None
 ```
 ```python
 value: "object" = payload
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+value: "object" "" = payload
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import builtins
+
+value: builtins.object = payload
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import builtins as builtin_types
+
+value: builtin_types.object = payload
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import builtins
+from typing import Optional
+
+value: Optional[builtins.object] = None
 ```
 ```{raw} html
 </div>

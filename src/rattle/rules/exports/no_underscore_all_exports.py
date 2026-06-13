@@ -10,9 +10,17 @@ def _is_all_target(target: cst.BaseAssignTargetExpression) -> bool:
     return is_name(target, "__all__")
 
 
+def _string_value(expression: cst.BaseExpression) -> str | None:
+    if not isinstance(expression, cst.ConcatenatedString | cst.SimpleString):
+        return None
+
+    value = expression.evaluated_value
+    return value if isinstance(value, str) else None
+
+
 def _exported_names(expression: cst.BaseExpression) -> list[tuple[cst.CSTNode, str]]:
-    if isinstance(expression, cst.SimpleString) and isinstance(expression.evaluated_value, str):
-        return [(expression, expression.evaluated_value)]
+    if (value := _string_value(expression)) is not None:
+        return [(expression, value)]
 
     if not isinstance(expression, cst.List | cst.Set | cst.Tuple):
         return []
@@ -23,14 +31,30 @@ def _exported_names(expression: cst.BaseExpression) -> list[tuple[cst.CSTNode, s
             exported_names.extend(_exported_names(element.value))
             continue
 
-        if not isinstance(element.value, cst.SimpleString):
-            continue
-
-        if not isinstance(element.value.evaluated_value, str):
-            continue
-        exported_names.append((element.value, element.value.evaluated_value))
+        if (value := _string_value(element.value)) is not None:
+            exported_names.append((element.value, value))
 
     return exported_names
+
+
+def _all_call_export_expression(node: cst.Call) -> cst.BaseExpression | None:
+    if not isinstance(node.func, cst.Attribute):
+        return None
+    if not is_name(node.func.value, "__all__"):
+        return None
+
+    method_name = node.func.attr.value
+    if method_name in {"append", "extend"} and len(node.args) == 1:
+        argument = node.args[0]
+        return argument.value if argument.keyword is None else None
+
+    if method_name == "insert" and len(node.args) == 2:
+        if any(arg.keyword is not None for arg in node.args):
+            return None
+
+        return node.args[1].value
+
+    return None
 
 
 class NoUnderscoreAllExports(LintRule):
@@ -117,7 +141,21 @@ class NoUnderscoreAllExports(LintRule):
             ),
         ),
         Invalid(
+            '__all__.insert(0, "_private_name")',
+            expected_message=(
+                "Do not export underscore-prefixed symbol '_private_name' in __all__. "
+                "Either remove it from __all__ or rename it to be public."
+            ),
+        ),
+        Invalid(
             '__all__ = [*["_private_name"]]',
+            expected_message=(
+                "Do not export underscore-prefixed symbol '_private_name' in __all__. "
+                "Either remove it from __all__ or rename it to be public."
+            ),
+        ),
+        Invalid(
+            '__all__ = ["_private" "_name"]',
             expected_message=(
                 "Do not export underscore-prefixed symbol '_private_name' in __all__. "
                 "Either remove it from __all__ or rename it to be public."
@@ -182,16 +220,12 @@ class NoUnderscoreAllExports(LintRule):
     def visit_Call(self, node: cst.Call) -> None:
         if not self._is_module_level():
             return
-        if not isinstance(node.func, cst.Attribute):
-            return
-        if not is_name(node.func.value, "__all__"):
-            return
-        if node.func.attr.value not in {"append", "extend"}:
-            return
-        if len(node.args) != 1 or node.args[0].keyword is not None:
+
+        expression = _all_call_export_expression(node)
+        if expression is None:
             return
 
-        self._report_exported_names(node.args[0].value)
+        self._report_exported_names(expression)
 
     def _is_module_level(self) -> bool:
         return self._class_depth == 0 and self._function_depth == 0

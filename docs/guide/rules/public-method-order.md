@@ -106,10 +106,34 @@ class Workflow:
         self._value = self._normalize(value)
 ```
 ```python
+from builtins import property as prop
+
+class Workflow:
+    def _normalize(self) -> str:
+        return "ok"
+
+    @prop
+    def value(self) -> str:
+        return self._normalize()
+```
+```python
 from typing import overload
 
 class Workflow:
     @overload
+    def build(self, value: str) -> str: ...
+
+    def _normalize(self, value: str) -> str:
+        return value
+
+    def build(self, value: str) -> str:
+        return self._normalize(value)
+```
+```python
+from typing import overload as ov
+
+class Workflow:
+    @ov
     def build(self, value: str) -> str: ...
 
     def _normalize(self, value: str) -> str:
@@ -137,6 +161,27 @@ class Workflow:
 class Helper:
     def _normalize(self, value: str) -> str:
         return value
+
+    def build(self) -> str:
+        return "ok"
+```
+```python
+from dataclasses import dataclass as dc
+
+@dc
+class Workflow:
+    def _normalize(self) -> str:
+        return "ok"
+
+    def build(self) -> str:
+        return "ok"
+```
+```python
+from pydantic import BaseModel as BM
+
+class Workflow(BM):
+    def _normalize(self) -> str:
+        return "ok"
 
     def build(self) -> str:
         return "ok"

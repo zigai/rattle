@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
+from libcst.metadata import QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import callable_dotted_name, matches_any_pattern
@@ -38,7 +39,12 @@ _ORDER_SENSITIVE_DECORATOR_NAMES = {
     "frozen",
     "pydantic.dataclasses.dataclass",
 }
+_ORDER_SENSITIVE_BASE_TAILS = _ORDER_SENSITIVE_BASE_NAMES
+_ORDER_SENSITIVE_DECORATOR_TAILS = {
+    name.rsplit(".", 1)[-1] for name in _ORDER_SENSITIVE_DECORATOR_NAMES
+}
 _OVERLOAD_DECORATOR_NAMES = {"overload", "typing.overload", "typing_extensions.overload"}
+_OVERLOAD_DECORATOR_TAILS = {"overload"}
 _PUBLIC_ACCESSOR_DECORATOR_SUFFIXES = (".setter", ".deleter")
 _REGISTER_DECORATOR_SUFFIXES = (".register",)
 
@@ -161,6 +167,7 @@ class PublicMethodOrder(LintRule):
     """Require behavior classes to define public methods before private helpers."""
 
     MESSAGE = "Define public methods before private helpers in behavior classes."
+    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
     SETTINGS = {
         "class_name_patterns": RuleSetting(
             list[str],
@@ -241,10 +248,38 @@ class PublicMethodOrder(LintRule):
         ),
         Valid(
             """
+            from builtins import property as prop
+
+            class Workflow:
+                def _normalize(self) -> str:
+                    return "ok"
+
+                @prop
+                def value(self) -> str:
+                    return self._normalize()
+            """
+        ),
+        Valid(
+            """
             from typing import overload
 
             class Workflow:
                 @overload
+                def build(self, value: str) -> str: ...
+
+                def _normalize(self, value: str) -> str:
+                    return value
+
+                def build(self, value: str) -> str:
+                    return self._normalize(value)
+            """
+        ),
+        Valid(
+            """
+            from typing import overload as ov
+
+            class Workflow:
+                @ov
                 def build(self, value: str) -> str: ...
 
                 def _normalize(self, value: str) -> str:
@@ -281,6 +316,31 @@ class PublicMethodOrder(LintRule):
                     return "ok"
             """,
             options={"class_name_patterns": ["*Service"]},
+        ),
+        Valid(
+            """
+            from dataclasses import dataclass as dc
+
+            @dc
+            class Workflow:
+                def _normalize(self) -> str:
+                    return "ok"
+
+                def build(self) -> str:
+                    return "ok"
+            """
+        ),
+        Valid(
+            """
+            from pydantic import BaseModel as BM
+
+            class Workflow(BM):
+                def _normalize(self) -> str:
+                    return "ok"
+
+                def build(self) -> str:
+                    return "ok"
+            """
         ),
     ]
 
@@ -334,7 +394,7 @@ class PublicMethodOrder(LintRule):
     ]
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        if not _should_check_class(
+        if not self._should_check_class(
             node,
             self.settings["class_name_patterns"],
             self.settings["excluded_class_name_patterns"],
@@ -345,7 +405,7 @@ class PublicMethodOrder(LintRule):
         if methods is None:
             return
 
-        violation = _first_order_violation(methods)
+        violation = self._first_order_violation(methods)
         if violation is None:
             return
 
@@ -355,3 +415,103 @@ class PublicMethodOrder(LintRule):
             f"'{first_private_helper_name}'."
         )
         self.report(method.name, message)
+
+    def _should_check_class(
+        self,
+        node: cst.ClassDef,
+        class_name_patterns: list[str],
+        excluded_class_name_patterns: list[str],
+    ) -> bool:
+        class_name = node.name.value
+        if not matches_any_pattern(class_name_patterns, class_name):
+            return False
+        if matches_any_pattern(excluded_class_name_patterns, class_name):
+            return False
+
+        return not (
+            self._has_order_sensitive_base(node) or self._has_order_sensitive_decorator(node)
+        )
+
+    def _has_order_sensitive_base(self, node: cst.ClassDef) -> bool:
+        if _has_order_sensitive_base(node):
+            return True
+
+        return any(
+            self._expression_resolves_to_tail(base.value, _ORDER_SENSITIVE_BASE_TAILS)
+            for base in node.bases
+        )
+
+    def _has_order_sensitive_decorator(self, node: cst.ClassDef) -> bool:
+        if _has_order_sensitive_decorator(node):
+            return True
+
+        return any(
+            self._expression_resolves_to_tail(
+                decorator.decorator,
+                _ORDER_SENSITIVE_DECORATOR_TAILS,
+            )
+            for decorator in node.decorators
+        )
+
+    def _first_order_violation(
+        self, methods: list[cst.FunctionDef]
+    ) -> tuple[cst.FunctionDef, str] | None:
+        first_private_helper_name: str | None = None
+        overload_names = {
+            method.name.value for method in methods if self._is_overload_declaration(method)
+        }
+        for method in methods:
+            method_name = method.name.value
+            if _is_dunder(method_name):
+                continue
+            if method_name in overload_names:
+                continue
+            if self._is_public_accessor(method):
+                continue
+            if self._is_overload_declaration(method):
+                continue
+            if _is_order_sensitive_registration(method):
+                continue
+
+            if method_name.startswith("_"):
+                if first_private_helper_name is None:
+                    first_private_helper_name = method_name
+
+                continue
+
+            if first_private_helper_name is not None:
+                return method, first_private_helper_name
+
+        return None
+
+    def _is_public_accessor(self, method: cst.FunctionDef) -> bool:
+        if _is_public_accessor(method):
+            return True
+        if method.name.value.startswith("_"):
+            return False
+
+        return any(
+            self._expression_resolves_to_tail(decorator.decorator, {"property"})
+            for decorator in method.decorators
+        )
+
+    def _is_overload_declaration(self, method: cst.FunctionDef) -> bool:
+        if _is_overload_declaration(method):
+            return True
+
+        return any(
+            self._expression_resolves_to_tail(decorator.decorator, _OVERLOAD_DECORATOR_TAILS)
+            for decorator in method.decorators
+        )
+
+    def _expression_resolves_to_tail(
+        self,
+        expression: cst.BaseExpression,
+        tails: set[str],
+    ) -> bool:
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        return any(
+            qualified_name.source in {QualifiedNameSource.BUILTIN, QualifiedNameSource.IMPORT}
+            and qualified_name.name.rsplit(".", 1)[-1] in tails
+            for qualified_name in qualified_names
+        )

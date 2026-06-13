@@ -46,7 +46,37 @@ class A:
 ```
 ```python
 class A:
+    @classmethod
+    def build(self: type["A"]) -> "A":
+        return self()
+```
+```python
+from builtins import classmethod as cm
+
+class A:
+    @cm
+    def build(self: type["A"]) -> "A":
+        return self()
+```
+```python
+class A:
     @staticmethod
+    def helper(self: int) -> None:
+        pass
+```
+```python
+from builtins import staticmethod as sm
+
+class A:
+    @sm
+    def helper(self: int) -> None:
+        pass
+```
+```python
+import builtins as builtin_values
+
+class A:
+    @builtin_values.staticmethod
     def helper(self: int) -> None:
         pass
 ```

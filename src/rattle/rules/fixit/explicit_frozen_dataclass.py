@@ -4,9 +4,15 @@
 # LICENSE file in the root directory of this source tree.
 
 import libcst as cst
-from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
+from libcst.metadata import (
+    QualifiedName,
+    QualifiedNameProvider,
+    QualifiedNameSource,
+    ScopeProvider,
+)
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
+from rattle.rules.helpers import dotted_name
 
 
 class ExplicitFrozenDataclass(LintRule):
@@ -16,7 +22,7 @@ class ExplicitFrozenDataclass(LintRule):
         "Dataclass mutability must be explicit. Add `frozen=True` for immutable "
         "value objects or `frozen=False` when instances are intentionally mutable."
     )
-    METADATA_DEPENDENCIES = (QualifiedNameProvider,)
+    METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider)
     SOURCE_PATTERNS = ("dataclass",)
     VALID = [
         Valid(
@@ -50,6 +56,24 @@ class ExplicitFrozenDataclass(LintRule):
             """
             from dataclasses import dataclass as dc
             @dc(frozen=False)
+            class Cls: pass
+            """
+        ),
+        Valid(
+            """
+            from dataclasses import dataclass
+            dc = dataclass
+            @dc(frozen=True)
+            class Cls: pass
+            """
+        ),
+        Valid(
+            """
+            from dataclasses import dataclass
+            dc = dataclass
+            def dc(cls):
+                return cls
+            @dc
             class Cls: pass
             """
         ),
@@ -153,16 +177,78 @@ class ExplicitFrozenDataclass(LintRule):
             """,
             range=CodeRange(start=CodePosition(2, 0), end=CodePosition(2, 32)),
         ),
+        Invalid(
+            """
+            from dataclasses import *
+            @dataclass
+            class Cls: pass
+            """,
+        ),
+        Invalid(
+            """
+            from dataclasses import dataclass
+            dc = dataclass
+            @dc
+            class Cls: pass
+            """,
+        ),
+        Invalid(
+            """
+            from dataclasses import dataclass
+            dc = dataclass
+            dc2 = dc
+            @dc2
+            class Cls: pass
+            """,
+        ),
+        Invalid(
+            """
+            from dataclasses import dataclass
+            dc = dc2 = dataclass
+            @dc2
+            class Cls: pass
+            """,
+        ),
     ]
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self._dataclass_alias_nodes: set[cst.CSTNode] = set()
+        self._has_dataclasses_star_import = False
+
+    def visit_Module(self, node: cst.Module) -> None:
+        del node
+
+        self._dataclass_alias_nodes = set()
+        self._has_dataclasses_star_import = False
+
+    def leave_Module(self, original_node: cst.Module) -> None:
+        del original_node
+
+        self._dataclass_alias_nodes = set()
+        self._has_dataclasses_star_import = False
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
+        if dotted_name(node.module) == "dataclasses" and isinstance(node.names, cst.ImportStar):
+            self._has_dataclasses_star_import = True
+
+    def visit_Assign(self, node: cst.Assign) -> None:
+        if self._expression_is_imported_dataclass(
+            node.value
+        ) or self._expression_is_dataclass_alias(node.value):
+            for assign_target in node.targets:
+                if isinstance(assign_target.target, cst.Name):
+                    self._dataclass_alias_nodes.add(assign_target.target)
+        else:
+            for assign_target in node.targets:
+                if isinstance(assign_target.target, cst.Name):
+                    self._dataclass_alias_nodes.discard(assign_target.target)
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         for d in node.decorators:
             decorator = d.decorator
-            if QualifiedNameProvider.has_name(
-                self,
-                decorator,
-                QualifiedName(name="dataclasses.dataclass", source=QualifiedNameSource.IMPORT),
-            ):
+            if self._is_dataclass_decorator(decorator):
                 args = decorator.args if isinstance(decorator, cst.Call) else ()
 
                 if not any(
@@ -170,6 +256,50 @@ class ExplicitFrozenDataclass(LintRule):
                     for arg in args
                 ):
                     self.report(d, self.MESSAGE)
+
+    def _is_dataclass_decorator(self, expression: cst.BaseExpression) -> bool:
+        callable_expression = expression.func if isinstance(expression, cst.Call) else expression
+        return (
+            self._expression_is_imported_dataclass(expression)
+            or self._expression_is_imported_dataclass(callable_expression)
+            or self._expression_is_dataclass_alias(callable_expression)
+            or self._expression_is_star_imported_dataclass(callable_expression)
+        )
+
+    def _expression_is_imported_dataclass(self, expression: cst.BaseExpression) -> bool:
+        return QualifiedNameProvider.has_name(
+            self,
+            expression,
+            QualifiedName(name="dataclasses.dataclass", source=QualifiedNameSource.IMPORT),
+        )
+
+    def _expression_is_dataclass_alias(self, expression: cst.BaseExpression) -> bool:
+        if not isinstance(expression, cst.Name):
+            return False
+
+        scope = self.get_metadata(ScopeProvider, expression, None)
+        if scope is None:
+            return False
+
+        try:
+            assignments = scope[expression.value]
+        except KeyError:
+            return False
+
+        return bool(assignments) and all(
+            (assignment_node := getattr(assignment, "node", None)) is not None
+            and assignment_node in self._dataclass_alias_nodes
+            for assignment in assignments
+        )
+
+    def _expression_is_star_imported_dataclass(self, expression: cst.BaseExpression) -> bool:
+        if not self._has_dataclasses_star_import:
+            return False
+        if not isinstance(expression, cst.Name) or expression.value != "dataclass":
+            return False
+
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        return not qualified_names
 
 
 __all__ = [

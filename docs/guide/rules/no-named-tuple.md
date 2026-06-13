@@ -102,6 +102,27 @@ class Foo:
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
+from typing_extensions import NamedTuple
+
+class Foo(NamedTuple):
+    pass
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+import dataclasses
+
+@dataclasses.dataclass(frozen=True)
+class Foo:
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
 from typing import NamedTuple as NT
 
 class Foo(NT):
@@ -267,12 +288,130 @@ Point = namedtuple("Point", ["x", "y"])
 <div class="rule-invalid-example">
 ```
 ```python
+from typing import NamedTuple
+
+Point = NamedTuple("Point", [("x", int), ("y", int)])
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing_extensions import NamedTuple
+
+Point = NamedTuple("Point", [("x", int), ("y", int)])
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import NamedTuple as NT
+
+Point = NT("Point", [("x", int), ("y", int)])
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import typing
+
+Point = typing.NamedTuple("Point", [("x", int), ("y", int)])
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import typing as typ
+
+Point = typ.NamedTuple("Point", [("x", int), ("y", int)])
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import *
+
+Point = NamedTuple("Point", [("x", int), ("y", int)])
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import *
+
+class Foo(NamedTuple):
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing_extensions import *
+
+class Foo(NamedTuple):
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import NamedTuple
+
+NT = NamedTuple
+
+class Foo(NT):
+    pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 from typing import NamedTuple as NT
 
 class Foo(NT):
     pass
 
 Other = NT
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import NamedTuple
+
+A = B = NamedTuple
+
+class Foo(A):
+    pass
 ```
 ```{raw} html
 </div>

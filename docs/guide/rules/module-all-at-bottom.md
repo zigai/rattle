@@ -112,5 +112,29 @@ def build():
 </div>
 ```
 ```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+__all__ += ["build"]
+
+def build():
+    return "value"
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+__all__.insert(0, "build")
+
+def build():
+    return "value"
+```
+```{raw} html
+</div>
+```
+```{raw} html
 </details>
 ```

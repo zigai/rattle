@@ -17,6 +17,11 @@ def _is_all_assignment(statement: cst.BaseSmallStatement) -> bool:
 
 
 def _is_all_mutation(statement: cst.BaseSmallStatement) -> bool:
+    if isinstance(statement, cst.AugAssign):
+        return isinstance(statement.operator, cst.AddAssign) and is_name(
+            statement.target, "__all__"
+        )
+
     if not isinstance(statement, cst.Expr):
         return False
     if not isinstance(statement.value, cst.Call):
@@ -26,7 +31,7 @@ def _is_all_mutation(statement: cst.BaseSmallStatement) -> bool:
     if not is_name(statement.value.func.value, "__all__"):
         return False
 
-    return statement.value.func.attr.value in {"append", "extend"}
+    return statement.value.func.attr.value in {"append", "extend", "insert"}
 
 
 def _is_all_statement(statement: cst.BaseSmallStatement) -> bool:
@@ -248,6 +253,22 @@ class ModuleAllAtBottom(LintRule):
             """
             __all__ = []
             __all__.append("build")
+
+            def build():
+                return "value"
+            """
+        ),
+        Invalid(
+            """
+            __all__ += ["build"]
+
+            def build():
+                return "value"
+            """
+        ),
+        Invalid(
+            """
+            __all__.insert(0, "build")
 
             def build():
                 return "value"

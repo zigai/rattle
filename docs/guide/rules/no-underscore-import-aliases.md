@@ -72,10 +72,23 @@ import json as	_json
 <div class="rule-invalid-example">
 ```
 ```python
+import json as\
+    _json
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 from collections import deque as _deque
 ```
 ```{raw} html
 </div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
 <div class="rule-invalid-example">
@@ -85,4 +98,7 @@ from module import name as __name
 ```
 ```{raw} html
 </div>
+```
+```{raw} html
+</details>
 ```

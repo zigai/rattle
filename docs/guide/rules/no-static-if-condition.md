@@ -49,6 +49,14 @@ if true() and else_call():  # True or False
 if False or some_func():
     pass
 ```
+```python
+if [*values]:
+    pass
+```
+```python
+if {**mapping}:
+    pass
+```
 ```{raw} html
 </details>
 ```
@@ -93,6 +101,66 @@ if None:
 ```
 ```python
 if "":
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if 0.0:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if -1:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if b"":
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if ...:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if [*values, sentinel]:
+    do_something()
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+if {**mapping, "sentinel": sentinel}:
     do_something()
 ```
 ```{raw} html

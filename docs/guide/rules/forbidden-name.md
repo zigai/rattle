@@ -44,8 +44,69 @@ Do not use forbidden {kind} name '{name}'.
 
 ## Valid examples
 
-No valid examples are documented.
+```python
+import foo.bar
+```
+```python
+import foo.bar as fb
+```
 
 ## Invalid examples
 
-No invalid examples are documented.
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from foo import bar as baz
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+import foo.bar as baz
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+match value:
+    case {"x": bad}:
+        pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+match value:
+    case [*bad]:
+        pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+match value:
+    case {"x": value, **bad}:
+        pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
+```
