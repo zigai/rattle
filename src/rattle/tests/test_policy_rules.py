@@ -274,6 +274,19 @@ def test_forbidden_import_reports_relative_boundary_tail() -> None:
     ]
 
 
+def test_forbidden_import_reports_relative_import_without_module() -> None:
+    reports = _run_forbidden_import(
+        """
+        from . import private
+        """,
+        ["pkg.private"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not import across forbidden boundary 'pkg.private'."
+    ]
+
+
 def test_forbidden_name_allows_unconfigured_names() -> None:
     reports = _run_forbidden_name(
         """
