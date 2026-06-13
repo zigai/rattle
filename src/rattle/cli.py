@@ -99,7 +99,7 @@ class ValidateConfigPositionalPlugin(InterfacyPlugin):
             return schema
 
         config_argument.kind = ArgumentKind.POSITIONAL
-        config_argument.flags = ("CONFIG",)
+        config_argument.flags = ("config",)
         config_argument.required = False
         config_argument.nargs = "?"
         config_argument.metavar = "CONFIG"

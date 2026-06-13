@@ -356,6 +356,16 @@ class CliTest(TestCase):
 
         assert result.exit_code == 0
 
+    def test_validate_command_validates_explicit_config_file(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "pyproject.toml"
+            path.write_text('[tool.rattle]\nroot = true\nenable = ["definitely-missing-rule"]\n')
+
+            result = self.runner.invoke(main, ["validate", path.as_posix()], catch_exceptions=False)
+
+        assert result.exit_code == 1
+        assert "definitely-missing-rule" in result.stderr
+
     def test_validate_command_defaults_to_pyproject_toml(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)
