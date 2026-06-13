@@ -77,13 +77,81 @@ target-version = ["py310"]
 
 [tool.rattle]
 root = true
-enable = ["fixit"]
+enable = [
+    "blank-line-after-control-block",
+    "blank-line-after-terminal-control-block",
+    "blank-line-before-branch",
+    "blank-line-before-unrelated-block",
+    "no-suite-leading-trailing-blank-lines",
+    "module-all-at-bottom",
+    "no-underscore-all-exports",
+    "forbidden-call",
+    "no-relative-imports",
+    "no-underscore-import-aliases",
+    "no-unsafe-tempfile-factories",
+    "no-annotated-self",
+    "no-exception-message-variables",
+    "no-str-exception-translation",
+    "no-underscore-class",
+    "public-method-order",
+    "no-bare-object-annotations",
+    "no-named-tuple",
+    "no-static-if-condition",
+    "sorted-attributes",
+    "use-callable-ellipsis",
+    "use-rattle-ignore-comment",
+    "use-types-from-typing",
+]
 disable = ["explicit-frozen-dataclass", "use-rattle-ignore-comment"]
 python-version = "3.10"
+
+[tool.rattle.options."forbidden-call"]
+forbidden_calls = ["typing.cast"]
+
+[tool.rattle.options."public-method-order"]
+excluded_class_name_patterns = [
+    "*Enum",
+    "*Model",
+    "*Record",
+    "*Schema",
+    "*Settings",
+    "*Table",
+    "Argparser",
+    "ClickParser",
+    "InterfacyParser",
+]
 
 [[tool.rattle.overrides]]
 path = "examples"
 enable = [".examples.noop"]
+
+[[tool.rattle.overrides]]
+path = "src/rattle"
+disable = [
+    "blank-line-after-control-block",
+    "blank-line-after-terminal-control-block",
+    "blank-line-before-branch",
+    "blank-line-before-unrelated-block",
+    "no-suite-leading-trailing-blank-lines",
+    "module-all-at-bottom",
+    "no-underscore-all-exports",
+    "forbidden-call",
+    "no-relative-imports",
+    "no-underscore-import-aliases",
+    "no-unsafe-tempfile-factories",
+    "no-annotated-self",
+    "no-exception-message-variables",
+    "no-str-exception-translation",
+    "no-underscore-class",
+    "public-method-order",
+    "no-bare-object-annotations",
+    "no-named-tuple",
+    "no-static-if-condition",
+    "sorted-attributes",
+    "use-callable-ellipsis",
+    "use-rattle-ignore-comment",
+    "use-types-from-typing",
+]
 
 [tool.hatch.version]
 source = "vcs"
