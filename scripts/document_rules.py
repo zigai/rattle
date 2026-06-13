@@ -29,6 +29,8 @@ DOCS_DIR = PROJECT_ROOT / "docs"
 RULES_INDEX_DOC = DOCS_DIR / "guide" / "builtins.md"
 RULES_CATEGORY_DIR = DOCS_DIR / "guide" / "rule-collections"
 RULES_DETAIL_DIR = DOCS_DIR / "guide" / "rules"
+RULE_COUNT_DOCS = (PROJECT_ROOT / "README.md", DOCS_DIR / "index.md")
+RULE_COUNT_PATTERN = re.compile(r"(?m)^- \d+ built-in lint rules$")
 EXAMPLE_LINE_BUDGET = 6
 T = TypeVar("T")
 
@@ -564,8 +566,18 @@ def render_rule_details(rules: Iterable[RuleDoc]) -> None:
         (RULES_DETAIL_DIR / f"{rule.slug}.md").write_text(rendered.rstrip() + "\n")
 
 
+def update_rule_count_docs(rule_count: int) -> None:
+    replacement = f"- {rule_count} built-in lint rules"
+    for path in RULE_COUNT_DOCS:
+        content = path.read_text()
+        updated, replacements = RULE_COUNT_PATTERN.subn(replacement, content, count=1)
+        if replacements != 1:
+            raise RuntimeError(f"Could not update built-in rule count in {path}")
+        path.write_text(updated)
+
+
 def generated_paths() -> tuple[Path, ...]:
-    return (RULES_INDEX_DOC, RULES_CATEGORY_DIR, RULES_DETAIL_DIR)
+    return (RULES_INDEX_DOC, RULES_CATEGORY_DIR, RULES_DETAIL_DIR, *RULE_COUNT_DOCS)
 
 
 def git_path(path: Path) -> str:
@@ -614,6 +626,7 @@ def generate_rule_docs(
     render_rule_details(rule for category in categories for rule in category.rules)
     rendered = INDEX_TPL.render(categories=categories)
     RULES_INDEX_DOC.write_text(rendered.rstrip() + "\n")
+    update_rule_count_docs(sum(len(category.rules) for category in categories))
     if commit:
         commit_generated_docs(message)
 
