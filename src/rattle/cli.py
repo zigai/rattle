@@ -151,6 +151,9 @@ def splash(
 
         return ", ".join(reports)
 
+    if not visited:
+        return "No Python files found"
+
     return f"{len(visited)} {f(len(visited))} clean"
 
 

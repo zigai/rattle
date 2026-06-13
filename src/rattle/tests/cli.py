@@ -564,7 +564,7 @@ class CliTest(TestCase):
 
         assert result.exit_code == 0
         assert "{'Count.Total': 1}" in result.stdout
-        assert result.stderr == "0 files clean\n"
+        assert result.stderr == "No Python files found\n"
 
     def test_fix_compact_prints_one_line_diagnostics(self) -> None:
         with TemporaryDirectory() as td:
