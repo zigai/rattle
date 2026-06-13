@@ -15,6 +15,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent, indent
+from types import GenericAlias
 from typing import TypeVar
 
 from interfacy import Interfacy
@@ -374,12 +375,14 @@ def markdown_table_cell(value: str) -> str:
 def example_code(case: str | Valid | Invalid) -> str:
     if isinstance(case, (Valid, Invalid)):
         return redent(case.code)
+
     return redent(case)
 
 
 def expected_replacement(case: str | Invalid) -> str:
     if isinstance(case, Invalid) and case.expected_replacement:
         return redent(case.expected_replacement)
+
     return ""
 
 
@@ -406,23 +409,22 @@ def split_examples_by_line_budget(
         example_lines = line_count(example)
         if visible and used + example_lines > budget:
             break
+
         visible.append(example)
         used += example_lines
 
     return visible, examples[len(visible) :]
 
 
-def type_name(value: object) -> str:
-    name = getattr(value, "__name__", None)
-    if name is not None:
-        return name
-    return repr(value)
+def type_name(value: type | GenericAlias) -> str:
+    return value.__name__
 
 
 def setting_default(setting: RuleSetting) -> str:
     default = setting.default
     if type(default) is object:
         return "required"
+
     return repr(default)
 
 
@@ -449,6 +451,7 @@ def reference_doc(reference: RuleReference) -> ReferenceDoc:
         return ReferenceDoc(label=reference, url=reference)
 
     label, url = reference
+
     return ReferenceDoc(label=label, url=url)
 
 
@@ -543,12 +546,14 @@ def build_categories() -> list[CategoryDoc]:
                 rules=rules,
             )
         )
+
     return categories
 
 
 def render_rule_categories(categories: Iterable[CategoryDoc]) -> None:
     if RULES_CATEGORY_DIR.exists():
         shutil.rmtree(RULES_CATEGORY_DIR)
+
     RULES_CATEGORY_DIR.mkdir(parents=True)
 
     for category in categories:
@@ -559,6 +564,7 @@ def render_rule_categories(categories: Iterable[CategoryDoc]) -> None:
 def render_rule_details(rules: Iterable[RuleDoc]) -> None:
     if RULES_DETAIL_DIR.exists():
         shutil.rmtree(RULES_DETAIL_DIR)
+
     RULES_DETAIL_DIR.mkdir(parents=True)
 
     for rule in rules:
@@ -573,6 +579,7 @@ def update_rule_count_docs(rule_count: int) -> None:
         updated, replacements = RULE_COUNT_PATTERN.subn(replacement, content, count=1)
         if replacements != 1:
             raise RuntimeError(f"Could not update built-in rule count in {path}")
+
         path.write_text(updated)
 
 
@@ -588,6 +595,7 @@ def git_executable() -> str:
     git = shutil.which("git")
     if git is None:
         raise RuntimeError("git executable not found")
+
     return git
 
 
@@ -627,12 +635,13 @@ def generate_rule_docs(
     rendered = INDEX_TPL.render(categories=categories)
     RULES_INDEX_DOC.write_text(rendered.rstrip() + "\n")
     update_rule_count_docs(sum(len(category.rules) for category in categories))
+
     if commit:
         commit_generated_docs(message)
 
 
-def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> object:
-    return Interfacy(sys_exit_enabled=sys_exit_enabled).run(generate_rule_docs, args=args)
+def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> None:
+    Interfacy(sys_exit_enabled=sys_exit_enabled).run(generate_rule_docs, args=args)
 
 
 if __name__ == "__main__":
