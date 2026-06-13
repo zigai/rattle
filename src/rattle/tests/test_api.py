@@ -230,10 +230,14 @@ class TestApi:
 
         with patch.dict(os.environ, {"RATTLE_CACHE_DIR": cache_dir.as_posix()}):
             list(rattle_paths(paths, parallel=False))
-            with patch("rattle.api.LintRunner") as lint_runner:
+            with (
+                patch("rattle.api.generate_config") as generate_config,
+                patch("rattle.api.LintRunner") as lint_runner,
+            ):
                 results = list(rattle_paths(paths, parallel=False))
 
         assert [result.source for result in results] == [None for _ in range(20)]
+        generate_config.assert_not_called()
         lint_runner.assert_not_called()
 
     def test_rattle_configured_file_serves_dirty_cache_for_lint(self, tmp_path: Path) -> None:

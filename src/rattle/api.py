@@ -283,6 +283,7 @@ class PathLintRun:
     metrics_hook: MetricsHook | None = None
     expanded_paths: list[tuple[Path, bool]] = field(default_factory=list)
     included_paths: list[ConfiguredPath] = field(default_factory=list)
+    cached_clean_results: list[Result] = field(default_factory=list)
     deferred_format_paths: list[Path] = field(default_factory=list)
 
     def run(self) -> Generator[Result, bool, None]:
@@ -305,6 +306,9 @@ class PathLintRun:
             self._pending_paths(),
             options=self.options,
         )
+        yield from self.cached_clean_results
+        if not self.included_paths:
+            return
         if len(self.included_paths) == 1 or not self.parallel:
             yield from self.run_serial()
             return
@@ -368,13 +372,16 @@ class PathLintRun:
     def _pending_paths(self) -> list[tuple[Path, bool]]:
         cache = ResultCache.from_environment() if self.metrics_hook is None else None
         if cache is None:
+            self.cached_clean_results = []
             return [(path.resolve(), explicit_path) for path, explicit_path in self.expanded_paths]
 
-        return cache.collect_pending_paths(
+        collection = cache.collect_pending_paths(
             self.expanded_paths,
             include_diff=self.include_diff,
             options=self.options,
         )
+        self.cached_clean_results = collection.cached_results
+        return collection.pending_paths
 
     def _concurrency(self) -> int:
         configured_jobs = self.options.jobs if self.options is not None else None

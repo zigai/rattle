@@ -102,6 +102,12 @@ class CleanStatusCacheEntry:
 
 
 @dataclass(frozen=True)
+class PendingPathCollection:
+    pending_paths: list[tuple[Path, bool]]
+    cached_results: list[Result]
+
+
+@dataclass(frozen=True)
 class ResultCache:
     root: Path
 
@@ -230,13 +236,25 @@ class ResultCache:
         *,
         include_diff: bool,
         options: Options | None,
-    ) -> list[tuple[Path, bool]]:
-        del include_diff, options
-        pending_paths: list[tuple[Path, bool]] = []
-        for path, explicit_path in expanded_paths:
-            path = path.resolve()
-            pending_paths.append((path, explicit_path))
-        return pending_paths
+    ) -> PendingPathCollection:
+        pending_paths = [(path.resolve(), explicit_path) for path, explicit_path in expanded_paths]
+        if len(pending_paths) < CLEAN_STATUS_PRECHECK_MIN_PATHS:
+            return PendingPathCollection(pending_paths, [])
+
+        cached_results: list[Result] = []
+        remaining_paths: list[tuple[Path, bool]] = []
+        for path, explicit_path in pending_paths:
+            result = self._read_clean_status(
+                path,
+                options=options,
+                explicit_path=explicit_path,
+                include_diff=include_diff,
+            )
+            if result is None:
+                remaining_paths.append((path, explicit_path))
+            else:
+                cached_results.append(result)
+        return PendingPathCollection(remaining_paths, cached_results)
 
     def _result_entry_path(self, cache_key: str) -> Path:
         return self.root / cache_key[:2] / f"{cache_key}.json"
@@ -776,6 +794,7 @@ def _serialize_violation(violation: LintViolation) -> dict[str, object]:
 
 
 __all__ = [
+    "PendingPathCollection",
     "ResultCache",
     "rule_cache_fingerprint",
 ]
