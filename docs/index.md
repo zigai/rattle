@@ -10,7 +10,7 @@ Rattle is a fork of [Fixit](https://github.com/Instagram/Fixit).
 
 ## Features
 
-- 42 built-in lint rules
+- 48 built-in lint rules
 - Autofix support when a rule can safely rewrite code
 - Local custom rules that can live inside your repository
 - Hierarchical `pyproject.toml` configuration
