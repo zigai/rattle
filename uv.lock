@@ -524,7 +524,7 @@ wheels = [
 
 [[package]]
 name = "interfacy"
-version = "0.6.3"
+version = "0.6.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "objinspect" },
@@ -534,9 +534,9 @@ dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "tomlkit" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9f/f4/b9fcc4078c4008b3a5220028c10bd5b26357ed353c39279478d67f5230d2/interfacy-0.6.3.tar.gz", hash = "sha256:6c9e44076a26d999afc66654ddcd62680f9374c3aeaad9c007f7754b8f550432", size = 458259, upload-time = "2026-06-05T22:13:47.35Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/d4/ed5428d033b7bb10863280df903a1fc088e4478fdcbd3a73b20fb46280f3/interfacy-0.6.5.tar.gz", hash = "sha256:3d6c02a1243e30a753ea028faab857ce282e95d4247bbb8e6f4054e5c9fb618a", size = 461427, upload-time = "2026-06-13T14:20:55.694Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/8a/b78f1e6d60a2dd22d059008c5f4e14554eb9923c524db4fe0d10840a1a46/interfacy-0.6.3-py3-none-any.whl", hash = "sha256:3e7216f1a5307d0068e39e0f71e368d66f88996b337bb1b0d968318703cabae6", size = 167342, upload-time = "2026-06-05T22:13:46.015Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/cd/49bc49aec96f7be1ff381f421103b711253524fdd2c25dce1f4d0709b0e1/interfacy-0.6.5-py3-none-any.whl", hash = "sha256:85adadd4f169ebe7960758791c86965b136d7d2088849eaca4742bef3c9afa24", size = 168461, upload-time = "2026-06-13T14:20:54.445Z" },
 ]
 
 [[package]]
@@ -1133,7 +1133,7 @@ requires-dist = [
     { name = "codespell", marker = "extra == 'dev'", specifier = ">=2.4.2" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.14.1" },
     { name = "furo", marker = "extra == 'docs'" },
-    { name = "interfacy", specifier = ">=0.6.3" },
+    { name = "interfacy", specifier = ">=0.6.5" },
     { name = "jinja2", marker = "extra == 'docs'", specifier = "==3.1.6" },
     { name = "libcst", specifier = ">=0.3.18" },
     { name = "moreorless", specifier = ">=0.4.0" },
