@@ -13,7 +13,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
-  <span>Autofix: No</span>
+  <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>
 
@@ -27,13 +27,25 @@ Prefer specific unittest comparison assertions over assertTrue comparisons.
 ## Valid examples
 
 ```python
-self.assertTrue(a == b)
+self.assertEqual(a, b)
+```
+```python
+self.assertNotEqual(a, b)
+```
+```python
+self.assertTrue(a < b)
+```
+```python
+self.assertTrue(a == b == c)
 ```
 ```python
 self.assertTrue(data.is_valid(), "is_valid() method")
 ```
 ```python
 self.assertTrue(validate(len(obj.getName(type=SHORT))))
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```python
 self.assertTrue(condition, message_string)
@@ -45,15 +57,84 @@ self.assertTrue(a, 3)
 self.assertTrue(optional, None)
 ```
 ```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
-```
-```python
-self.assertTrue(b == a, True)
-```
-```{raw} html
 </details>
 ```
 
 ## Invalid examples
 
-No invalid examples are documented.
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+self.assertTrue(a == b)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+self.assertEqual(a, b)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+self.assertTrue(a != b)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+self.assertNotEqual(a, b)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+self.assertTrue(a == b, "message")
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+self.assertEqual(a, b, "message")
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example rule-invalid-example-separated">
+```
+```python
+self.assertTrue(not a == b)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+self.assertNotEqual(a, b)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+self.assertTrue(not a != b)
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+self.assertEqual(a, b)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+</details>
+```
