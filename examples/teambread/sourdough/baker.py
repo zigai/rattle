@@ -5,5 +5,5 @@
 
 
 def main() -> None:
-    name = "Paul"
+    name = "Mary"
     print(f"hello {name}")
