@@ -89,6 +89,7 @@ disable = [
 ]
 per-file-disable = {"tests/generated.py" = ["no-named-tuple"]}
 
+# Apply extra rules only under the legacy/ directory.
 [[tool.rattle.overrides]]
 path = "legacy"
 enable = ["fixit-extra"]
