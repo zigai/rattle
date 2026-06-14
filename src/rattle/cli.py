@@ -351,6 +351,7 @@ def _record_fix_output(
     result: Result,
     *,
     config: Config,
+    autofix: bool,
     is_stdin: bool,
     quiet: bool,
     interactive: bool,
@@ -371,6 +372,14 @@ def _record_fix_output(
     if quiet:
         return
 
+    if _should_omit_fixed_diagnostic(
+        result,
+        autofix=autofix,
+        interactive=interactive,
+        diff=diff,
+    ):
+        return
+
     _submit_result(
         console,
         result,
@@ -380,6 +389,20 @@ def _record_fix_output(
         output_template=config.output_template,
         brief=compact,
     )
+
+
+def _should_omit_fixed_diagnostic(
+    result: Result,
+    *,
+    autofix: bool,
+    interactive: bool,
+    diff: bool,
+) -> bool:
+    if interactive or diff or not autofix:
+        return False
+
+    violation = result.violation
+    return violation is not None and violation.autofixable
 
 
 def _prompt_for_fix(generator: capture, state: FixState) -> bool:
@@ -698,6 +721,7 @@ def fix(
                 console,
                 result,
                 config=result_config,
+                autofix=autofix,
                 is_stdin=is_stdin,
                 quiet=quiet,
                 interactive=interactive,
