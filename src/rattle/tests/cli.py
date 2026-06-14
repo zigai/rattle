@@ -422,6 +422,35 @@ class CliTest(TestCase):
 
             assert result.exit_code == 1
 
+    def test_fix_only_prints_unfixed_violations_by_default(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "mixed.py"
+            path.write_text(
+                'import time\nasync def f():\n    value = f"hello"\n    time.sleep(1)\n'
+            )
+
+            result = self.runner.invoke(
+                main,
+                [
+                    "fix",
+                    "-r",
+                    "no-redundant-f-string,use-async-sleep-in-async-def",
+                    path.as_posix(),
+                ],
+                catch_exceptions=False,
+            )
+            fixed_content = path.read_text()
+
+        assert result.exit_code == 1
+        assert "use-async-sleep-in-async-def" in result.stdout
+        assert "no-redundant-f-string" not in result.stdout
+        assert "1 file checked, 2 violations in 1 file, 1 autofixable, 1 fix applied" in (
+            result.stderr
+        )
+        assert (
+            fixed_content == 'import time\nasync def f():\n    value = "hello"\n    time.sleep(1)\n'
+        )
+
     def test_fix_returns_nonzero_for_syntax_errors(self) -> None:
         with TemporaryDirectory() as td:
             path = Path(td) / "bad_syntax.py"
@@ -447,6 +476,27 @@ class CliTest(TestCase):
             )
 
             assert result.exit_code == 0
+            assert result.stdout == ""
+            assert result.stderr == (
+                "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
+            )
+            assert path.read_text() == 'value = "hello"\n'
+
+    def test_fix_diff_prints_applied_fixes(self) -> None:
+        with TemporaryDirectory() as td:
+            path = Path(td) / "fstring.py"
+            path.write_text('value = f"hello"\n')
+
+            result = self.runner.invoke(
+                main,
+                ["fix", "-r", "no-redundant-f-string", "--diff", path.as_posix()],
+                catch_exceptions=False,
+            )
+
+            assert result.exit_code == 0
+            assert "no-redundant-f-string [*]" in result.stdout
+            assert "--- a/fstring.py" in result.stdout
+            assert 'value = f"hello"' in result.stdout
             assert path.read_text() == 'value = "hello"\n'
 
     def test_fix_no_format_flag_removed(self) -> None:
@@ -566,7 +616,7 @@ class CliTest(TestCase):
         assert "{'Count.Total': 1}" in result.stdout
         assert result.stderr == "No Python files found\n"
 
-    def test_fix_compact_prints_one_line_diagnostics(self) -> None:
+    def test_fix_compact_omits_fixed_diagnostics(self) -> None:
         with TemporaryDirectory() as td:
             path = Path(td) / "fstring.py"
             path.write_text('value = f"hello"\n')
@@ -578,7 +628,10 @@ class CliTest(TestCase):
             )
 
             assert result.exit_code == 0
-            assert_brief_diagnostic(result.stdout, path)
+            assert result.stdout == ""
+            assert result.stderr == (
+                "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
+            )
             assert path.read_text() == 'value = "hello"\n'
 
     def test_fix_stats_prints_violations_by_rule(self) -> None:
@@ -593,6 +646,7 @@ class CliTest(TestCase):
             )
 
         assert result.exit_code == 0
+        assert result.stdout == ""
         assert "Violation stats by rule:" in result.stderr
         assert "no-redundant-f-string  2" in result.stderr
 

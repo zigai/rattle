@@ -5,7 +5,6 @@
 
 import os
 import re
-from collections import defaultdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
@@ -97,10 +96,11 @@ class SmokeTest(TestCase):
                     catch_exceptions=False,
                 )
 
-                assert result.output != ""
+                assert result.stdout == ""
                 assert result.exit_code == 0
-                assert "no-redundant-f-string [*]" in result.output
-                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert result.stderr == (
+                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
+                )
                 assert expected_fix == path.read_text(), "unexpected file output"
 
             with self.subTest("fixing with formatting"):
@@ -113,10 +113,11 @@ class SmokeTest(TestCase):
                     catch_exceptions=False,
                 )
 
-                assert result.output != ""
+                assert result.stdout == ""
                 assert result.exit_code == 0
-                assert "no-redundant-f-string [*]" in result.output
-                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert result.stderr == (
+                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
+                )
                 assert expected_format == path.read_text(), "unexpected file output"
 
             with self.subTest("fixing with ruff formatting"):
@@ -148,10 +149,11 @@ class SmokeTest(TestCase):
                     catch_exceptions=False,
                 )
 
-                assert result.output != ""
+                assert result.stdout == ""
                 assert result.exit_code == 0
-                assert "no-redundant-f-string [*]" in result.output
-                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert result.stderr == (
+                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
+                )
                 assert expected_ruff_format == path.read_text(), "unexpected file output"
 
             with self.subTest("fixing with auto ruff formatting"):
@@ -174,10 +176,11 @@ class SmokeTest(TestCase):
                     catch_exceptions=False,
                 )
 
-                assert result.output != ""
+                assert result.stdout == ""
                 assert result.exit_code == 0
-                assert "no-redundant-f-string [*]" in result.output
-                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert result.stderr == (
+                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
+                )
                 assert expected_ruff_format == path.read_text(), "unexpected file output"
 
             with self.subTest("fixing with auto and no formatter config"):
@@ -190,10 +193,11 @@ class SmokeTest(TestCase):
                     catch_exceptions=False,
                 )
 
-                assert result.output != ""
+                assert result.stdout == ""
                 assert result.exit_code == 0
-                assert "no-redundant-f-string [*]" in result.output
-                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert result.stderr == (
+                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
+                )
                 assert expected_fix == path.read_text(), "unexpected file output"
 
             with self.subTest("linting via stdin"):
@@ -536,33 +540,17 @@ class SmokeTest(TestCase):
             expected = clean.read_text()
 
             result = self.runner.invoke(main, ["fix", "-r", "fixit-extra", td])
-            errors = defaultdict(list)
-            pattern = re.compile(
-                r"(?m)^(?P<header>[^\n]+)\n --> (?P<path>.+):(?P<line>\d+):(?P<col>\d+)$"
-            )
-            for match in pattern.finditer(result.output):
-                rule_name = match.group("header").split(" ", 1)[0]
-                location = f"{match.group('line')}:{match.group('col')} {rule_name}"
-                errors[Path(match.group("path"))].append(location)
 
             with self.subTest("clean"):
-                assert [] == errors[clean]
                 assert expected == clean.read_text()
 
             with self.subTest("single fix"):
-                assert [
-                    "2:10 no-redundant-f-string",
-                ] == sorted(errors[single])
                 assert expected == single.read_text()
 
             with self.subTest("multiple fixes"):
-                assert [
-                    "2:10 no-redundant-f-string",
-                    "5:13 no-redundant-f-string",
-                    "6:8 use-is-for-singletons",
-                ] == sorted(errors[multi])
                 assert expected == multi.read_text()
 
+            assert result.stdout == ""
             assert (
                 result.stderr
                 == "3 files checked, 4 violations in 2 files, 4 autofixable, 4 fixes applied\n"
