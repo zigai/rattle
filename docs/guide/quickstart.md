@@ -238,15 +238,6 @@ The `fix` command applies those changes to the codebase:
 
 ```console
 $ rattle fix sourdough/baker.py
-hollywood-name-rule [*] It's underproved!
- --> sourdough/baker.py:2:12
-  |
-1 | def main():
-2 |     name = "Paul"
-  |            ^^^^^^
-3 |     print(f"hello {name}")
-  |
-help: Apply the available autofix
 1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied
 ```
 
