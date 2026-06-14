@@ -129,7 +129,3 @@ class CliRunner:
             stderr=stderr.getvalue(),
             exception=exception,
         )
-
-
-def make_cli_runner() -> CliRunner:
-    return CliRunner()

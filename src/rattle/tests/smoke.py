@@ -13,12 +13,12 @@ from unittest import TestCase
 from rattle import __version__
 from rattle.cli import main
 
-from .helpers import make_cli_runner
+from .helpers import CliRunner
 
 
 class SmokeTest(TestCase):
     def setUp(self) -> None:
-        self.runner = make_cli_runner()
+        self.runner = CliRunner()
 
     def test_cli_version(self) -> None:
         result = self.runner.invoke(main, ["--version"])

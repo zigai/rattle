@@ -6,7 +6,7 @@
 import re
 import textwrap
 import unittest
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -147,25 +147,15 @@ def gen_test_methods_for_rule(rule: LintRule) -> TestCasePrecursor:
     )
 
 
-def gen_all_test_methods(rules: Collection[LintRule]) -> Sequence[TestCasePrecursor]:
-    """
-    Converts all passed-in lint rules to type `TestCasePrecursor` to ease further TestCase
-    creation later on.
-    """
-    cases = []
-    for rule in rules:
-        if not isinstance(rule, LintRule):
-            continue
-        test_cases_for_rule = gen_test_methods_for_rule(rule)
-        cases.append(test_cases_for_rule)
-    return cases
-
-
 def generate_lint_rule_test_cases(
     rules: Collection[LintRule],
 ) -> list[type[unittest.TestCase]]:
     test_case_classes: list[type[unittest.TestCase]] = []
-    for test_case in gen_all_test_methods(rules):
+    for rule in rules:
+        if not isinstance(rule, LintRule):
+            continue
+
+        test_case = gen_test_methods_for_rule(rule)
         rule_type_name = type(test_case.rule).__name__
         rule_display_name = test_case.rule.name
         test_methods_to_add: dict[str, Any] = {"__qualname__": rule_display_name}
@@ -236,7 +226,6 @@ __all__ = [
     "Report",
     "TestCasePrecursor",
     "add_lint_rule_tests_to_module",
-    "gen_all_test_methods",
     "gen_test_methods_for_rule",
     "generate_lint_rule_test_cases",
     "get_fixture_path",

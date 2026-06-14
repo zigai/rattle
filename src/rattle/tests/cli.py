@@ -17,7 +17,7 @@ from rattle.ftypes import Metrics, Options
 from rattle.rule import LintRule
 from rattle.rules.fixit_extra.use_fstring import UseFstring
 
-from .helpers import make_cli_runner
+from .helpers import CliRunner
 
 
 def assert_brief_diagnostic(stdout: str, path: Path) -> None:
@@ -48,7 +48,7 @@ def write_clean_file(path: Path) -> Path:
 
 class CliTest(TestCase):
     def setUp(self) -> None:
-        self.runner = make_cli_runner()
+        self.runner = CliRunner()
 
     def test_upgrade_command_removed(self) -> None:
         result = self.runner.invoke(main, ["upgrade"], catch_exceptions=False)

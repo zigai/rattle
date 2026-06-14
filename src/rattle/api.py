@@ -115,9 +115,6 @@ class ConfiguredFileCacheSession:
         )
         return cached_result_is_complete
 
-    def cached_results_or_empty(self) -> list[Result]:
-        return self.cached_results or []
-
     def prepare_autofix_passthrough(self) -> list[Result]:
         if not self.cached_autofix_rule_names:
             return []
@@ -198,7 +195,7 @@ class ConfiguredFileRun:
                     explicit_path=self.explicit_path,
                 )
                 if self.cache_session.read_complete_entry():
-                    yield from self.cache_session.cached_results_or_empty()
+                    yield from (self.cache_session.cached_results or [])
                     return
 
                 yield from self.cache_session.prepare_autofix_passthrough()
@@ -332,7 +329,8 @@ class PathLintRun:
                 explicit_path=explicit_path,
                 metrics_hook=self.metrics_hook,
             )
-        self._format_deferred_paths()
+        if self.deferred_format_paths:
+            format_paths(self.deferred_format_paths, Config(formatter="ruff"))
 
     def run_parallel(self) -> Generator[Result, bool, None]:
         concurrency = self._concurrency()
@@ -367,7 +365,8 @@ class PathLintRun:
             else:
                 yield from batch_result
 
-        self._format_deferred_paths()
+        if self.deferred_format_paths:
+            format_paths(self.deferred_format_paths, Config(formatter="ruff"))
 
     def _pending_paths(self) -> list[tuple[Path, bool]]:
         cache = ResultCache.from_environment() if self.metrics_hook is None else None
@@ -394,9 +393,6 @@ class PathLintRun:
             )
         )
         return min(len(self.included_paths), worker_count)
-
-    def _format_deferred_paths(self) -> None:
-        _format_deferred_paths(self.deferred_format_paths)
 
 
 def _available_cpu_count() -> int:
@@ -870,31 +866,6 @@ def rattle_configured_file(
     ).run()
 
 
-def _rattle_file_wrapper(
-    path: Path,
-    *,
-    autofix: bool = False,
-    include_diff: bool = False,
-    options: Options | None = None,
-    explicit_path: bool = False,
-    metrics_hook: MetricsHook | None = None,
-) -> list[Result]:
-    """
-    Wrapper because generators can't be pickled or used directly via multiprocessing
-    TODO: replace this with some sort of queue or whatever.
-    """
-    return list(
-        rattle_file(
-            path,
-            autofix=autofix,
-            include_diff=include_diff,
-            options=options,
-            explicit_path=explicit_path,
-            metrics_hook=metrics_hook,
-        )
-    )
-
-
 def _rattle_configured_file_wrapper(
     item: ConfiguredPath,
     *,
@@ -981,30 +952,6 @@ def _preload_rules_for_fork(group: Collection[ConfiguredPath]) -> None:
             continue
         seen.add(key)
         collect_rules(config)
-
-
-def _rattle_paths_group(
-    group: list[ConfiguredPath],
-    *,
-    autofix: bool,
-    include_diff: bool,
-    allow_cached_dirty_results: bool,
-    options: Options | None,
-    metrics_hook: MetricsHook | None,
-) -> Generator[Result, bool, None]:
-    yield from PathLintRun(
-        (),
-        autofix=autofix,
-        include_diff=include_diff,
-        allow_cached_dirty_results=allow_cached_dirty_results,
-        options=options,
-        metrics_hook=metrics_hook,
-    ).run_configured_group(group)
-
-
-def _format_deferred_paths(paths: list[Path]) -> None:
-    if paths:
-        format_paths(paths, Config(formatter="ruff"))
 
 
 def _configured_paths(

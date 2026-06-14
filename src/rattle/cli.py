@@ -189,10 +189,6 @@ def _metrics_hook(console: AsyncConsole, enabled: bool) -> Callable[[Metrics], N
     return lambda metrics: console.submit(str(metrics))
 
 
-def _output_config_for_path(path: Path, options: Options) -> Config:
-    return generate_config(path, options=options)
-
-
 def _print_stats(console: AsyncConsole, stats: Counter[str]) -> None:
     if not stats:
         return
@@ -234,16 +230,12 @@ class LintReport:
     stats: bool
     state: LintState = field(default_factory=LintState)
 
-    @property
-    def exit_code(self) -> int:
-        return self.state.exit_code
-
     def record(self, result: Result) -> None:
         self.state.visited.add(result.path)
         if not result.violation and not result.error:
             return
 
-        config = result.config or _output_config_for_path(result.path, self.options)
+        config = result.config or generate_config(result.path, options=self.options)
         _record_lint_result(result, config, state=self.state, stats=self.stats)
 
     def submit(self) -> None:
@@ -640,8 +632,8 @@ def lint(
         report.submit()
     finally:
         console.close()
-    if report.exit_code:
-        raise SystemExit(report.exit_code)
+    if report.state.exit_code:
+        raise SystemExit(report.state.exit_code)
 
 
 def fix(
@@ -714,7 +706,7 @@ def fix(
             visited.add(result.path)
             if not result.violation and not result.error:
                 continue
-            result_config = result.config or _output_config_for_path(result.path, runtime_options)
+            result_config = result.config or generate_config(result.path, options=runtime_options)
             # for STDIN, we need STDOUT to equal the fixed content, so
             # move everything else to STDERR
             _record_fix_output(

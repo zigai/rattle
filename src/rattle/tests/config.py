@@ -28,7 +28,7 @@ from rattle.ftypes import (
 from rattle.rule import LintRule
 from rattle.util import chdir
 
-from .helpers import make_cli_runner
+from .helpers import CliRunner
 
 
 class ConfigTest(TestCase):
@@ -1067,7 +1067,7 @@ class ConfigTest(TestCase):
                 )
             )
 
-            runner = make_cli_runner()
+            runner = CliRunner()
             content = "name = '{name}'.format(name='Jane Doe')"
             filepath = self.tdp / "f_string.py"
             filepath.write_text(content)
