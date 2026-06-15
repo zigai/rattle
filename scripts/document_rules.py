@@ -8,10 +8,11 @@ from __future__ import annotations
 import ast
 import html
 import inspect
+import json
 import re
 import shutil
 import subprocess
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent, indent
@@ -202,12 +203,20 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 ```
 
 {% endif %}
+{% if rule.valid_examples_visible or rule.invalid_examples_visible %}
 ## Valid examples
 
 {% if rule.valid_examples_visible %}
 {% for case in rule.valid_examples_visible %}
+{% if case.options %}
+<p class="rule-example-label">Options</p>
+
+```toml
+{{ case.options }}
+```
+{% endif %}
 ```python
-{{ case }}
+{{ case.code }}
 ```
 {% endfor %}
 {% if rule.valid_examples_hidden %}
@@ -215,8 +224,15 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 {% for case in rule.valid_examples_hidden %}
+{% if case.options %}
+<p class="rule-example-label">Options</p>
+
+```toml
+{{ case.options }}
+```
+{% endif %}
 ```python
-{{ case }}
+{{ case.code }}
 ```
 {% endfor %}
 ```{raw} html
@@ -234,6 +250,13 @@ No valid examples are documented.
 ```{raw} html
 <div class="rule-invalid-example{% if case.replacement and not loop.last %} rule-invalid-example-separated{% endif %}">
 ```
+{% if case.options %}
+<p class="rule-example-label">Options</p>
+
+```toml
+{{ case.options }}
+```
+{% endif %}
 ```python
 {{ case.code }}
 ```
@@ -256,6 +279,13 @@ No valid examples are documented.
 ```{raw} html
 <div class="rule-invalid-example{% if case.replacement and not loop.last %} rule-invalid-example-separated{% endif %}">
 ```
+{% if case.options %}
+<p class="rule-example-label">Options</p>
+
+```toml
+{{ case.options }}
+```
+{% endif %}
 ```python
 {{ case.code }}
 ```
@@ -276,6 +306,7 @@ No valid examples are documented.
 {% endif %}
 {% else %}
 No invalid examples are documented.
+{% endif %}
 {% endif %}
     """,
     trim_blocks=True,
@@ -299,8 +330,15 @@ class ReferenceDoc:
 
 
 @dataclass(frozen=True)
+class ExampleDoc:
+    code: str
+    options: str
+
+
+@dataclass(frozen=True)
 class InvalidExampleDoc:
     code: str
+    options: str
     replacement: str
 
 
@@ -322,8 +360,8 @@ class RuleDoc:
     python_version: str
     tags: str
     settings: Sequence[SettingDoc]
-    valid_examples_visible: Sequence[str]
-    valid_examples_hidden: Sequence[str]
+    valid_examples_visible: Sequence[ExampleDoc]
+    valid_examples_hidden: Sequence[ExampleDoc]
     invalid_examples_visible: Sequence[InvalidExampleDoc]
     invalid_examples_hidden: Sequence[InvalidExampleDoc]
 
@@ -379,6 +417,40 @@ def example_code(case: str | Valid | Invalid) -> str:
     return redent(case)
 
 
+def toml_key(value: str) -> str:
+    if re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        return value
+
+    return json.dumps(value)
+
+
+def toml_value(value: object) -> str:
+    if isinstance(value, str):
+        return json.dumps(value)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return repr(value)
+    if isinstance(value, Mapping):
+        fields = ", ".join(
+            f"{toml_key(str(key))} = {toml_value(item)}" for key, item in value.items()
+        )
+        return f"{{ {fields} }}"
+    if isinstance(value, Sequence) and not isinstance(value, bytes | bytearray):
+        return f"[{', '.join(toml_value(item) for item in value)}]"
+
+    raise TypeError(f"Unsupported rule option value: {value!r}")
+
+
+def example_options(case: str | Valid | Invalid) -> str:
+    if not isinstance(case, (Valid, Invalid)) or not case.options:
+        return ""
+
+    return "\n".join(
+        f"{toml_key(key)} = {toml_value(value)}" for key, value in case.options.items()
+    )
+
+
 def expected_replacement(case: str | Invalid) -> str:
     if isinstance(case, Invalid) and case.expected_replacement:
         return redent(case.expected_replacement)
@@ -390,9 +462,17 @@ def code_line_count(value: str) -> int:
     return max(1, len(value.splitlines()))
 
 
-def invalid_example_line_count(example: InvalidExampleDoc) -> int:
+def example_line_count(example: ExampleDoc) -> int:
     return code_line_count(example.code) + (
-        code_line_count(example.replacement) if example.replacement else 0
+        code_line_count(example.options) if example.options else 0
+    )
+
+
+def invalid_example_line_count(example: InvalidExampleDoc) -> int:
+    return (
+        code_line_count(example.code)
+        + (code_line_count(example.options) if example.options else 0)
+        + (code_line_count(example.replacement) if example.replacement else 0)
     )
 
 
@@ -416,8 +496,11 @@ def split_examples_by_line_budget(
     return visible, examples[len(visible) :]
 
 
-def type_name(value: type | GenericAlias) -> str:
-    return value.__name__
+def type_name(value: object) -> str:
+    if isinstance(value, type | GenericAlias):
+        return value.__name__
+
+    return type(value).__name__
 
 
 def setting_default(setting: RuleSetting) -> str:
@@ -475,17 +558,24 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
                 description=html_text(setting.description) or "—",
             )
         )
-    valid_examples = [example_code(case) for case in getattr(rule, "VALID", ())]
+    valid_examples = [
+        ExampleDoc(
+            code=example_code(case),
+            options=example_options(case),
+        )
+        for case in getattr(rule, "VALID", ())
+    ]
     invalid_examples = [
         InvalidExampleDoc(
             code=example_code(case),
+            options=example_options(case),
             replacement=expected_replacement(case),
         )
         for case in getattr(rule, "INVALID", ())
     ]
     valid_examples_visible, valid_examples_hidden = split_examples_by_line_budget(
         valid_examples,
-        line_count=code_line_count,
+        line_count=example_line_count,
     )
     invalid_examples_visible, invalid_examples_hidden = split_examples_by_line_budget(
         invalid_examples,
