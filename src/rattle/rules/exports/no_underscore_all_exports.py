@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
+
 import libcst as cst
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
@@ -18,23 +20,65 @@ def _string_value(expression: cst.BaseExpression) -> str | None:
     return value if isinstance(value, str) else None
 
 
-def _exported_names(expression: cst.BaseExpression) -> list[tuple[cst.CSTNode, str]]:
-    if (value := _string_value(expression)) is not None:
-        return [(expression, value)]
+_COLLECTION_CONSTRUCTORS = {"frozenset", "list", "set", "tuple"}
+
+
+def _export_constructor_argument(node: cst.Call) -> cst.BaseExpression | None:
+    if not isinstance(node.func, cst.Name):
+        return None
+    if node.func.value not in _COLLECTION_CONSTRUCTORS:
+        return None
+    if len(node.args) != 1:
+        return None
+
+    argument = node.args[0]
+    return argument.value if argument.keyword is None else None
+
+
+def _collection_exported_names(
+    expression: cst.BaseExpression,
+    known_exports: Mapping[str, tuple[str, ...]],
+) -> list[tuple[cst.CSTNode, str]] | None:
+    if isinstance(expression, cst.Name):
+        alias_exported_names = known_exports.get(expression.value)
+        if alias_exported_names is None:
+            return None
+
+        return [(expression, exported_name) for exported_name in alias_exported_names]
+
+    if isinstance(expression, cst.Call):
+        argument = _export_constructor_argument(expression)
+        if argument is None:
+            return None
+
+        return _collection_exported_names(argument, known_exports)
 
     if not isinstance(expression, cst.List | cst.Set | cst.Tuple):
-        return []
+        return None
 
     exported_names: list[tuple[cst.CSTNode, str]] = []
     for element in expression.elements:
         if isinstance(element, cst.StarredElement):
-            exported_names.extend(_exported_names(element.value))
+            nested_exported_names = _collection_exported_names(element.value, known_exports)
+            if nested_exported_names is not None:
+                exported_names.extend(nested_exported_names)
             continue
 
         if (value := _string_value(element.value)) is not None:
             exported_names.append((element.value, value))
 
     return exported_names
+
+
+def _exported_names(
+    expression: cst.BaseExpression,
+    known_exports: Mapping[str, tuple[str, ...]],
+) -> list[tuple[cst.CSTNode, str]]:
+    if (value := _string_value(expression)) is not None:
+        return [(expression, value)]
+
+    collection_exported_names = _collection_exported_names(expression, known_exports)
+    return collection_exported_names if collection_exported_names is not None else []
 
 
 def _all_call_export_expression(node: cst.Call) -> cst.BaseExpression | None:
@@ -80,13 +124,6 @@ class NoUnderscoreAllExports(LintRule):
     VALID = [
         Valid('__all__ = ["PublicThing", "public_thing"]'),
         Valid('__all__: list[str] = ["public_name"]'),
-        Valid('__all__ = ("PublicThing", "public_thing")'),
-        Valid(
-            """
-            EXPORTS = ["_private_name"]
-            __all__ = list(EXPORTS)
-            """
-        ),
         Valid(
             """
             def build() -> None:
@@ -107,6 +144,16 @@ class NoUnderscoreAllExports(LintRule):
     INVALID = [
         Invalid(
             '__all__ = ["_private_name"]',
+            expected_message=(
+                "Do not export underscore-prefixed symbol '_private_name' in __all__. "
+                "Either remove it from __all__ or rename it to be public."
+            ),
+        ),
+        Invalid(
+            """
+            EXPORTS = ["_private_name"]
+            __all__ = list(EXPORTS)
+            """,
             expected_message=(
                 "Do not export underscore-prefixed symbol '_private_name' in __all__. "
                 "Either remove it from __all__ or rename it to be public."
@@ -168,9 +215,11 @@ class NoUnderscoreAllExports(LintRule):
 
         self._class_depth = 0
         self._function_depth = 0
+        self._export_aliases: dict[str, tuple[str, ...]] = {}
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        del node
+        if self._is_module_level():
+            self._export_aliases.pop(node.name.value, None)
 
         self._class_depth += 1
 
@@ -180,7 +229,8 @@ class NoUnderscoreAllExports(LintRule):
         self._class_depth -= 1
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-        del node
+        if self._is_module_level():
+            self._export_aliases.pop(node.name.value, None)
 
         self._function_depth += 1
 
@@ -192,30 +242,35 @@ class NoUnderscoreAllExports(LintRule):
     def visit_Assign(self, node: cst.Assign) -> None:
         if not self._is_module_level():
             return
-        if not any(_is_all_target(target.target) for target in node.targets):
-            return
 
-        self._report_exported_names(node.value)
+        if any(_is_all_target(target.target) for target in node.targets):
+            self._report_exported_names(node.value)
+
+        self._remember_export_aliases(node.targets, node.value)
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
         if not self._is_module_level():
             return
-        if not _is_all_target(node.target):
-            return
-        if node.value is None:
+
+        if _is_all_target(node.target):
+            if node.value is not None:
+                self._report_exported_names(node.value)
             return
 
-        self._report_exported_names(node.value)
+        if node.value is None:
+            self._forget_export_alias_target(node.target)
+            return
+
+        self._remember_export_alias_target(node.target, node.value)
 
     def visit_AugAssign(self, node: cst.AugAssign) -> None:
         if not self._is_module_level():
             return
-        if not isinstance(node.operator, cst.AddAssign):
-            return
-        if not _is_all_target(node.target):
-            return
 
-        self._report_exported_names(node.value)
+        if isinstance(node.operator, cst.AddAssign) and _is_all_target(node.target):
+            self._report_exported_names(node.value)
+
+        self._forget_export_alias_target(node.target)
 
     def visit_Call(self, node: cst.Call) -> None:
         if not self._is_module_level():
@@ -230,8 +285,39 @@ class NoUnderscoreAllExports(LintRule):
     def _is_module_level(self) -> bool:
         return self._class_depth == 0 and self._function_depth == 0
 
+    def _remember_export_aliases(
+        self,
+        targets: Sequence[cst.AssignTarget],
+        value: cst.BaseExpression,
+    ) -> None:
+        for target in targets:
+            self._remember_export_alias_target(target.target, value)
+
+    def _remember_export_alias_target(
+        self,
+        target: cst.BaseAssignTargetExpression,
+        value: cst.BaseExpression,
+    ) -> None:
+        if not isinstance(target, cst.Name):
+            return
+        if target.value == "__all__":
+            return
+
+        exported_names = _collection_exported_names(value, self._export_aliases)
+        if exported_names is None:
+            self._export_aliases.pop(target.value, None)
+            return
+
+        self._export_aliases[target.value] = tuple(
+            exported_name for _exported_node, exported_name in exported_names
+        )
+
+    def _forget_export_alias_target(self, target: cst.BaseAssignTargetExpression) -> None:
+        if isinstance(target, cst.Name):
+            self._export_aliases.pop(target.value, None)
+
     def _report_exported_names(self, expression: cst.BaseExpression) -> None:
-        for exported_node, exported_name in _exported_names(expression):
+        for exported_node, exported_name in _exported_names(expression, self._export_aliases):
             if not exported_name.startswith("_"):
                 continue
             if self._is_allowed_export(exported_name):
