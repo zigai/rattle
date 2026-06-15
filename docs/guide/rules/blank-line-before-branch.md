@@ -98,6 +98,11 @@ def f() -> int:
     return 1
     value = 2
 ```
+<p class="rule-example-label">Options</p>
+
+```toml
+max_suite_non_empty_lines = 3
+```
 ```python
 def f(value: int) -> int:
     x = value + 1
@@ -211,6 +216,12 @@ def f(values: list[int]) -> int:
 ```
 ```{raw} html
 <div class="rule-invalid-example rule-invalid-example-separated">
+```
+<p class="rule-example-label">Options</p>
+
+```toml
+allow_related_return_tails = false
+max_suite_non_empty_lines = 1
 ```
 ```python
 def f(value: int) -> int:

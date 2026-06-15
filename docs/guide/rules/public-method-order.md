@@ -157,6 +157,11 @@ class Workflow:
     def render_str(self, value: str) -> str:
         return self._normalize(value)
 ```
+<p class="rule-example-label">Options</p>
+
+```toml
+class_name_patterns = ["*Service"]
+```
 ```python
 class Helper:
     def _normalize(self, value: str) -> str:
@@ -211,6 +216,11 @@ class Workflow:
 ```
 ```{raw} html
 <div class="rule-invalid-example">
+```
+<p class="rule-example-label">Options</p>
+
+```toml
+class_name_patterns = ["*Service"]
 ```
 ```python
 class AiModelsService:

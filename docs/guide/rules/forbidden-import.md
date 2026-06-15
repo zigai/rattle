@@ -34,28 +34,10 @@ Do not import across forbidden boundary '{boundary}'.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">forbidden_imports</span></td>
-      <td>—</td>
+      <td>Import boundaries to forbid. Entries may be boundary or boundary|message.</td>
       <td><span class="rule-setting-type">list</span></td>
       <td><span class="rule-setting-default rule-setting-default-plain">[]</span></td>
     </tr>
 </tbody>
 </table>
-```
-
-## Valid examples
-
-```python
-import allowed_package.public_api
-```
-
-## Invalid examples
-
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-from . import private
-```
-```{raw} html
-</div>
 ```

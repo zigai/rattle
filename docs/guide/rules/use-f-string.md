@@ -201,6 +201,11 @@ f"The type of var: {type(var)}"
 ```{raw} html
 <div class="rule-invalid-example rule-invalid-example-separated">
 ```
+<p class="rule-example-label">Options</p>
+
+```toml
+simple_expression_max_length = 100
+```
 ```python
 "%s" % abcdefghijklmnopqrstuvwxyz1234567890
 ```

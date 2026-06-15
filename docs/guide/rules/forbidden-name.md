@@ -34,79 +34,10 @@ Do not use forbidden {kind} name '{name}'.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">forbidden_names</span></td>
-      <td>—</td>
+      <td>Name patterns to forbid as kind:pattern entries. Entries may be kind:pattern or kind:pattern|message.</td>
       <td><span class="rule-setting-type">list</span></td>
       <td><span class="rule-setting-default rule-setting-default-plain">[]</span></td>
     </tr>
 </tbody>
 </table>
-```
-
-## Valid examples
-
-```python
-import foo.bar
-```
-```python
-import foo.bar as fb
-```
-
-## Invalid examples
-
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-from foo import bar as baz
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-import foo.bar as baz
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-match value:
-    case {"x": bad}:
-        pass
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-match value:
-    case [*bad]:
-        pass
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example">
-```
-```python
-match value:
-    case {"x": value, **bad}:
-        pass
-```
-```{raw} html
-</div>
-```
-```{raw} html
-</details>
 ```

@@ -57,24 +57,27 @@ __all__ = ["PublicThing", "public_thing"]
 __all__: list[str] = ["public_name"]
 ```
 ```python
-__all__ = ("PublicThing", "public_thing")
-```
-```python
-EXPORTS = ["_private_name"]
-__all__ = list(EXPORTS)
-```
-```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
-```
-```python
 def build() -> None:
     __all__ = ["_private_name"]
 ```
 ```python
 module.__all__ = ["_private_name"]
 ```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+<p class="rule-example-label">Options</p>
+
+```toml
+allow_dunder_exports = true
+```
 ```python
 __all__ = ["__version__"]
+```
+<p class="rule-example-label">Options</p>
+
+```toml
+allowed_exports = ["_C_API", "_Sentinel"]
 ```
 ```python
 __all__ = ["_C_API", "_Sentinel"]
@@ -90,6 +93,16 @@ __all__ = ["_C_API", "_Sentinel"]
 ```
 ```python
 __all__ = ["_private_name"]
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+EXPORTS = ["_private_name"]
+__all__ = list(EXPORTS)
 ```
 ```{raw} html
 </div>
@@ -122,6 +135,9 @@ __all__.append("_private_name")
 </div>
 ```
 ```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
 <div class="rule-invalid-example">
 ```
 ```python
@@ -138,9 +154,6 @@ __all__.insert(0, "_private_name")
 ```
 ```{raw} html
 </div>
-```
-```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
 <div class="rule-invalid-example">
