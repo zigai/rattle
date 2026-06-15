@@ -185,6 +185,93 @@ def test_forbidden_call_appends_use_instead_when_configured() -> None:
     ]
 
 
+def test_forbidden_call_reports_assignment_alias() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        delete = os.remove
+        delete("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_reports_function_scope_assignment_alias() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        def cleanup():
+            delete = os.remove
+            delete("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_reports_multi_target_assignment_alias() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        delete = remove_file = os.remove
+        remove_file("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_reports_alias_chain() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        delete = os.remove
+        remove_file = delete
+        remove_file("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_allows_shadowed_assignment_alias() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        delete = os.remove
+
+        def cleanup(delete):
+            delete("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert reports == []
+
+
+def test_forbidden_call_reports_star_import() -> None:
+    reports = _run_forbidden_call(
+        """
+        from os import *
+
+        remove("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
 def test_forbidden_import_allows_unconfigured_imports() -> None:
     reports = _run_forbidden_import(
         """
@@ -385,6 +472,100 @@ def test_forbidden_name_reports_dotted_import_component() -> None:
     assert [report.message for report in reports] == [
         "Do not use forbidden import name 'blocked_name'."
     ]
+
+
+def test_forbidden_name_reports_match_star_target() -> None:
+    reports = _run_forbidden_name(
+        """
+        match value:
+            case [*blocked_name]:
+                pass
+        """,
+        ["variable:blocked_name"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not use forbidden variable name 'blocked_name'."
+    ]
+
+
+def test_forbidden_name_reports_match_mapping_rest_target() -> None:
+    reports = _run_forbidden_name(
+        """
+        match value:
+            case {"x": value, **blocked_name}:
+                pass
+        """,
+        ["variable:blocked_name"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not use forbidden variable name 'blocked_name'."
+    ]
+
+
+def test_line_count_limit_reports_function_limit() -> None:
+    reports = _run_line_count_limit(
+        """
+        def oversized() -> None:
+            first()
+            second()
+        """,
+        {"max_function_lines": 2},
+    )
+
+    assert [report.message for report in reports] == [
+        "Function 'oversized' has 3 lines, exceeding the configured limit of 2."
+    ]
+
+
+def test_line_count_limit_reports_method_limit() -> None:
+    reports = _run_line_count_limit(
+        """
+        class Service:
+            def oversized(self) -> None:
+                first()
+                second()
+        """,
+        {"max_method_lines": 2},
+    )
+
+    assert [report.message for report in reports] == [
+        "Method 'oversized' has 3 lines, exceeding the configured limit of 2."
+    ]
+
+
+def test_line_count_limit_reports_outer_function_for_nested_function_lines() -> None:
+    reports = _run_line_count_limit(
+        """
+        def outer() -> None:
+            def inner() -> None:
+                first()
+                second()
+        """,
+        {"max_function_lines": 2},
+    )
+
+    assert [report.message for report in reports] == [
+        "Function 'outer' has 4 lines, exceeding the configured limit of 2."
+    ]
+
+
+def test_line_count_limit_glob_limits_override_base_limit() -> None:
+    reports = _run_line_count_limit(
+        """
+        def large() -> None:
+            pass
+
+            pass
+        """,
+        {
+            "max_function_lines": 2,
+            "glob_limits": {"*": {"max_function_lines": 10}},
+        },
+    )
+
+    assert reports == []
 
 
 def test_line_count_limit_per_file_limits_match_repo_relative_path(tmp_path: Path) -> None:

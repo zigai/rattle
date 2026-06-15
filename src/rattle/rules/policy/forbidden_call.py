@@ -7,7 +7,7 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import QualifiedNameProvider, QualifiedNameSource, ScopeProvider
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle import LintRule, RuleSetting
 from rattle.rules.helpers import dotted_name, optional_setting_text, setting_fields
 
 _SYMBOL_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
@@ -72,140 +72,16 @@ class ForbiddenCall(LintRule):
         "forbidden_calls": RuleSetting(
             list[str],
             default=[],
+            description=(
+                "Callable symbols to forbid. Entries may be symbol, symbol|message, "
+                "or symbol|message|use_instead."
+            ),
             validator=_validate_forbidden_calls,
         ),
     }
 
-    VALID = [
-        Valid(
-            """
-            import os
-
-            delete = os.remove
-
-            def cleanup(delete):
-                delete("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-        ),
-        Valid(
-            """
-            import os
-
-            delete = os.remove
-            remove_file = delete
-
-            def remove_file(path):
-                return path
-
-            remove_file("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-        ),
-        Valid(
-            """
-            import os
-
-            delete = os.remove
-
-            def cleanup():
-                delete = fake_delete
-                delete("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-        ),
-        Valid(
-            """
-            from os import *
-
-            def cleanup(remove):
-                remove("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-        ),
-        Valid(
-            """
-            import os
-
-            delete = os.remove
-
-            def delete(path):
-                return path
-
-            delete("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-        ),
-    ]
-    INVALID = [
-        Invalid(
-            """
-            import os
-
-            delete = os.remove
-
-            delete("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-            expected_message="Do not call forbidden callable 'os.remove'.",
-        ),
-        Invalid(
-            """
-            import os
-
-            delete = os.remove
-
-            def cleanup():
-                delete = fake_delete
-                delete("path")
-
-            delete("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-            expected_message="Do not call forbidden callable 'os.remove'.",
-        ),
-        Invalid(
-            """
-            import os
-
-            def cleanup():
-                delete = os.remove
-                delete("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-            expected_message="Do not call forbidden callable 'os.remove'.",
-        ),
-        Invalid(
-            """
-            from os import *
-
-            remove("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-            expected_message="Do not call forbidden callable 'os.remove'.",
-        ),
-        Invalid(
-            """
-            import os
-
-            delete = os.remove
-            remove_file = delete
-            remove_file("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-            expected_message="Do not call forbidden callable 'os.remove'.",
-        ),
-        Invalid(
-            """
-            import os
-
-            delete = remove_file = os.remove
-            remove_file("path")
-            """,
-            options={"forbidden_calls": ["os.remove"]},
-            expected_message="Do not call forbidden callable 'os.remove'.",
-        ),
-    ]
+    VALID = ()
+    INVALID = ()
 
     def __init__(self) -> None:
         super().__init__()

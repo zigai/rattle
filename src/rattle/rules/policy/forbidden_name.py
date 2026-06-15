@@ -8,7 +8,7 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import ParentNodeProvider
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle import LintRule, RuleSetting
 from rattle.rules.helpers import optional_setting_text, setting_fields, target_names
 
 _ENTRY_PATTERN = re.compile(
@@ -90,59 +90,16 @@ class ForbiddenName(LintRule):
         "forbidden_names": RuleSetting(
             list[str],
             default=[],
+            description=(
+                "Name patterns to forbid as kind:pattern entries. Entries may be "
+                "kind:pattern or kind:pattern|message."
+            ),
             validator=_validate_forbidden_names,
         ),
     }
 
-    VALID = [
-        Valid(
-            "import foo.bar",
-            options={"forbidden_names": ["attribute:bar"]},
-        ),
-        Valid(
-            "import foo.bar as fb",
-            options={"forbidden_names": ["attribute:bar"]},
-        ),
-    ]
-    INVALID = [
-        Invalid(
-            "from foo import bar as baz",
-            options={"forbidden_names": ["import:bar"]},
-            expected_message="Do not use forbidden import name 'bar'.",
-        ),
-        Invalid(
-            "import foo.bar as baz",
-            options={"forbidden_names": ["import:bar"]},
-            expected_message="Do not use forbidden import name 'bar'.",
-        ),
-        Invalid(
-            """
-            match value:
-                case {"x": bad}:
-                    pass
-            """,
-            options={"forbidden_names": ["variable:bad"]},
-            expected_message="Do not use forbidden variable name 'bad'.",
-        ),
-        Invalid(
-            """
-            match value:
-                case [*bad]:
-                    pass
-            """,
-            options={"forbidden_names": ["variable:bad"]},
-            expected_message="Do not use forbidden variable name 'bad'.",
-        ),
-        Invalid(
-            """
-            match value:
-                case {"x": value, **bad}:
-                    pass
-            """,
-            options={"forbidden_names": ["variable:bad"]},
-            expected_message="Do not use forbidden variable name 'bad'.",
-        ),
-    ]
+    VALID = ()
+    INVALID = ()
 
     def __init__(self) -> None:
         super().__init__()

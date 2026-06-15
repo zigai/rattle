@@ -6,7 +6,7 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import FilePathProvider, ParentNodeProvider, PositionProvider
 
-from rattle import CodePosition, Invalid, LintRule, RuleSetting, Valid
+from rattle import CodePosition, LintRule, RuleSetting
 from rattle.rules.helpers import matches_exact_path, matches_path
 
 _SETTING_NAMES = frozenset({"max_file_lines", "max_function_lines", "max_method_lines"})
@@ -120,80 +120,8 @@ class LineCountLimit(LintRule):
         ),
     }
 
-    VALID = [
-        Valid(
-            """
-            def small() -> None:
-                pass
-            """,
-            options={"max_function_lines": 3},
-        ),
-        Valid(
-            """
-            class Service:
-                def small(self) -> None:
-                    pass
-            """,
-            options={"max_method_lines": 3},
-        ),
-        Valid(
-            """
-            def large() -> None:
-                pass
-
-                pass
-            """,
-            options={
-                "max_function_lines": 2,
-                "glob_limits": {"*": {"max_function_lines": 10}},
-            },
-        ),
-    ]
-
-    INVALID = [
-        Invalid(
-            """
-            def oversized() -> None:
-                first()
-                second()
-            """,
-            expected_message=(
-                "Function 'oversized' has 3 lines, exceeding the configured limit of 2."
-            ),
-            options={"max_function_lines": 2},
-        ),
-        Invalid(
-            """
-            def outer() -> None:
-                def inner() -> None:
-                    first()
-                    second()
-            """,
-            expected_message=("Function 'outer' has 4 lines, exceeding the configured limit of 2."),
-            options={"max_function_lines": 2},
-        ),
-        Invalid(
-            """
-            class Service:
-                def oversized(self) -> None:
-                    first()
-                    second()
-            """,
-            expected_message=(
-                "Method 'oversized' has 3 lines, exceeding the configured limit of 2."
-            ),
-            options={"max_method_lines": 2},
-        ),
-        Invalid(
-            """
-            one()
-            two()
-            three()
-            """,
-            expected_message="File has 3 lines, exceeding the configured limit of 2.",
-            options={"max_file_lines": 2},
-        ),
-    ]
+    VALID = ()
+    INVALID = ()
 
     def __init__(self) -> None:
         super().__init__()

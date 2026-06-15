@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
 
 import libcst as cst
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle import LintRule, RuleSetting
 from rattle.rules.helpers import optional_setting_text, setting_fields
 
 _CODEGEN_MODULE = cst.Module(body=[])
@@ -82,27 +80,13 @@ class ForbiddenImport(LintRule):
         "forbidden_imports": RuleSetting(
             list[str],
             default=[],
+            description="Import boundaries to forbid. Entries may be boundary or boundary|message.",
             validator=_validate_forbidden_imports,
         ),
     }
 
-    VALID: ClassVar[Sequence[str | Valid]] = (
-        Valid(
-            """
-            import allowed_package.public_api
-            """,
-            options={"forbidden_imports": ["blocked_package.internal"]},
-        ),
-    )
-    INVALID: ClassVar[Sequence[str | Invalid]] = (
-        Invalid(
-            """
-            from . import private
-            """,
-            options={"forbidden_imports": ["pkg.private"]},
-            expected_message="Do not import across forbidden boundary 'pkg.private'.",
-        ),
-    )
+    VALID = ()
+    INVALID = ()
 
     def __init__(self) -> None:
         super().__init__()
