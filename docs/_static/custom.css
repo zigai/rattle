@@ -563,6 +563,27 @@ article:has(.rule-metadata) section#settings::after {
     line-height: 1.6;
 }
 
+article[role="main"] h1 {
+    font-size: 1.8rem;
+    line-height: 1.2;
+    margin-bottom: 0.75rem;
+    margin-top: 1.3rem;
+}
+
+article[role="main"] h2 {
+    font-size: 1.35rem;
+    margin-top: 1.45rem;
+}
+
+article[role="main"] h3 {
+    font-size: 1.15rem;
+    margin-top: 1.25rem;
+}
+
+article[role="main"] h4 {
+    font-size: 1.02rem;
+}
+
 div.repo-badges {
     margin-top: 12px;
     margin-bottom: 10px;
