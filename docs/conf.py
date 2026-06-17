@@ -171,4 +171,4 @@ def setup(app: Sphinx) -> dict[str, bool]:
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
-html_js_files = ["copy_as_markdown.js"]
+html_js_files = ["copy_as_markdown.js", "compact_viewcode.js"]

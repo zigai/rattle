@@ -646,3 +646,13 @@ dl.class, dl.function {
 dl.function, dl.attribute, dl.class, dl.method, dl.field-list, dl.data {
     margin-bottom: 15px;
 }
+
+.highlight .viewcode-block {
+    position: relative;
+}
+
+.highlight .viewcode-back {
+    float: none;
+    position: absolute;
+    right: 0;
+}
