@@ -584,6 +584,10 @@ article[role="main"] h4 {
     font-size: 1.02rem;
 }
 
+article[role="main"] p > img[alt="Supported versions"] {
+    vertical-align: middle;
+}
+
 div.repo-badges {
     margin-top: 12px;
     margin-bottom: 10px;
