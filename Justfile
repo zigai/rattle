@@ -87,6 +87,5 @@ help:
 
 alias fmt := format
 alias cov := coverage
-alias distclean := clean
 alias html := docs
 alias pyright := typecheck
