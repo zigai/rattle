@@ -246,7 +246,7 @@ class CliTest(TestCase):
         assert "Examples" in result.stdout
         assert "Valid:" in result.stdout
         assert "Invalid:" in result.stdout
-        assert '"%s" % "hi"  ->  f"{\'hi\'}"' in result.stdout
+        assert '"%s" % "hi"  ->  f"{\'hi\'!s}"' in result.stdout
 
     def test_explain_command_json_output(self) -> None:
         with TemporaryDirectory() as td:
@@ -269,7 +269,7 @@ class CliTest(TestCase):
         assert data["references"] == [
             {"label": "PEP 498", "url": "https://www.python.org/dev/peps/pep-0498/"}
         ]
-        assert data["examples"]["invalid"][1]["replacement"] == "f\"{'hi'}\""
+        assert data["examples"]["invalid"][1]["replacement"] == "f\"{'hi'!s}\""
         assert "Invalid(" not in result.stdout
         assert "Valid(" not in result.stdout
 
