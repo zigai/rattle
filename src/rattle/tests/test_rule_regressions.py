@@ -13,6 +13,9 @@ from rattle.rules.fixit_extra.deprecated_abc_import import DeprecatedABCImport
 from rattle.rules.fixit_extra.no_assert_true_for_comparison import (
     NoAssertTrueForComparisons,
 )
+from rattle.rules.fixit_extra.no_redundant_list_comprehension import (
+    NoRedundantListComprehension,
+)
 from rattle.rules.fixit_extra.rewrite_to_comprehension import RewriteToComprehension
 from rattle.rules.fixit_extra.use_assert_in import UseAssertIn
 from rattle.rules.fixit_extra.use_assert_is_not_none import UseAssertIsNotNone
@@ -331,7 +334,7 @@ def test_use_comprehension_does_not_autofix_set_listcomp_order() -> None:
     assert reports[0].replacement is None
 
 
-def test_no_named_tuple_adds_dataclasses_import_when_only_field_is_imported() -> None:
+def test_no_named_tuple_does_not_autofix_to_dataclass() -> None:
     source = """
     from dataclasses import field
     from typing import NamedTuple
@@ -341,19 +344,21 @@ def test_no_named_tuple_adds_dataclasses_import_when_only_field_is_imported() ->
     result = Foo(1).x
     """
 
-    runner, reports = _reports(NoNamedTuple(), source)
-    fixed = runner.apply_replacements(reports).code
+    _runner, reports = _reports(NoNamedTuple(), source)
 
     assert len(reports) == 1
-    assert fixed == dedent("""
-    import dataclasses
-    from dataclasses import field
+    assert reports[0].replacement is None
 
-    @dataclasses.dataclass(frozen=True)
-    class Foo:
-        x: int
-    result = Foo(1).x
-    """)
+
+def test_no_redundant_list_comprehension_does_not_autofix_to_generator() -> None:
+    source = """
+    result = any([f(x) for x in xs])
+    """
+
+    _runner, reports = _reports(NoRedundantListComprehension(), source)
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
 
 
 def test_use_f_string_percent_s_autofix_uses_str_conversion() -> None:
