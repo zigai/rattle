@@ -34,14 +34,12 @@ class RewriteToComprehension(LintRule):
         Valid("{val: val+1 for val in iterable}"),
         # A function call is valid if the elt is a function that returns a tuple.
         Valid("dict(line.strip().split('=', 1) for line in attr_file)"),
-        Valid(
-            """
+        Valid("""
             def list(value):
                 return value
 
             list(val for val in iterable)
-            """
-        ),
+            """),
     ]
 
     INVALID = [
@@ -81,7 +79,6 @@ class RewriteToComprehension(LintRule):
         ),
         Invalid(
             "set([val for val in iterable])",
-            expected_replacement="{val for val in iterable}",
         ),
         Invalid(
             "dict([[val, val+1] for val in iterable])",
@@ -97,7 +94,6 @@ class RewriteToComprehension(LintRule):
         ),
         Invalid(
             "set([val for row in matrix for val in row])",
-            expected_replacement="{val for row in matrix for val in row}",
         ),
     ]
 
@@ -129,7 +125,11 @@ class RewriteToComprehension(LintRule):
             if call_name == "list":
                 replacement = node.deep_replace(node, cst.ListComp(elt=exp.elt, for_in=exp.for_in))
             elif call_name == "set":
-                replacement = node.deep_replace(node, cst.SetComp(elt=exp.elt, for_in=exp.for_in))
+                if isinstance(exp, cst.GeneratorExp):
+                    replacement = node.deep_replace(
+                        node,
+                        cst.SetComp(elt=exp.elt, for_in=exp.for_in),
+                    )
             elif call_name == "dict":
                 elt = exp.elt
                 key = None

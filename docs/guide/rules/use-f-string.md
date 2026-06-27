@@ -83,7 +83,7 @@ u"plain unicode string"
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"{'hi'}"
+f"{'hi'!s}"
 ```
 ```{raw} html
 </div>
@@ -97,7 +97,7 @@ f"{'hi'}"
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"a name: {name}"
+f"a name: {name!s}"
 ```
 ```{raw} html
 </div>
@@ -114,7 +114,7 @@ u"%s" % name
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"{name}"
+f"{name!s}"
 ```
 ```{raw} html
 </div>
@@ -128,7 +128,7 @@ f"{name}"
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"an attribute {obj.attr} ."
+f"an attribute {obj.attr!s} ."
 ```
 ```{raw} html
 </div>
@@ -142,7 +142,7 @@ r"raw string value=%s" % val
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-fr"raw string value={val}"
+fr"raw string value={val!s}"
 ```
 ```{raw} html
 </div>
@@ -156,7 +156,7 @@ fr"raw string value={val}"
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"{{{val}}}"
+f"{{{val!s}}}"
 ```
 ```{raw} html
 </div>
@@ -170,7 +170,7 @@ f"{{{val}}}"
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"{{{val}"
+f"{{{val!s}"
 ```
 ```{raw} html
 </div>
@@ -184,7 +184,7 @@ f"{{{val}"
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"The type of var: {type(var)}"
+f"The type of var: {type(var)!s}"
 ```
 ```{raw} html
 </div>
@@ -212,7 +212,7 @@ simple_expression_max_length = 100
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"{abcdefghijklmnopqrstuvwxyz1234567890}"
+f"{abcdefghijklmnopqrstuvwxyz1234567890!s}"
 ```
 ```{raw} html
 </div>
@@ -226,7 +226,7 @@ f"{abcdefghijklmnopqrstuvwxyz1234567890}"
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"type of var: {type(var)}, value of var: {var}"
+f"type of var: {type(var)!s}, value of var: {var!s}"
 ```
 ```{raw} html
 </div>
@@ -240,7 +240,7 @@ f"type of var: {type(var)}, value of var: {var}"
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f'{var}" double quote is used'
+f'{var!s}" double quote is used'
 ```
 ```{raw} html
 </div>
@@ -254,7 +254,7 @@ f'{var}" double quote is used'
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"var1: {class_object.attribute}, var2: {dict_lookup['some_key']}, var3: {some_module.some_function()}, var4: {var4}"
+f"var1: {class_object.attribute!s}, var2: {dict_lookup['some_key']!s}, var3: {some_module.some_function()!s}, var4: {var4!s}"
 ```
 ```{raw} html
 </div>
@@ -268,7 +268,7 @@ f"var1: {class_object.attribute}, var2: {dict_lookup['some_key']}, var3: {some_m
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-f"a list: {' '.join(var)}"
+f"a list: {' '.join(var)!s}"
 ```
 ```{raw} html
 </div>

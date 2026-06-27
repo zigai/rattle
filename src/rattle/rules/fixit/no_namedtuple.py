@@ -39,53 +39,39 @@ class NoNamedTuple(LintRule):
     SOURCE_PATTERNS = ("NamedTuple", "namedtuple")
 
     VALID = [
-        Valid(
-            """
+        Valid("""
             @dataclass(frozen=True)
             class Foo:
                 pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             @dataclass(frozen=False)
             class Foo:
                 pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class Foo:
                 pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class Foo(SomeOtherBase):
                 pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             @some_other_decorator
             class Foo:
                 pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             @some_other_decorator
             class Foo(SomeOtherBase):
                 pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             from typing import NamedTuple as NT
 
             Other = NT
-            """
-        ),
+            """),
     ]
     INVALID = [
         Invalid(
@@ -376,7 +362,7 @@ class NoNamedTuple(LintRule):
                     self.namedtuple_alias_nodes.discard(assign_target.target)
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        (namedtuple_base, new_bases) = self.partition_bases(node.bases)
+        namedtuple_base, new_bases = self.partition_bases(node.bases)
         if namedtuple_base is not None:
             self.namedtuple_classes[node] = tuple(new_bases)
             self.namedtuple_base_nodes.add(namedtuple_base.value)
@@ -501,15 +487,11 @@ def _is_future_import_statement(statement: cst.BaseStatement) -> bool:
 
 def _is_dataclasses_import(statement: cst.BaseSmallStatement) -> bool:
     if isinstance(statement, cst.Import):
-        return any(
-            isinstance(alias.name, cst.Name) and alias.name.value == "dataclasses"
-            for alias in statement.names
-        )
+        return _dataclass_decorator_from_import(statement) is not None
 
     return (
         isinstance(statement, cst.ImportFrom)
-        and isinstance(statement.module, cst.Name)
-        and statement.module.value == "dataclasses"
+        and _dataclass_decorator_from_import_from(statement) is not None
     )
 
 
@@ -560,7 +542,10 @@ def _dataclass_decorator_expression(module: cst.Module) -> tuple[cst.Call, bool]
         if decorator is not None:
             return decorator, True
 
-    return (ensure_type(parse_expression("dataclasses.dataclass(frozen=True)"), cst.Call), False)
+    return (
+        ensure_type(parse_expression("dataclasses.dataclass(frozen=True)"), cst.Call),
+        False,
+    )
 
 
 def _rewrite_typing_import(

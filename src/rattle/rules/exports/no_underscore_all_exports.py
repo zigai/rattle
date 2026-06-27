@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 import libcst as cst
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
-from rattle.rules.helpers import is_name
+from rattle.rules.helpers import is_name, target_names
 
 
 def _is_all_target(target: cst.BaseAssignTargetExpression) -> bool:
@@ -81,6 +81,28 @@ def _exported_names(
     return collection_exported_names if collection_exported_names is not None else []
 
 
+def _destructured_target_value_pairs(
+    target: cst.List | cst.Tuple,
+    value: cst.BaseExpression,
+) -> list[tuple[cst.BaseAssignTargetExpression, cst.BaseExpression]] | None:
+    if not isinstance(value, cst.List | cst.Tuple):
+        return None
+    if len(target.elements) != len(value.elements):
+        return None
+
+    pairs: list[tuple[cst.BaseAssignTargetExpression, cst.BaseExpression]] = []
+    for target_element, value_element in zip(target.elements, value.elements, strict=False):
+        if isinstance(target_element, cst.StarredElement | cst.StarredDictElement):
+            return None
+        if isinstance(value_element, cst.StarredElement | cst.StarredDictElement):
+            return None
+        if not isinstance(target_element.value, cst.BaseAssignTargetExpression):
+            return None
+        pairs.append((target_element.value, value_element.value))
+
+    return pairs
+
+
 def _all_call_export_expression(node: cst.Call) -> cst.BaseExpression | None:
     if not isinstance(node.func, cst.Attribute):
         return None
@@ -124,12 +146,10 @@ class NoUnderscoreAllExports(LintRule):
     VALID = [
         Valid('__all__ = ["PublicThing", "public_thing"]'),
         Valid('__all__: list[str] = ["public_name"]'),
-        Valid(
-            """
+        Valid("""
             def build() -> None:
                 __all__ = ["_private_name"]
-            """
-        ),
+            """),
         Valid('module.__all__ = ["_private_name"]'),
         Valid(
             '__all__ = ["__version__"]',
@@ -298,6 +318,16 @@ class NoUnderscoreAllExports(LintRule):
         target: cst.BaseAssignTargetExpression,
         value: cst.BaseExpression,
     ) -> None:
+        if isinstance(target, cst.List | cst.Tuple):
+            pairs = _destructured_target_value_pairs(target, value)
+            if pairs is None:
+                self._forget_export_alias_target(target)
+                return
+
+            for element_target, element_value in pairs:
+                self._remember_export_alias_target(element_target, element_value)
+            return
+
         if not isinstance(target, cst.Name):
             return
         if target.value == "__all__":
@@ -313,8 +343,8 @@ class NoUnderscoreAllExports(LintRule):
         )
 
     def _forget_export_alias_target(self, target: cst.BaseAssignTargetExpression) -> None:
-        if isinstance(target, cst.Name):
-            self._export_aliases.pop(target.value, None)
+        for name in target_names(target):
+            self._export_aliases.pop(name.value, None)
 
     def _report_exported_names(self, expression: cst.BaseExpression) -> None:
         for exported_node, exported_name in _exported_names(expression, self._export_aliases):

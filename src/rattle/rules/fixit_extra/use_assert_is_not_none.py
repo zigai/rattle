@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections.abc import Sequence
+from typing import cast
 
 import libcst as cst
 import libcst.matchers as m
@@ -83,6 +84,33 @@ class UseAssertIsNotNone(LintRule):
         ),
     ]
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._class_method_stack: list[set[str]] = []
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self._class_method_stack.append(
+            {
+                statement.name.value
+                for statement in node.body.body
+                if isinstance(statement, cst.FunctionDef)
+            }
+        )
+
+    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
+        del original_node
+
+        self._class_method_stack.pop()
+
+    def _first_extracted_node(
+        self,
+        extracted: cst.CSTNode | Sequence[cst.CSTNode],
+    ) -> cst.CSTNode:
+        if isinstance(extracted, Sequence):
+            return extracted[0]
+
+        return extracted
+
     def visit_Call(self, node: cst.Call) -> None:
         match_compare_is_none = m.ComparisonTarget(
             m.SaveMatchedNode(
@@ -119,17 +147,15 @@ class UseAssertIsNotNone(LintRule):
         )
 
         if result:
-            assertion_name = result["assertion_name"]
-            if isinstance(assertion_name, Sequence):
-                assertion_name = assertion_name[0]
+            assertion_name = cast(
+                cst.Name,
+                self._first_extracted_node(result["assertion_name"]),
+            )
+            if self._class_defines_assertion_method(assertion_name.value):
+                return
 
-            argument = result["argument"]
-            if isinstance(argument, Sequence):
-                argument = argument[0]
-
-            comparison_type = result["comparison_type"]
-            if isinstance(comparison_type, Sequence):
-                comparison_type = comparison_type[0]
+            argument = cast(cst.BaseExpression, self._first_extracted_node(result["argument"]))
+            comparison_type = self._first_extracted_node(result["comparison_type"])
 
             if m.matches(argument, m.Comparison()):
                 assertion_argument = ensure_type(argument, cst.Comparison).left
@@ -154,6 +180,9 @@ class UseAssertIsNotNone(LintRule):
 
             if new_call is not node:
                 self.report(node, self.MESSAGE, replacement=new_call)
+
+    def _class_defines_assertion_method(self, name: str) -> bool:
+        return bool(self._class_method_stack and name in self._class_method_stack[-1])
 
 
 __all__ = [

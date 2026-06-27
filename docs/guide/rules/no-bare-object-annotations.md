@@ -205,5 +205,28 @@ value: Optional[builtins.object] = None
 </div>
 ```
 ```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import Annotated
+
+value: Annotated[object, "metadata"] = payload
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from typing import TypeAlias
+
+Object: TypeAlias = object
+value: Object = payload
+```
+```{raw} html
+</div>
+```
+```{raw} html
 </details>
 ```

@@ -250,7 +250,7 @@ class foo:
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 class foo:
@@ -264,6 +264,30 @@ class foo:
 class foo:
     @classmethod
     def cm(cls, /):
+        return cls
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+from builtins import classmethod as cm
+
+class foo:
+    @cm
+    def cm(kls):
+        return kls
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+from builtins import classmethod as cm
+
+class foo:
+    @cm
+    def cm(cls):
         return cls
 ```
 ```{raw} html

@@ -16,28 +16,33 @@ class NoStrExceptionTranslation(LintRule):
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
 
     VALID = [
-        Valid(
-            """
+        Valid("""
             try:
                 run()
             except ValueError as exc:
                 raise CommandArgumentError("Invalid resource identifier.") from exc
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             message = str(value)
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             try:
                 run()
             except ValueError as exc:
                 str = lambda value: "fixed"
                 raise RuntimeError(str(exc)) from exc
-            """
-        ),
+            """),
+        Valid("""
+            error = "fixed"
+
+            try:
+                run()
+            except ValueError as exc:
+                def capture() -> None:
+                    error = exc
+
+                raise RuntimeError(str(error)) from exc
+            """),
     ]
 
     INVALID = [
@@ -142,34 +147,68 @@ class NoStrExceptionTranslation(LintRule):
     def __init__(self) -> None:
         super().__init__()
 
-        self._exception_name_stack: list[str | None] = []
+        self._exception_name_stack: list[tuple[set[str], int]] = []
+        self._scope_depth = 0
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        del node
+        self._scope_depth += 1
+
+    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
+        del original_node
+        self._scope_depth -= 1
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
+        del node
+        self._scope_depth += 1
+
+    def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
+        del original_node
+        self._scope_depth -= 1
 
     def visit_ExceptHandler(self, node: cst.ExceptHandler) -> None:
         if isinstance(node.name, cst.AsName) and isinstance(node.name.name, cst.Name):
-            self._exception_name_stack.append(node.name.name.value)
+            self._exception_name_stack.append(({node.name.name.value}, self._scope_depth))
             return
 
-        self._exception_name_stack.append(None)
+        self._exception_name_stack.append((set(), self._scope_depth))
 
     def leave_ExceptHandler(self, original_node: cst.ExceptHandler) -> None:
         del original_node
         self._exception_name_stack.pop()
 
+    def visit_Assign(self, node: cst.Assign) -> None:
+        if not self._exception_name_stack:
+            return
+
+        current_exception_names = self._current_exception_names()
+        for target in node.targets:
+            if not isinstance(target.target, cst.Name):
+                continue
+            if self._is_exception_name(node.value, current_exception_names):
+                current_exception_names.add(target.target.value)
+            else:
+                current_exception_names.discard(target.target.value)
+
     def visit_Raise(self, node: cst.Raise) -> None:
-        exception_name = self._current_exception_name()
-        if exception_name is None:
+        exception_names = self._current_exception_names()
+        if not exception_names:
             return
 
         for argument in self._exception_arguments(node):
-            if self._translates_exception(argument.value, exception_name):
+            if self._translates_exception(argument.value, exception_names):
                 self.report(argument.value, self.MESSAGE)
                 return
 
-    def _current_exception_name(self) -> str | None:
+    def _current_exception_names(self) -> set[str]:
         if not self._exception_name_stack:
-            return None
+            return set()
 
-        return self._exception_name_stack[-1]
+        exception_names, scope_depth = self._exception_name_stack[-1]
+        if scope_depth != self._scope_depth:
+            return set()
+
+        return exception_names
 
     def _exception_arguments(self, node: cst.Raise) -> tuple[cst.Arg, ...]:
         if node.exc is None or not isinstance(node.exc, cst.Call):
@@ -177,21 +216,21 @@ class NoStrExceptionTranslation(LintRule):
 
         return tuple(node.exc.args)
 
-    def _translates_exception(self, node: cst.BaseExpression, exception_name: str) -> bool:
+    def _translates_exception(self, node: cst.BaseExpression, exception_names: set[str]) -> bool:
         if isinstance(node, cst.Call):
             str_arg = self._single_builtin_str_argument(node)
             if str_arg is not None:
-                return self._is_exception_name(str_arg.value, exception_name)
+                return self._is_exception_name(str_arg.value, exception_names)
 
             format_arg = self._single_format_argument(node)
             if format_arg is not None:
-                return self._is_exception_name(format_arg.value, exception_name)
+                return self._is_exception_name(format_arg.value, exception_names)
 
         if isinstance(node, cst.FormattedString):
-            return self._is_exception_only_f_string(node, exception_name)
+            return self._is_exception_only_f_string(node, exception_names)
 
         if isinstance(node, cst.BinaryOperation) and isinstance(node.operator, cst.Modulo):
-            return self._is_exception_name_or_singleton_tuple(node.right, exception_name)
+            return self._is_exception_name_or_singleton_tuple(node.right, exception_names)
 
         return False
 
@@ -223,7 +262,11 @@ class NoStrExceptionTranslation(LintRule):
 
         return node.args[0]
 
-    def _is_exception_only_f_string(self, node: cst.FormattedString, exception_name: str) -> bool:
+    def _is_exception_only_f_string(
+        self,
+        node: cst.FormattedString,
+        exception_names: set[str],
+    ) -> bool:
         expressions = [
             part for part in node.parts if isinstance(part, cst.FormattedStringExpression)
         ]
@@ -235,19 +278,19 @@ class NoStrExceptionTranslation(LintRule):
         if text_parts or len(expressions) != 1:
             return False
 
-        return self._is_exception_name(expressions[0].expression, exception_name)
+        return self._is_exception_name(expressions[0].expression, exception_names)
 
-    def _is_exception_name(self, node: cst.BaseExpression, exception_name: str) -> bool:
-        return isinstance(node, cst.Name) and node.value == exception_name
+    def _is_exception_name(self, node: cst.BaseExpression, exception_names: set[str]) -> bool:
+        return isinstance(node, cst.Name) and node.value in exception_names
 
     def _is_exception_name_or_singleton_tuple(
         self,
         node: cst.BaseExpression,
-        exception_name: str,
+        exception_names: set[str],
     ) -> bool:
-        if self._is_exception_name(node, exception_name):
+        if self._is_exception_name(node, exception_names):
             return True
         if not isinstance(node, cst.Tuple) or len(node.elements) != 1:
             return False
 
-        return self._is_exception_name(node.elements[0].value, exception_name)
+        return self._is_exception_name(node.elements[0].value, exception_names)

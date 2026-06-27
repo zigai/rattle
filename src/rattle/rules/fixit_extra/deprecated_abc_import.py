@@ -9,7 +9,7 @@ import libcst.matchers as m
 from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import normalize_import_alias
+from rattle.rules.helpers import callable_dotted_name, normalize_import_alias
 
 # The ABCs that have been moved to `collections.abc`
 ABCS = frozenset(
@@ -44,6 +44,14 @@ ABCS = frozenset(
 )
 
 
+def _is_import_error_expression(expression: cst.BaseExpression) -> bool:
+    name = callable_dotted_name(expression)
+    if name is None:
+        return False
+
+    return name.rsplit(".", 1)[-1] == "ImportError"
+
+
 class DeprecatedABCImport(LintRule):
     """Require collection ABCs to be imported from collections.abc."""
 
@@ -62,54 +70,42 @@ class DeprecatedABCImport(LintRule):
         Valid("import collections"),
         Valid("import collections.abc"),
         Valid("import collections.abc.Container"),
-        Valid(
-            """
+        Valid("""
             class MyTest(collections.Something):
                 def test(self):
                     pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             try:
                 from collections.abc import Mapping
             except ImportError:
                 from collections import Mapping
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             try:
                 from collections.abc import Mapping, Container
             except ImportError:
                 from collections import Mapping, Container
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             try:
                 from collections.abc import Mapping, Container
             except ImportError:
                 def fallback_import():
                     from collections import Mapping, Container
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             try:
                 from collections.abc import Mapping, Container
             except Exception:
                 exit()
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             try:
                 from collections import defaultdict
             except Exception:
                 exit()
-            """
-        ),
+            """),
     ]
     INVALID = [
         Invalid(
@@ -161,28 +157,54 @@ class DeprecatedABCImport(LintRule):
                     pass
             """,
         ),
+        Invalid(
+            """
+            try:
+                work()
+            except ValueError:
+                from collections import Mapping
+            """,
+            expected_replacement="""
+            try:
+                work()
+            except ValueError:
+                from collections.abc import Mapping
+            """,
+        ),
     ]
 
     def __init__(self) -> None:
         super().__init__()
 
-    def is_except_block(self, node: cst.CSTNode) -> bool:
+    def is_import_error_except_block(self, node: cst.CSTNode) -> bool:
         """
-        Check if the node is in an except block - if it is, we know to ignore it, as it
-        may be a fallback import.
+        Check if the node is in an ImportError except block.
+
+        Imports from ``collections`` are allowed there because they may be fallback
+        imports for older runtimes after a failed ``collections.abc`` import.
         """
         parent = self.get_metadata(ParentNodeProvider, node, None)
         while parent is not None and not isinstance(parent, cst.Module):
             if isinstance(parent, cst.ExceptHandler):
-                return True
+                return self._handles_import_error(parent)
 
             parent = self.get_metadata(ParentNodeProvider, parent, None)
 
         return False
 
+    def _handles_import_error(self, node: cst.ExceptHandler) -> bool:
+        if node.type is None:
+            return False
+        if _is_import_error_expression(node.type):
+            return True
+        if not isinstance(node.type, cst.Tuple):
+            return False
+
+        return any(_is_import_error_expression(element.value) for element in node.type.elements)
+
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
         """This catches the `from collections import <ABC>` cases."""
-        if self.is_except_block(node):
+        if self.is_import_error_except_block(node):
             return
 
         # Get imports in this statement

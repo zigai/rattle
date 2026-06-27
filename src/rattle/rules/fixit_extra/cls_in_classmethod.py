@@ -42,40 +42,32 @@ class UseClsInClassmethod(LintRule):
     SOURCE_PATTERNS = ("classmethod",)
     MESSAGE = "When using @classmethod, the first argument must be `cls`."
     VALID = [
-        Valid(
-            """
+        Valid("""
             class foo:
                 # classmethod with cls first arg.
                 @classmethod
                 def cm(cls, a, b, c):
                     pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class foo:
                 # non-classmethod with non-cls first arg.
                 def nm(self, a, b, c):
                     pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class foo:
                 # staticmethod with non-cls first arg.
                 @staticmethod
                 def sm(a):
                     pass
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class foo:
                 @classmethod
                 def cm(cls, /):
                     pass
-            """
-        ),
+            """),
     ]
     INVALID = [
         Invalid(
@@ -237,6 +229,24 @@ class UseClsInClassmethod(LintRule):
                     return cls
             """,
         ),
+        Invalid(
+            """
+            from builtins import classmethod as cm
+
+            class foo:
+                @cm
+                def cm(kls):
+                    return kls
+            """,
+            expected_replacement="""
+            from builtins import classmethod as cm
+
+            class foo:
+                @cm
+                def cm(cls):
+                    return cls
+            """,
+        ),
     ]
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
@@ -245,6 +255,11 @@ class UseClsInClassmethod(LintRule):
                 self,
                 decorator.decorator,
                 QualifiedName(name="builtins.classmethod", source=QualifiedNameSource.BUILTIN),
+            )
+            or QualifiedNameProvider.has_name(
+                self,
+                decorator.decorator,
+                QualifiedName(name="builtins.classmethod", source=QualifiedNameSource.IMPORT),
             )
             for decorator in node.decorators
         ):

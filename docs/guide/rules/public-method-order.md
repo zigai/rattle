@@ -143,6 +143,32 @@ class Workflow:
         return self._normalize(value)
 ```
 ```python
+from typing import *
+
+class Workflow:
+    @overload
+    def build(self, value: str) -> str: ...
+
+    def _normalize(self, value: str) -> str:
+        return value
+
+    def build(self, value: str) -> str:
+        return self._normalize(value)
+```
+```python
+from typing_extensions import *
+
+class Workflow:
+    @overload
+    def build(self, value: str) -> str: ...
+
+    def _normalize(self, value: str) -> str:
+        return value
+
+    def build(self, value: str) -> str:
+        return self._normalize(value)
+```
+```python
 from functools import singledispatchmethod
 
 class Workflow:

@@ -43,10 +43,15 @@ _ORDER_SENSITIVE_BASE_TAILS = _ORDER_SENSITIVE_BASE_NAMES
 _ORDER_SENSITIVE_DECORATOR_TAILS = {
     name.rsplit(".", 1)[-1] for name in _ORDER_SENSITIVE_DECORATOR_NAMES
 }
-_OVERLOAD_DECORATOR_NAMES = {"overload", "typing.overload", "typing_extensions.overload"}
+_OVERLOAD_DECORATOR_NAMES = {
+    "overload",
+    "typing.overload",
+    "typing_extensions.overload",
+}
 _OVERLOAD_DECORATOR_TAILS = {"overload"}
 _PUBLIC_ACCESSOR_DECORATOR_SUFFIXES = (".setter", ".deleter")
 _REGISTER_DECORATOR_SUFFIXES = (".register",)
+_TYPING_STAR_IMPORT_MODULES = {"typing", "typing_extensions"}
 
 
 def _is_dunder(name: str) -> bool:
@@ -135,7 +140,9 @@ def _ordered_methods(node: cst.ClassDef) -> list[cst.FunctionDef] | None:
     return [statement for statement in node.body.body if isinstance(statement, cst.FunctionDef)]
 
 
-def _first_order_violation(methods: list[cst.FunctionDef]) -> tuple[cst.FunctionDef, str] | None:
+def _first_order_violation(
+    methods: list[cst.FunctionDef],
+) -> tuple[cst.FunctionDef, str] | None:
     first_private_helper_name: str | None = None
     overload_names = {method.name.value for method in methods if _is_overload_declaration(method)}
     for method in methods:
@@ -184,28 +191,23 @@ class PublicMethodOrder(LintRule):
     }
 
     VALID = [
-        Valid(
-            """
+        Valid("""
             class Workflow:
                 def list_models(self) -> list[str]:
                     return []
 
                 def _normalize(self, value: str) -> str:
                     return value
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class AiModelsService:
                 def list_models(self) -> list[str]:
                     return []
 
                 def _normalize(self, value: str) -> str:
                     return value
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             from dataclasses import dataclass
 
             @dataclass
@@ -217,10 +219,8 @@ class PublicMethodOrder(LintRule):
 
                 def build(self) -> str:
                     return "ok"
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class PayloadModel(BaseModel):
                 value: str
 
@@ -229,10 +229,8 @@ class PublicMethodOrder(LintRule):
 
                 def build(self) -> str:
                     return "ok"
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class Workflow:
                 @property
                 def value(self) -> str:
@@ -244,10 +242,8 @@ class PublicMethodOrder(LintRule):
                 @value.setter
                 def value(self, value: str) -> None:
                     self._value = self._normalize(value)
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             from builtins import property as prop
 
             class Workflow:
@@ -257,10 +253,8 @@ class PublicMethodOrder(LintRule):
                 @prop
                 def value(self) -> str:
                     return self._normalize()
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             from typing import overload
 
             class Workflow:
@@ -272,10 +266,8 @@ class PublicMethodOrder(LintRule):
 
                 def build(self, value: str) -> str:
                     return self._normalize(value)
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             from typing import overload as ov
 
             class Workflow:
@@ -287,10 +279,34 @@ class PublicMethodOrder(LintRule):
 
                 def build(self, value: str) -> str:
                     return self._normalize(value)
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
+            from typing import *
+
+            class Workflow:
+                @overload
+                def build(self, value: str) -> str: ...
+
+                def _normalize(self, value: str) -> str:
+                    return value
+
+                def build(self, value: str) -> str:
+                    return self._normalize(value)
+            """),
+        Valid("""
+            from typing_extensions import *
+
+            class Workflow:
+                @overload
+                def build(self, value: str) -> str: ...
+
+                def _normalize(self, value: str) -> str:
+                    return value
+
+                def build(self, value: str) -> str:
+                    return self._normalize(value)
+            """),
+        Valid("""
             from functools import singledispatchmethod
 
             class Workflow:
@@ -304,8 +320,7 @@ class PublicMethodOrder(LintRule):
                 @render.register
                 def render_str(self, value: str) -> str:
                     return self._normalize(value)
-            """
-        ),
+            """),
         Valid(
             """
             class Helper:
@@ -317,8 +332,7 @@ class PublicMethodOrder(LintRule):
             """,
             options={"class_name_patterns": ["*Service"]},
         ),
-        Valid(
-            """
+        Valid("""
             from dataclasses import dataclass as dc
 
             @dc
@@ -328,10 +342,8 @@ class PublicMethodOrder(LintRule):
 
                 def build(self) -> str:
                     return "ok"
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             from pydantic import BaseModel as BM
 
             class Workflow(BM):
@@ -340,8 +352,7 @@ class PublicMethodOrder(LintRule):
 
                 def build(self) -> str:
                     return "ok"
-            """
-        ),
+            """),
     ]
 
     INVALID = [
@@ -392,6 +403,23 @@ class PublicMethodOrder(LintRule):
             ),
         ),
     ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._has_typing_star_import = False
+
+    def visit_Module(self, node: cst.Module) -> None:
+        del node
+        self._has_typing_star_import = False
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
+        if (
+            not node.relative
+            and isinstance(node.module, cst.Name)
+            and node.module.value in _TYPING_STAR_IMPORT_MODULES
+            and isinstance(node.names, cst.ImportStar)
+        ):
+            self._has_typing_star_import = True
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         if not self._should_check_class(
@@ -470,7 +498,7 @@ class PublicMethodOrder(LintRule):
                 continue
             if self._is_overload_declaration(method):
                 continue
-            if _is_order_sensitive_registration(method):
+            if self._is_order_sensitive_registration(method):
                 continue
 
             if method_name.startswith("_"):
@@ -496,12 +524,44 @@ class PublicMethodOrder(LintRule):
         )
 
     def _is_overload_declaration(self, method: cst.FunctionDef) -> bool:
-        if _is_overload_declaration(method):
+        return any(
+            self._is_overload_decorator(decorator.decorator) for decorator in method.decorators
+        )
+
+    def _is_overload_decorator(self, expression: cst.BaseExpression) -> bool:
+        if self._expression_resolves_to_tail(expression, _OVERLOAD_DECORATOR_TAILS):
+            return True
+        if not self._has_typing_star_import:
+            return False
+        if callable_dotted_name(expression) != "overload":
+            return False
+
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        return not qualified_names
+
+    def _is_order_sensitive_registration(self, method: cst.FunctionDef) -> bool:
+        if _is_order_sensitive_registration(method):
             return True
 
+        for decorator in method.decorators:
+            if self._expression_resolves_to_name(
+                decorator.decorator,
+                {"functools.singledispatchmethod"},
+            ):
+                return True
+
+        return False
+
+    def _expression_resolves_to_name(
+        self,
+        expression: cst.BaseExpression,
+        names: set[str],
+    ) -> bool:
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
         return any(
-            self._expression_resolves_to_tail(decorator.decorator, _OVERLOAD_DECORATOR_TAILS)
-            for decorator in method.decorators
+            qualified_name.source in {QualifiedNameSource.BUILTIN, QualifiedNameSource.IMPORT}
+            and qualified_name.name in names
+            for qualified_name in qualified_names
         )
 
     def _expression_resolves_to_tail(

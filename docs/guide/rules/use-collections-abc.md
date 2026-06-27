@@ -218,7 +218,7 @@ from collections.abc import Mapping
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 class MyTest(collections.Container):
@@ -231,6 +231,26 @@ class MyTest(collections.Container):
 class MyTest(collections.abc.Container):
     def test(self):
         pass
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+try:
+    work()
+except ValueError:
+    from collections import Mapping
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+try:
+    work()
+except ValueError:
+    from collections.abc import Mapping
 ```
 ```{raw} html
 </div>

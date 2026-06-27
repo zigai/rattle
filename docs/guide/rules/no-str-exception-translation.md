@@ -45,6 +45,17 @@ except ValueError as exc:
     str = lambda value: "fixed"
     raise RuntimeError(str(exc)) from exc
 ```
+```python
+error = "fixed"
+
+try:
+    run()
+except ValueError as exc:
+    def capture() -> None:
+        error = exc
+
+    raise RuntimeError(str(error)) from exc
+```
 ```{raw} html
 </details>
 ```

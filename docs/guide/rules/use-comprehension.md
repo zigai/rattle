@@ -169,15 +169,10 @@ dict((k, v) for k, v in iter for iter in iters)
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 set([val for val in iterable])
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{val for val in iterable}
 ```
 ```{raw} html
 </div>
@@ -229,11 +224,6 @@ dict([(x, y) for y, x in iterable])
 ```
 ```python
 set([val for row in matrix for val in row])
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{val for row in matrix for val in row}
 ```
 ```{raw} html
 </div>

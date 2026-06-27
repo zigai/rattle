@@ -109,46 +109,46 @@ class UseFstring(LintRule):
 
     INVALID = [
         Invalid('"Hey, {somebody}.".format(somebody="you")'),
-        Invalid('"%s" % "hi"', expected_replacement='''f"{'hi'}"'''),
-        Invalid('"a name: %s" % name', expected_replacement='f"a name: {name}"'),
-        Invalid('u"%s" % name', expected_replacement='f"{name}"'),
+        Invalid('"%s" % "hi"', expected_replacement='''f"{'hi'!s}"'''),
+        Invalid('"a name: %s" % name', expected_replacement='f"a name: {name!s}"'),
+        Invalid('u"%s" % name', expected_replacement='f"{name!s}"'),
         Invalid(
             '"an attribute %s ." % obj.attr',
-            expected_replacement='f"an attribute {obj.attr} ."',
+            expected_replacement='f"an attribute {obj.attr!s} ."',
         ),
         Invalid(
             'r"raw string value=%s" % val',
-            expected_replacement='fr"raw string value={val}"',
+            expected_replacement='fr"raw string value={val!s}"',
         ),
-        Invalid('"{%s}" % val', expected_replacement='f"{{{val}}}"'),
-        Invalid('"{%s" % val', expected_replacement='f"{{{val}"'),
+        Invalid('"{%s}" % val', expected_replacement='f"{{{val!s}}}"'),
+        Invalid('"{%s" % val', expected_replacement='f"{{{val!s}"'),
         Invalid(
             '"The type of var: %s" % type(var)',
-            expected_replacement='f"The type of var: {type(var)}"',
+            expected_replacement='f"The type of var: {type(var)!s}"',
         ),
         Invalid(
             '"%s" % obj.this_is_a_very_long_expression(parameter)["a_very_long_key"]',
         ),
         Invalid(
             '"%s" % abcdefghijklmnopqrstuvwxyz1234567890',
-            expected_replacement='f"{abcdefghijklmnopqrstuvwxyz1234567890}"',
+            expected_replacement='f"{abcdefghijklmnopqrstuvwxyz1234567890!s}"',
             options={"simple_expression_max_length": 100},
         ),
         Invalid(
             '"type of var: %s, value of var: %s" % (type(var), var)',
-            expected_replacement='f"type of var: {type(var)}, value of var: {var}"',
+            expected_replacement='f"type of var: {type(var)!s}, value of var: {var!s}"',
         ),
         Invalid(
             "'%s\" double quote is used' % var",
-            expected_replacement="f'{var}\" double quote is used'",
+            expected_replacement="f'{var!s}\" double quote is used'",
         ),
         Invalid(
             '"var1: %s, var2: %s, var3: %s, var4: %s" % (class_object.attribute, dict_lookup["some_key"], some_module.some_function(), var4)',
-            expected_replacement='''f"var1: {class_object.attribute}, var2: {dict_lookup['some_key']}, var3: {some_module.some_function()}, var4: {var4}"''',
+            expected_replacement='''f"var1: {class_object.attribute!s}, var2: {dict_lookup['some_key']!s}, var3: {some_module.some_function()!s}, var4: {var4!s}"''',
         ),
         Invalid(
             '"a list: %s" % " ".join(var)',
-            expected_replacement='''f"a list: {' '.join(var)}"''',
+            expected_replacement='''f"a list: {' '.join(var)!s}"''',
         ),
         Invalid('"%s" % (first, second)'),
     ]
@@ -216,7 +216,8 @@ class UseFstring(LintRule):
                             expression=cast(
                                 cst.BaseExpression,
                                 expressions[i - 1].visit(escape_transformer),
-                            )
+                            ),
+                            conversion="s",
                         )
                     )
                 except ValueError:

@@ -7,6 +7,7 @@ from libcst.metadata import (
     FilePathProvider,
     QualifiedNameProvider,
     QualifiedNameSource,
+    ScopeProvider,
 )
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
@@ -70,6 +71,12 @@ def _is_bare_object_subscript_annotation(expression: cst.Subscript) -> bool:
         return _is_bare_object_annotation(elements[0])
     if subscript_name in {"Union", "typing.Union"} and len(elements) == 2:
         return _is_object_none_pair(elements[0], elements[1])
+    if subscript_name in {
+        "Annotated",
+        "typing.Annotated",
+        "typing_extensions.Annotated",
+    }:
+        return bool(elements) and _is_bare_object_annotation(elements[0])
 
     return False
 
@@ -88,6 +95,7 @@ class NoBareObjectAnnotations(LintRule):
         *LintRule.METADATA_DEPENDENCIES,
         FilePathProvider,
         QualifiedNameProvider,
+        ScopeProvider,
     )
     SETTINGS = {
         "excluded_path_parts": RuleSetting(
@@ -100,25 +108,18 @@ class NoBareObjectAnnotations(LintRule):
     _current_file_path: Path | None
 
     VALID = [
-        Valid(
-            """
+        Valid("""
             def fn(payload: dict[str, object]) -> None:
                 return None
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             def fn(settings_type: type[object]) -> None:
                 return None
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             sentinel = object()
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             from typing import Protocol
 
             class SettingsProvider(Protocol):
@@ -126,17 +127,14 @@ class NoBareObjectAnnotations(LintRule):
 
             def fn(value: object | SettingsProvider | None) -> None:
                 return None
-            """
-        ),
-        Valid(
-            """
+            """),
+        Valid("""
             class object:
                 pass
 
             def fn(value: object) -> None:
                 return None
-            """
-        ),
+            """),
     ]
 
     INVALID = [
@@ -225,16 +223,35 @@ class NoBareObjectAnnotations(LintRule):
             """,
             expected_message="Use a narrower type than bare object in annotations.",
         ),
+        Invalid(
+            """
+            from typing import Annotated
+
+            value: Annotated[object, "metadata"] = payload
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
+        Invalid(
+            """
+            from typing import TypeAlias
+
+            Object: TypeAlias = object
+            value: Object = payload
+            """,
+            expected_message="Use a narrower type than bare object in annotations.",
+        ),
     ]
 
     def __init__(self) -> None:
         super().__init__()
 
         self._current_file_path = None
+        self._object_type_alias_nodes: set[cst.CSTNode] = set()
 
     def visit_Module(self, node: cst.Module) -> None:
         file_path = self.get_metadata(FilePathProvider, node)
         self._current_file_path = file_path if isinstance(file_path, Path) else None
+        self._object_type_alias_nodes = set()
 
     def leave_Module(self, original_node: cst.Module) -> None:
         del original_node
@@ -255,6 +272,8 @@ class NoBareObjectAnnotations(LintRule):
         if self._should_skip_current_file():
             return
 
+        self._remember_object_type_alias(node)
+
         if self._is_bare_object_annotation(node.annotation.annotation):
             self.report(node.annotation, self.MESSAGE)
 
@@ -269,7 +288,7 @@ class NoBareObjectAnnotations(LintRule):
         if isinstance(expression, cst.ConcatenatedString | cst.SimpleString):
             return _is_bare_object_string_annotation(expression)
 
-        if self._is_builtin_object_annotation(expression):
+        if self._is_object_annotation_atom(expression):
             return True
 
         if self._is_object_none_union(expression):
@@ -279,6 +298,11 @@ class NoBareObjectAnnotations(LintRule):
             return self._is_bare_object_subscript_annotation(expression)
 
         return False
+
+    def _is_object_annotation_atom(self, expression: cst.BaseExpression) -> bool:
+        return self._is_builtin_object_annotation(
+            expression
+        ) or self._is_object_type_alias_annotation(expression)
 
     def _is_builtin_object_annotation(self, expression: cst.BaseExpression) -> bool:
         qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
@@ -296,6 +320,24 @@ class NoBareObjectAnnotations(LintRule):
 
         return _is_syntactic_object_annotation(expression)
 
+    def _is_object_type_alias_annotation(self, expression: cst.BaseExpression) -> bool:
+        if not isinstance(expression, cst.Name):
+            return False
+
+        scope = self.get_metadata(ScopeProvider, expression, None)
+        if scope is None:
+            return False
+
+        try:
+            assignments = scope[expression.value]
+        except KeyError:
+            return False
+
+        return bool(assignments) and all(
+            getattr(assignment, "node", None) in self._object_type_alias_nodes
+            for assignment in assignments
+        )
+
     def _is_object_none_union(self, expression: cst.BaseExpression) -> bool:
         if not isinstance(expression, cst.BinaryOperation) or not isinstance(
             expression.operator, cst.BitOr
@@ -312,7 +354,9 @@ class NoBareObjectAnnotations(LintRule):
         ]
         if (
             self._subscript_has_typing_name(
-                expression, qualified_name="typing.Optional", syntactic_names={"Optional"}
+                expression,
+                qualified_name="typing.Optional",
+                syntactic_names={"Optional"},
             )
             and len(elements) == 1
         ):
@@ -324,6 +368,14 @@ class NoBareObjectAnnotations(LintRule):
             and len(elements) == 2
         ):
             return self._is_object_none_pair(elements[0], elements[1])
+        if self._subscript_has_typing_name(
+            expression, qualified_name="typing.Annotated", syntactic_names={"Annotated"}
+        ) or self._subscript_has_typing_name(
+            expression,
+            qualified_name="typing_extensions.Annotated",
+            syntactic_names={"Annotated"},
+        ):
+            return bool(elements) and self._is_bare_object_annotation(elements[0])
 
         return False
 
@@ -346,9 +398,35 @@ class NoBareObjectAnnotations(LintRule):
         return callable_dotted_name(expression.value) in syntactic_names
 
     def _is_object_none_pair(self, left: cst.BaseExpression, right: cst.BaseExpression) -> bool:
-        return (self._is_builtin_object_annotation(left) and is_name(right, "None")) or (
-            is_name(left, "None") and self._is_builtin_object_annotation(right)
+        return (self._is_object_annotation_atom(left) and is_name(right, "None")) or (
+            is_name(left, "None") and self._is_object_annotation_atom(right)
         )
+
+    def _remember_object_type_alias(self, node: cst.AnnAssign) -> None:
+        if not isinstance(node.target, cst.Name):
+            return
+
+        if (
+            node.value is not None
+            and self._is_type_alias_annotation(node.annotation.annotation)
+            and self._is_builtin_object_annotation(node.value)
+        ):
+            self._object_type_alias_nodes.add(node.target)
+        else:
+            self._object_type_alias_nodes.discard(node.target)
+
+    def _is_type_alias_annotation(self, expression: cst.BaseExpression) -> bool:
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        if any(name.source is QualifiedNameSource.LOCAL for name in qualified_names):
+            return False
+        if qualified_names:
+            return any(
+                name.name in {"typing.TypeAlias", "typing_extensions.TypeAlias"}
+                and name.source is QualifiedNameSource.IMPORT
+                for name in qualified_names
+            )
+
+        return callable_dotted_name(expression) == "TypeAlias"
 
     def _should_skip_current_file(self) -> bool:
         if self._current_file_path is None:

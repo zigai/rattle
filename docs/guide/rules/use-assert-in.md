@@ -57,6 +57,14 @@ self.assertNotIn(f(x), b)
 ```python
 self.assertNotIn(f(g(x)), b)
 ```
+```python
+class Checker:
+    def assertTrue(self, expr):
+        print(expr)
+
+    def check(self, a, b):
+        self.assertTrue(a in b)
+```
 ```{raw} html
 </details>
 ```

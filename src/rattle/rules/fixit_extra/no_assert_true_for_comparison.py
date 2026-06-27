@@ -55,11 +55,31 @@ class NoAssertTrueForComparisons(LintRule):
         ),
     ]
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._class_method_stack: list[set[str]] = []
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> None:
+        self._class_method_stack.append(
+            {
+                statement.name.value
+                for statement in node.body.body
+                if isinstance(statement, cst.FunctionDef)
+            }
+        )
+
+    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
+        del original_node
+
+        self._class_method_stack.pop()
+
     def visit_Call(self, node: cst.Call) -> None:
         if not m.matches(
             node.func,
             m.Attribute(value=m.Name("self"), attr=m.Name("assertTrue")),
         ):
+            return
+        if self._class_defines_assertion_method("assertTrue"):
             return
         if not node.args:
             return
@@ -83,8 +103,13 @@ class NoAssertTrueForComparisons(LintRule):
         )
         self.report(node, self.MESSAGE, replacement=replacement)
 
+    def _class_defines_assertion_method(self, name: str) -> bool:
+        return bool(self._class_method_stack and name in self._class_method_stack[-1])
 
-def _assertion_for_condition(value: cst.BaseExpression) -> tuple[str | None, cst.Comparison | None]:
+
+def _assertion_for_condition(
+    value: cst.BaseExpression,
+) -> tuple[str | None, cst.Comparison | None]:
     if isinstance(value, cst.Comparison):
         return _assertion_for_comparison(value, negated=False), value
     if (
@@ -92,7 +117,10 @@ def _assertion_for_condition(value: cst.BaseExpression) -> tuple[str | None, cst
         and isinstance(value.operator, cst.Not)
         and isinstance(value.expression, cst.Comparison)
     ):
-        return _assertion_for_comparison(value.expression, negated=True), value.expression
+        return (
+            _assertion_for_comparison(value.expression, negated=True),
+            value.expression,
+        )
     return None, None
 
 
