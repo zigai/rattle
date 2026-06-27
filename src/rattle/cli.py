@@ -22,7 +22,7 @@ from stdl.st import colored
 
 from rattle.__version__ import __version__
 
-from .api import rattle_paths
+from .api import rattle_bytes, rattle_paths
 from .config import (
     CollectionError,
     collect_rule_types,
@@ -37,6 +37,7 @@ from .explain import RuleInfo, render_console_rule_info
 from .ftypes import (
     STDIN,
     Config,
+    FileContent,
     LSPOptions,
     Metrics,
     Options,
@@ -62,6 +63,7 @@ METRICS_ENV = "RATTLE_METRICS"
 UV_PROJECT_MARKERS = ("uv.lock",)
 UV_REEXEC_COMMANDS = frozenset({"lint", "fix", "rules", "validate", "lsp", "explain"})
 TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
+MAX_AUTOFIX_PASSES = 10
 
 
 class RattleAbbreviationGenerator(AbbreviationGenerator):
@@ -124,7 +126,7 @@ def splash(
     def f(v: int) -> str:
         return "file" if v == 1 else "files"
 
-    if violation_files or error_files:
+    if violation_files or error_files or fixed:
         reports = [colored(f"{len(visited)} {f(len(visited))} checked")]
         if violations:
             reports.append(
@@ -199,6 +201,10 @@ def _print_stats(console: AsyncConsole, stats: Counter[str]) -> None:
         console.submit(f"  {rule_name:<{width}}  {count}", err=True)
 
 
+def _result_config(result: Result, options: Options) -> Config:
+    return result.config or generate_config(result.path, options=options)
+
+
 @dataclass
 class LintState:
     exit_code: int = 0
@@ -253,6 +259,80 @@ class LintReport:
                 self.state.error_files,
                 self.state.violations,
                 self.state.autofixes,
+            ),
+            err=True,
+        )
+        if self.stats:
+            _print_stats(self.console, self.state.violation_stats)
+
+
+@dataclass
+class FixReport:
+    console: AsyncConsole
+    options: Options
+    is_stdin: bool
+    quiet: bool
+    compact: bool
+    stats: bool
+    state: FixState = field(default_factory=FixState)
+    visited: set[Path] = field(default_factory=set)
+    violation_files: set[Path] = field(default_factory=set)
+    error_files: set[Path] = field(default_factory=set)
+
+    def record_verified(self, result: Result) -> None:
+        self.visited.add(result.path)
+        if not result.violation and not result.error:
+            return
+
+        config = _result_config(result, self.options)
+        if result.violation:
+            self.violation_files.add(result.path)
+            self.state.violations += 1
+            self.state.exit_code |= 1
+            if result.violation.autofixable:
+                self.state.autofixes += 1
+            if self.stats:
+                self.state.violation_stats[result.violation.rule_name] += 1
+        if result.error:
+            self.error_files.add(result.path)
+            self.state.exit_code |= 2
+
+        if not self.quiet:
+            _submit_result(
+                self.console,
+                result,
+                show_diff=False,
+                stderr=self.is_stdin,
+                output_format=config.output_format,
+                output_template=config.output_template,
+                brief=self.compact,
+            )
+
+    def submit_applied_fix(self, result: Result, *, show_diff: bool) -> None:
+        violation = result.violation
+        if self.quiet or violation is None or not violation.autofixable:
+            return
+
+        config = _result_config(result, self.options)
+        _submit_result(
+            self.console,
+            result,
+            show_diff=show_diff,
+            stderr=self.is_stdin,
+            output_format=config.output_format,
+            output_template=config.output_template,
+            brief=self.compact,
+        )
+
+    def submit(self) -> None:
+        self.console.submit(
+            splash(
+                self.visited,
+                self.violation_files,
+                self.error_files,
+                self.state.violations,
+                self.state.autofixes,
+                self.state.fixed,
             ),
             err=True,
         )
@@ -338,66 +418,7 @@ def _validate_fix_options(
     return is_stdin
 
 
-def _record_fix_output(
-    console: AsyncConsole,
-    result: Result,
-    *,
-    config: Config,
-    autofix: bool,
-    is_stdin: bool,
-    quiet: bool,
-    interactive: bool,
-    diff: bool,
-    compact: bool,
-    stats: bool,
-    state: FixState,
-    violation_files: set[Path],
-    error_files: set[Path],
-) -> None:
-    if result.violation:
-        violation_files.add(result.path)
-        if stats:
-            state.violation_stats[result.violation.rule_name] += 1
-    if result.error:
-        error_files.add(result.path)
-
-    if quiet:
-        return
-
-    if _should_omit_fixed_diagnostic(
-        result,
-        autofix=autofix,
-        interactive=interactive,
-        diff=diff,
-    ):
-        return
-
-    _submit_result(
-        console,
-        result,
-        show_diff=interactive or diff,
-        stderr=is_stdin,
-        output_format=config.output_format,
-        output_template=config.output_template,
-        brief=compact,
-    )
-
-
-def _should_omit_fixed_diagnostic(
-    result: Result,
-    *,
-    autofix: bool,
-    interactive: bool,
-    diff: bool,
-) -> bool:
-    if interactive or diff or not autofix:
-        return False
-
-    violation = result.violation
-    return violation is not None and violation.autofixable
-
-
-def _prompt_for_fix(generator: capture, state: FixState) -> bool:
+def _prompt_for_fix() -> tuple[bool, bool]:
     prompt = "Apply autofix? [Y]es, [n]o, [q]uit: "
     while True:
         echo(prompt, nl=False, err=True)
@@ -409,45 +430,7 @@ def _prompt_for_fix(generator: capture, state: FixState) -> bool:
             break
         echo("Press y to apply, n to skip, or q to quit fixing.", err=True)
 
-    if answer == "y":
-        generator.respond(answer=True)
-        state.fixed += 1
-        return False
-
-    state.exit_code |= 1
-    return answer == "q"
-
-
-def _update_fix_state(
-    result: object,
-    *,
-    autofix: bool,
-    interactive: bool,
-    generator: capture,
-    state: FixState,
-) -> bool:
-    error = getattr(result, "error", None)
-    if error:
-        state.exit_code |= 2
-        return False
-
-    violation = getattr(result, "violation", None)
-    if not violation:
-        return False
-
-    state.violations += 1
-
-    if interactive and violation.autofixable:
-        state.autofixes += 1
-        return _prompt_for_fix(generator, state)
-
-    if autofix and violation.autofixable:
-        state.autofixes += 1
-        state.fixed += 1
-        return False
-
-    state.exit_code |= 1
-    return False
+    return answer == "y", answer == "q"
 
 
 def _version() -> str:
@@ -636,6 +619,202 @@ def lint(
         raise SystemExit(report.state.exit_code)
 
 
+def _changed_result_paths(results: list[Result]) -> set[Path]:
+    changed: set[Path] = set()
+    for result in results:
+        if result.source is None:
+            continue
+        try:
+            current = result.path.read_bytes()
+        except OSError:
+            continue
+        if current != result.source:
+            changed.add(result.path)
+    return changed
+
+
+def _autofixable_result_count(
+    results: list[Result],
+    *,
+    changed_paths: set[Path] | None = None,
+) -> int:
+    return sum(
+        1
+        for result in results
+        if result.violation is not None
+        and result.violation.autofixable
+        and (changed_paths is None or result.path in changed_paths)
+    )
+
+
+def _submit_applied_fix_results(
+    report: FixReport,
+    results: list[Result],
+    *,
+    changed_paths: set[Path] | None,
+    show_diff: bool,
+) -> None:
+    if not show_diff:
+        return
+
+    for result in results:
+        if changed_paths is not None and result.path not in changed_paths:
+            continue
+        report.submit_applied_fix(result, show_diff=True)
+
+
+def _collect_rattle_bytes(
+    path: Path,
+    content: FileContent,
+    *,
+    config: Config,
+    autofix: bool,
+    include_diff: bool,
+    metrics_hook: Callable[[Metrics], None] | None,
+) -> tuple[list[Result], FileContent | None]:
+    runner = capture(
+        rattle_bytes(
+            path,
+            content,
+            config=config,
+            autofix=autofix,
+            include_diff=include_diff,
+            metrics_hook=metrics_hook,
+        )
+    )
+    results = list(runner)
+    return results, runner.result
+
+
+def _run_automatic_fix_path_pass(
+    paths: tuple[Path, ...],
+    report: FixReport,
+    *,
+    diff: bool,
+) -> bool:
+    results = list(
+        rattle_paths(
+            paths,
+            autofix=True,
+            include_diff=diff,
+            options=report.options,
+            parallel=True,
+            metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+        )
+    )
+    changed_paths = _changed_result_paths(results)
+    fixed = _autofixable_result_count(results, changed_paths=changed_paths)
+    if not fixed or not changed_paths:
+        return False
+
+    report.state.fixed += fixed
+    _submit_applied_fix_results(report, results, changed_paths=changed_paths, show_diff=diff)
+    return True
+
+
+def _verify_fix_paths(paths: tuple[Path, ...], report: FixReport) -> None:
+    for result in rattle_paths(
+        paths,
+        include_diff=False,
+        allow_cached_dirty_results=False,
+        options=report.options,
+        metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+    ):
+        report.record_verified(result)
+
+
+def _run_automatic_fix_paths(
+    paths: tuple[Path, ...],
+    report: FixReport,
+    *,
+    diff: bool,
+) -> None:
+    for _ in range(MAX_AUTOFIX_PASSES):
+        if not _run_automatic_fix_path_pass(paths, report, diff=diff):
+            break
+
+    _verify_fix_paths(paths, report)
+
+
+def _run_interactive_fix_paths(paths: tuple[Path, ...], report: FixReport) -> None:
+    generator = capture(
+        rattle_paths(
+            paths,
+            autofix=False,
+            include_diff=True,
+            options=report.options,
+            parallel=False,
+            metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+        )
+    )
+    for result in generator:
+        report.visited.add(result.path)
+        violation = result.violation
+        if violation is None or not violation.autofixable:
+            continue
+
+        report.submit_applied_fix(result, show_diff=True)
+        report.console.flush()
+        apply_fix, quit_fixing = _prompt_for_fix()
+        if quit_fixing:
+            report.violation_files.add(result.path)
+            report.state.violations += 1
+            report.state.autofixes += 1
+            report.state.exit_code |= 1
+            return
+        if apply_fix:
+            generator.respond(answer=True)
+            report.state.fixed += 1
+
+    _verify_fix_paths(paths, report)
+
+
+def _run_automatic_fix_stdin(
+    paths: tuple[Path, ...],
+    report: FixReport,
+    *,
+    diff: bool,
+) -> None:
+    path = paths[1].resolve()
+    content = sys.stdin.buffer.read()
+    config = generate_config(path, options=report.options, explicit_path=True)
+    if config.excluded:
+        return
+
+    for _ in range(MAX_AUTOFIX_PASSES):
+        results, updated = _collect_rattle_bytes(
+            path,
+            content,
+            config=config,
+            autofix=True,
+            include_diff=diff,
+            metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+        )
+        if updated is None or updated == content:
+            break
+
+        fixed = _autofixable_result_count(results)
+        if not fixed:
+            break
+
+        report.state.fixed += fixed
+        _submit_applied_fix_results(report, results, changed_paths=None, show_diff=diff)
+        content = updated
+
+    results, _ = _collect_rattle_bytes(
+        path,
+        content,
+        config=config,
+        autofix=False,
+        include_diff=False,
+        metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+    )
+    for result in results:
+        report.record_verified(result)
+
+    sys.stdout.buffer.write(content)
+
+
 def fix(
     *paths: Path,
     rules: str | None = None,
@@ -683,75 +862,29 @@ def fix(
         jobs=jobs,
         rules=rules,
     )
-    autofix = not interactive
-    state = FixState()
-
-    visited: set[Path] = set()
-    violation_files: set[Path] = set()
-    error_files: set[Path] = set()
 
     console = AsyncConsole()
+    report = FixReport(
+        console=console,
+        options=runtime_options,
+        is_stdin=is_stdin,
+        quiet=quiet,
+        compact=compact,
+        stats=stats,
+    )
     try:
-        generator = capture(
-            rattle_paths(
-                paths,
-                autofix=autofix,
-                include_diff=interactive or diff,
-                options=runtime_options,
-                parallel=autofix,
-                metrics_hook=_metrics_hook(console, runtime_options.print_metrics),
-            )
-        )
-        for result in generator:
-            visited.add(result.path)
-            if not result.violation and not result.error:
-                continue
-            result_config = result.config or generate_config(result.path, options=runtime_options)
-            # for STDIN, we need STDOUT to equal the fixed content, so
-            # move everything else to STDERR
-            _record_fix_output(
-                console,
-                result,
-                config=result_config,
-                autofix=autofix,
-                is_stdin=is_stdin,
-                quiet=quiet,
-                interactive=interactive,
-                diff=diff,
-                compact=compact,
-                stats=stats,
-                state=state,
-                violation_files=violation_files,
-                error_files=error_files,
-            )
-            if interactive:
-                console.flush()
-            if _update_fix_state(
-                result,
-                autofix=autofix,
-                interactive=interactive,
-                generator=generator,
-                state=state,
-            ):
-                break
+        if is_stdin:
+            _run_automatic_fix_stdin(paths, report, diff=diff)
+        elif interactive:
+            _run_interactive_fix_paths(paths, report)
+        else:
+            _run_automatic_fix_paths(paths, report, diff=diff)
 
-        console.submit(
-            splash(
-                visited,
-                violation_files,
-                error_files,
-                state.violations,
-                state.autofixes,
-                state.fixed,
-            ),
-            err=True,
-        )
-        if stats:
-            _print_stats(console, state.violation_stats)
+        report.submit()
     finally:
         console.close()
-    if state.exit_code:
-        raise SystemExit(state.exit_code)
+    if report.state.exit_code:
+        raise SystemExit(report.state.exit_code)
 
 
 def lsp(
