@@ -11,19 +11,18 @@ from libcst.metadata import ParentNodeProvider
 from rattle import Invalid, LintRule, Valid
 
 UNNECESSARY_LAMBDA: str = (
-    "The lambda that is wrapping {function} is redundant. It can unwrapped safely and used purely."
+    "The lambda that wraps {function} is redundant and can be replaced by the callable."
 )
 
 
 class NoRedundantLambda(LintRule):
+    """
+    Replace simple lambdas that only forward their arguments to another callable.
+    The replacement can change callback signature, arity, or introspection behavior.
+    """
+
     MESSAGE = UNNECESSARY_LAMBDA
     METADATA_DEPENDENCIES = (ParentNodeProvider,)
-
-    """
-    A lambda function which has a single objective of
-    passing all it is arguments to another callable can
-    be safely replaced by that callable.
-    """
 
     VALID = [
         Valid("lambda x: foo(y)"),

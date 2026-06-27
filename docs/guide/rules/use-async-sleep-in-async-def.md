@@ -17,11 +17,12 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Detect if asyncio.sleep is used in an async function.
+Do not call blocking ``time.sleep`` inside async functions; use
+``asyncio.sleep`` or an async runtime sleep instead.
 
 ## Message
 
-Use asyncio.sleep in async function
+Do not call blocking time.sleep inside async functions; use asyncio.sleep or an async runtime sleep.
 
 
 ## Valid examples

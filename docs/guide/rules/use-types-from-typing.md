@@ -17,13 +17,13 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: `< 3.9`</span>
 </p>
 
-Enforces the use of types from the ``typing`` module in type annotations in place
-of ``builtins.{builtin_type}`` since the type system doesn't recognize the latter
-as a valid type before Python ``3.9``.
+For Python ``< 3.9`` only, require ``typing.Dict``, ``typing.List``,
+``typing.Set``, and ``typing.Tuple`` annotations instead of builtin generic
+aliases such as ``dict[str, str]``.
 
 ## Message
 
-You are using builtins.{builtin_type} as a type annotation but the type system doesn't recognize it as a valid type. Use typing.{correct_type} instead.
+For Python < 3.9, builtins.{builtin_type} is used as a type annotation but the type system doesn't recognize it as a valid type. Use typing.{correct_type} instead.
 
 
 ## Valid examples

@@ -15,7 +15,11 @@ UNNECESSARY_LIST_COMPREHENSION: str = (
 
 
 class NoRedundantListComprehension(LintRule):
-    """Remove unnecessary list comprehensions inside any() and all()."""
+    """
+    Prefer generator expressions inside ``any()`` and ``all()``. Replacing a list
+    comprehension changes eager evaluation into lazy short-circuiting, so side
+    effects in later iterations may no longer run.
+    """
 
     MESSAGE = UNNECESSARY_LIST_COMPREHENSION
     SOURCE_PATTERNS = ("any(", "all(")
@@ -41,14 +45,8 @@ class NoRedundantListComprehension(LintRule):
         ),
     ]
     INVALID = [
-        Invalid(
-            "any([val for val in iterable])",
-            expected_replacement="any(val for val in iterable)",
-        ),
-        Invalid(
-            "all([val for val in iterable])",
-            expected_replacement="all(val for val in iterable)",
-        ),
+        Invalid("any([val for val in iterable])"),
+        Invalid("all([val for val in iterable])"),
     ]
 
     def visit_Call(self, node: cst.Call) -> None:
@@ -65,14 +63,9 @@ class NoRedundantListComprehension(LintRule):
                 QualifiedName(name=f"builtins.{call_name}", source=QualifiedNameSource.BUILTIN),
             ):
                 return
-            list_comp = cst.ensure_type(node.args[0].value, cst.ListComp)
             self.report(
                 node,
                 UNNECESSARY_LIST_COMPREHENSION.format(func=call_name),
-                replacement=node.deep_replace(
-                    list_comp,
-                    cst.GeneratorExp(elt=list_comp.elt, for_in=list_comp.for_in, lpar=[], rpar=[]),
-                ),
             )
 
 

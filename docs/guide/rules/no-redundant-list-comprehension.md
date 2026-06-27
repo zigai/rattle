@@ -13,11 +13,13 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
-  <span>Autofix: Yes</span>
+  <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
 
-Remove unnecessary list comprehensions inside any() and all().
+Prefer generator expressions inside ``any()`` and ``all()``. Replacing a list
+comprehension changes eager evaluation into lazy short-circuiting, so side
+effects in later iterations may no longer run.
 
 ## Message
 
@@ -66,15 +68,10 @@ any([val for val in iterable])
 ## Invalid examples
 
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 any([val for val in iterable])
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-any(val for val in iterable)
 ```
 ```{raw} html
 </div>
@@ -84,11 +81,6 @@ any(val for val in iterable)
 ```
 ```python
 all([val for val in iterable])
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-all(val for val in iterable)
 ```
 ```{raw} html
 </div>

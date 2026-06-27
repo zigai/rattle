@@ -17,13 +17,12 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-A lambda function which has a single objective of
-passing all it is arguments to another callable can
-be safely replaced by that callable.
+Replace simple lambdas that only forward their arguments to another callable.
+The replacement can change callback signature, arity, or introspection behavior.
 
 ## Message
 
-The lambda that is wrapping {function} is redundant. It can unwrapped safely and used purely.
+The lambda that wraps {function} is redundant and can be replaced by the callable.
 
 
 ## Valid examples

@@ -10,7 +10,7 @@ from libcst.metadata import QualifiedNameProvider, ScopeProvider
 from rattle import Invalid, LintRule, Valid
 
 REPLACE_BUILTIN_TYPE_ANNOTATION: str = (
-    "You are using builtins.{builtin_type} as a type annotation "
+    "For Python < 3.9, builtins.{builtin_type} is used as a type annotation "
     "but the type system doesn't recognize it as a valid type."
     " Use typing.{correct_type} instead."
 )
@@ -21,9 +21,9 @@ QUALIFIED_BUILTINS_TO_REPLACE: set[str] = {f"builtins.{s}" for s in BUILTINS_TO_
 
 class UseTypesFromTyping(LintRule):
     """
-    Enforces the use of types from the ``typing`` module in type annotations in place
-    of ``builtins.{builtin_type}`` since the type system doesn't recognize the latter
-    as a valid type before Python ``3.9``.
+    For Python ``< 3.9`` only, require ``typing.Dict``, ``typing.List``,
+    ``typing.Set``, and ``typing.Tuple`` annotations instead of builtin generic
+    aliases such as ``dict[str, str]``.
     """
 
     MESSAGE = REPLACE_BUILTIN_TYPE_ANNOTATION

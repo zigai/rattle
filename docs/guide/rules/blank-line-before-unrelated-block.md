@@ -17,7 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Allow block headers to stay attached to related setup statements.
+Require a blank line before block headers unless preceding setup feeds the block.
 
 ## Message
 

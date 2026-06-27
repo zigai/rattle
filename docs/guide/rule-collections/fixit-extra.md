@@ -27,14 +27,14 @@ enable = ["fixit-extra"]
 | [no-or-in-except](../rules/no-or-in-except.md) | Avoid using 'or' in an except block. For example:'except ValueError or TypeError' only catches 'ValueError'. Instead, use parentheses, 'except (ValueError, TypeError)' | Any | No |
 | [no-redundant-arguments-super](../rules/no-redundant-arguments-super.md) | Do not use arguments when calling super for the parent class. | Any | Yes |
 | [no-redundant-f-string](../rules/no-redundant-f-string.md) | f-string doesn't have placeholders, remove redundant f-string. | Any | Yes |
-| [no-redundant-lambda](../rules/no-redundant-lambda.md) | The lambda that is wrapping {function} is redundant. It can unwrapped safely and used purely. | Any | Yes |
-| [no-redundant-list-comprehension](../rules/no-redundant-list-comprehension.md) | Unnecessary list comprehension inside {func}(). Use a generator expression instead. | Any | Yes |
+| [no-redundant-lambda](../rules/no-redundant-lambda.md) | The lambda that wraps {function} is redundant and can be replaced by the callable. | Any | Yes |
+| [no-redundant-list-comprehension](../rules/no-redundant-list-comprehension.md) | Unnecessary list comprehension inside {func}(). Use a generator expression instead. | Any | No |
 | [no-string-type-annotation](../rules/no-string-type-annotation.md) | String type hints are no longer necessary in Python, use the type identifier directly. | Any | Yes |
 | [replace-union-with-optional](../rules/replace-union-with-optional.md) | `Optional[T]` is preferred over `Union[T, None]` or `Union[None, T]`. | Any | Yes |
 | [use-assert-equal](../rules/use-assert-equal.md) | "assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions. | Any | Yes |
 | [use-assert-in](../rules/use-assert-in.md) | Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check. | Any | Yes |
 | [use-assert-is-not-none](../rules/use-assert-is-not-none.md) | "assertTrue" and "assertFalse" are deprecated. Use "assertIsNotNone" and "assertIsNone" instead. | Any | Yes |
-| [use-async-sleep-in-async-def](../rules/use-async-sleep-in-async-def.md) | Use asyncio.sleep in async function | Any | No |
+| [use-async-sleep-in-async-def](../rules/use-async-sleep-in-async-def.md) | Do not call blocking time.sleep inside async functions; use asyncio.sleep or an async runtime sleep. | Any | No |
 | [use-cls-in-classmethod](../rules/use-cls-in-classmethod.md) | When using @classmethod, the first argument must be `cls`. | Any | Yes |
 | [use-collections-abc](../rules/use-collections-abc.md) | ABCs must be imported from collections.abc | `>= 3.3` | Yes |
 | [use-comprehension](../rules/use-comprehension.md) | It's unnecessary to use {func} around a generator expression, since there are equivalent comprehensions for this type. | Any | Yes |

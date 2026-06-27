@@ -16,9 +16,15 @@ from rattle import FileContent, Invalid, LintRule, Valid
 
 
 class UseAsyncSleepInAsyncDef(LintRule):
-    """Detect if asyncio.sleep is used in an async function."""
+    """
+    Do not call blocking ``time.sleep`` inside async functions; use
+    ``asyncio.sleep`` or an async runtime sleep instead.
+    """
 
-    MESSAGE: str = "Use asyncio.sleep in async function"
+    MESSAGE: str = (
+        "Do not call blocking time.sleep inside async functions; use asyncio.sleep "
+        "or an async runtime sleep."
+    )
     METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider)
     VALID = [
         Valid("""

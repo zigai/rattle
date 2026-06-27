@@ -17,15 +17,14 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Ever wanted to sort a bunch of class attributes alphabetically?
-Well now it's easy! Just add "@sorted-attributes" in the doc string of
-a class definition and lint will automatically sort all attributes alphabetically.
-
-Feel free to add other methods and such -- it should only affect class attributes.
+Sort contiguous class assignment groups when the class docstring contains
+``@sorted-attributes``. Reordering assignments can change the order in which
+right-hand-side expressions run, so use this directive only for side-effect-free
+class attributes.
 
 ## Message
 
-It appears you are using the @sorted-attributes directive and the class variables are unsorted. See the lint autofix suggestion.
+Class assignments under @sorted-attributes are not sorted; sorting them can change right-hand-side side-effect order.
 
 
 ## Valid examples

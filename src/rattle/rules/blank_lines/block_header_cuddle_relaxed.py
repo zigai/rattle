@@ -9,7 +9,7 @@ from rattle.rules.blank_lines.base import BaseBlockHeaderCuddleRule, validate_no
 
 
 class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
-    """Allow block headers to stay attached to related setup statements."""
+    """Require a blank line before block headers unless preceding setup feeds the block."""
 
     NAME = "blank-line-before-unrelated-block"
     SOURCE_PATTERNS = (b":",)

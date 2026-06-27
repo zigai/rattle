@@ -13,17 +13,18 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit</code></span>
-  <span>Autofix: Yes</span>
+  <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
 
-Enforce the use of ``dataclasses.dataclass`` decorator instead of ``NamedTuple`` for cleaner customization and
-inheritance. It supports default value, combining fields for inheritance, and omitting optional fields at
-instantiation. ``@dataclass`` is faster at reading an object's nested properties and executing its methods.
+Prefer ``dataclasses.dataclass`` over ``NamedTuple`` when tuple compatibility is
+not required. Dataclasses are not tuple-compatible, so converting public
+``NamedTuple`` APIs can break unpacking, indexing, equality, and callers that
+expect tuple instances.
 
 ## Message
 
-Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
+NamedTuple can often be replaced with @dataclass, but dataclasses are not tuple-compatible; check callers before converting.
 
 ## References
 
@@ -83,15 +84,6 @@ from typing import NamedTuple
 class Foo(NamedTuple):
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import dataclasses
-
-@dataclasses.dataclass(frozen=True)
-class Foo:
-    pass
-```
 ```{raw} html
 </div>
 ```
@@ -99,7 +91,7 @@ class Foo:
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 from typing_extensions import NamedTuple
@@ -107,20 +99,11 @@ from typing_extensions import NamedTuple
 class Foo(NamedTuple):
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import dataclasses
-
-@dataclasses.dataclass(frozen=True)
-class Foo:
-    pass
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 from typing import NamedTuple as NT
@@ -128,20 +111,11 @@ from typing import NamedTuple as NT
 class Foo(NT):
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import dataclasses
-
-@dataclasses.dataclass(frozen=True)
-class Foo:
-    pass
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 import typing as typ
@@ -149,21 +123,11 @@ import typing as typ
 class Foo(typ.NamedTuple):
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import dataclasses
-import typing as typ
-
-@dataclasses.dataclass(frozen=True)
-class Foo:
-    pass
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 from typing import NamedTuple
@@ -171,20 +135,11 @@ from typing import NamedTuple
 class Foo(NamedTuple, AnotherBase, YetAnotherBase):
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import dataclasses
-
-@dataclasses.dataclass(frozen=True)
-class Foo(AnotherBase, YetAnotherBase):
-    pass
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 from typing import NamedTuple
@@ -193,21 +148,11 @@ class OuterClass(SomeBase):
     class InnerClass(NamedTuple):
         pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import dataclasses
-
-class OuterClass(SomeBase):
-    @dataclasses.dataclass(frozen=True)
-    class InnerClass:
-        pass
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 from typing import NamedTuple
@@ -216,21 +161,11 @@ from typing import NamedTuple
 class Foo(NamedTuple):
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import dataclasses
-
-@some_other_decorator
-@dataclasses.dataclass(frozen=True)
-class Foo:
-    pass
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 from dataclasses import dataclass
@@ -239,35 +174,17 @@ from typing import NamedTuple
 class Foo(NamedTuple):
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class Foo:
-    pass
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 import dataclasses as dc
 from typing import NamedTuple
 
 class Foo(NamedTuple):
-    pass
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import dataclasses as dc
-
-@dc.dataclass(frozen=True)
-class Foo:
     pass
 ```
 ```{raw} html

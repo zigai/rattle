@@ -3,10 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from collections.abc import Sequence
-
 import libcst as cst
-from libcst import MaybeSentinel, ensure_type, parse_expression
 from libcst.metadata import (
     QualifiedName,
     QualifiedNameProvider,
@@ -15,19 +12,20 @@ from libcst.metadata import (
 )
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import is_docstring_statement, normalize_import_alias
-
-_REMOVE_IMPORT = object()
 
 
 class NoNamedTuple(LintRule):
     """
-    Enforce the use of ``dataclasses.dataclass`` decorator instead of ``NamedTuple`` for cleaner customization and
-    inheritance. It supports default value, combining fields for inheritance, and omitting optional fields at
-    instantiation. ``@dataclass`` is faster at reading an object's nested properties and executing its methods.
+    Prefer ``dataclasses.dataclass`` over ``NamedTuple`` when tuple compatibility is
+    not required. Dataclasses are not tuple-compatible, so converting public
+    ``NamedTuple`` APIs can break unpacking, indexing, equality, and callers that
+    expect tuple instances.
     """
 
-    MESSAGE: str = "Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency."
+    MESSAGE: str = (
+        "NamedTuple can often be replaced with @dataclass, but dataclasses are not "
+        "tuple-compatible; check callers before converting."
+    )
     REFERENCES = (
         ("PEP 557", "https://www.python.org/dev/peps/pep-0557"),
         (
@@ -81,26 +79,12 @@ class NoNamedTuple(LintRule):
             class Foo(NamedTuple):
                 pass
             """,
-            expected_replacement="""
-            import dataclasses
-
-            @dataclasses.dataclass(frozen=True)
-            class Foo:
-                pass
-            """,
         ),
         Invalid(
             code="""
             from typing_extensions import NamedTuple
 
             class Foo(NamedTuple):
-                pass
-            """,
-            expected_replacement="""
-            import dataclasses
-
-            @dataclasses.dataclass(frozen=True)
-            class Foo:
                 pass
             """,
         ),
@@ -111,13 +95,6 @@ class NoNamedTuple(LintRule):
             class Foo(NT):
                 pass
             """,
-            expected_replacement="""
-            import dataclasses
-
-            @dataclasses.dataclass(frozen=True)
-            class Foo:
-                pass
-            """,
         ),
         Invalid(
             code="""
@@ -126,27 +103,12 @@ class NoNamedTuple(LintRule):
             class Foo(typ.NamedTuple):
                 pass
             """,
-            expected_replacement="""
-            import dataclasses
-            import typing as typ
-
-            @dataclasses.dataclass(frozen=True)
-            class Foo:
-                pass
-            """,
         ),
         Invalid(
             code="""
             from typing import NamedTuple
 
             class Foo(NamedTuple, AnotherBase, YetAnotherBase):
-                pass
-            """,
-            expected_replacement="""
-            import dataclasses
-
-            @dataclasses.dataclass(frozen=True)
-            class Foo(AnotherBase, YetAnotherBase):
                 pass
             """,
         ),
@@ -158,14 +120,6 @@ class NoNamedTuple(LintRule):
                 class InnerClass(NamedTuple):
                     pass
             """,
-            expected_replacement="""
-            import dataclasses
-
-            class OuterClass(SomeBase):
-                @dataclasses.dataclass(frozen=True)
-                class InnerClass:
-                    pass
-            """,
         ),
         Invalid(
             code="""
@@ -173,14 +127,6 @@ class NoNamedTuple(LintRule):
 
             @some_other_decorator
             class Foo(NamedTuple):
-                pass
-            """,
-            expected_replacement="""
-            import dataclasses
-
-            @some_other_decorator
-            @dataclasses.dataclass(frozen=True)
-            class Foo:
                 pass
             """,
         ),
@@ -192,13 +138,6 @@ class NoNamedTuple(LintRule):
             class Foo(NamedTuple):
                 pass
             """,
-            expected_replacement="""
-            from dataclasses import dataclass
-
-            @dataclass(frozen=True)
-            class Foo:
-                pass
-            """,
         ),
         Invalid(
             code="""
@@ -206,13 +145,6 @@ class NoNamedTuple(LintRule):
             from typing import NamedTuple
 
             class Foo(NamedTuple):
-                pass
-            """,
-            expected_replacement="""
-            import dataclasses as dc
-
-            @dc.dataclass(frozen=True)
-            class Foo:
                 pass
             """,
         ),
@@ -328,19 +260,13 @@ class NoNamedTuple(LintRule):
 
     def __init__(self) -> None:
         super().__init__()
-        self.namedtuple_classes: dict[cst.ClassDef, tuple[cst.Arg, ...]] = {}
-        self.namedtuple_base_nodes: set[cst.BaseExpression] = set()
         self.namedtuple_alias_nodes: set[cst.CSTNode] = set()
-        self.has_unsafe_namedtuple_reference = False
         self.has_namedtuple_star_import = False
 
     def visit_Module(self, node: cst.Module) -> None:
         del node
 
-        self.namedtuple_classes = {}
-        self.namedtuple_base_nodes = set()
         self.namedtuple_alias_nodes = set()
-        self.has_unsafe_namedtuple_reference = False
         self.has_namedtuple_star_import = False
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
@@ -362,10 +288,8 @@ class NoNamedTuple(LintRule):
                     self.namedtuple_alias_nodes.discard(assign_target.target)
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        namedtuple_base, new_bases = self.partition_bases(node.bases)
-        if namedtuple_base is not None:
-            self.namedtuple_classes[node] = tuple(new_bases)
-            self.namedtuple_base_nodes.add(namedtuple_base.value)
+        if any(self._is_namedtuple_expression(base.value) for base in node.bases):
+            self.report(node, self.MESSAGE)
 
     def visit_Call(self, node: cst.Call) -> None:
         if QualifiedNameProvider.has_name(
@@ -374,55 +298,6 @@ class NoNamedTuple(LintRule):
             self.qualified_collections_namedtuple,
         ) or self._is_namedtuple_expression(node.func):
             self.report(node, self.MESSAGE)
-
-    def visit_Name(self, node: cst.Name) -> None:
-        if node in self.namedtuple_base_nodes:
-            return
-        if self._has_imported_namedtuple_name(node):
-            self.has_unsafe_namedtuple_reference = True
-
-    def leave_Module(self, original_node: cst.Module) -> None:
-        if not self.namedtuple_classes:
-            return
-        if self.has_unsafe_namedtuple_reference:
-            first_violation = next(iter(self.namedtuple_classes))
-            self.report(
-                first_violation,
-                self.MESSAGE,
-            )
-            return
-
-        decorator_expression, dataclasses_import_available = _dataclass_decorator_expression(
-            original_node
-        )
-        decorator = cst.Decorator(decorator=decorator_expression)
-        replacement = original_node.visit(
-            NoNamedTupleTransformer(
-                namedtuple_classes=self.namedtuple_classes,
-                decorator=decorator,
-                dataclasses_import_available=dataclasses_import_available,
-            )
-        )
-        first_violation = next(iter(self.namedtuple_classes))
-        self.report(
-            original_node,
-            self.MESSAGE,
-            position_node=first_violation,
-            replacement=replacement,
-        )
-
-    def partition_bases(
-        self, original_bases: Sequence[cst.Arg]
-    ) -> tuple[cst.Arg | None, list[cst.Arg]]:
-        # Returns a tuple of NamedTuple base object if it exists, and a list of non-NamedTuple bases
-        namedtuple_base: cst.Arg | None = None
-        new_bases: list[cst.Arg] = []
-        for base_class in original_bases:
-            if self._is_namedtuple_expression(base_class.value):
-                namedtuple_base = base_class
-            else:
-                new_bases.append(base_class)
-        return (namedtuple_base, new_bases)
 
     def _is_namedtuple_expression(self, expression: cst.BaseExpression) -> bool:
         return (
@@ -467,191 +342,6 @@ class NoNamedTuple(LintRule):
 
         qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
         return not qualified_names
-
-    def _has_imported_namedtuple_name(self, expression: cst.BaseExpression) -> bool:
-        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
-        return bool(self.qualified_namedtuples.intersection(qualified_names))
-
-
-def _is_future_import_statement(statement: cst.BaseStatement) -> bool:
-    if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
-        return False
-
-    import_from = statement.body[0]
-    return (
-        isinstance(import_from, cst.ImportFrom)
-        and isinstance(import_from.module, cst.Name)
-        and import_from.module.value == "__future__"
-    )
-
-
-def _is_dataclasses_import(statement: cst.BaseSmallStatement) -> bool:
-    if isinstance(statement, cst.Import):
-        return _dataclass_decorator_from_import(statement) is not None
-
-    return (
-        isinstance(statement, cst.ImportFrom)
-        and _dataclass_decorator_from_import_from(statement) is not None
-    )
-
-
-def _dataclass_decorator_from_import(statement: cst.Import) -> cst.Call | None:
-    for alias in statement.names:
-        if not isinstance(alias.name, cst.Name) or alias.name.value != "dataclasses":
-            continue
-        alias_value = "dataclasses"
-        if alias.asname is not None and isinstance(alias.asname.name, cst.Name):
-            alias_value = alias.asname.name.value
-        return ensure_type(parse_expression(f"{alias_value}.dataclass(frozen=True)"), cst.Call)
-
-    return None
-
-
-def _dataclass_decorator_from_import_from(statement: cst.ImportFrom) -> cst.Call | None:
-    if not (
-        isinstance(statement.module, cst.Name)
-        and statement.module.value == "dataclasses"
-        and isinstance(statement.names, tuple)
-    ):
-        return None
-
-    for alias in statement.names:
-        if not isinstance(alias.name, cst.Name) or alias.name.value != "dataclass":
-            continue
-        alias_value = "dataclass"
-        if alias.asname is not None and isinstance(alias.asname.name, cst.Name):
-            alias_value = alias.asname.name.value
-        return ensure_type(parse_expression(f"{alias_value}(frozen=True)"), cst.Call)
-
-    return None
-
-
-def _dataclass_decorator_expression(module: cst.Module) -> tuple[cst.Call, bool]:
-    for statement in module.body:
-        if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
-            continue
-
-        small_statement = statement.body[0]
-        if isinstance(small_statement, cst.Import):
-            decorator = _dataclass_decorator_from_import(small_statement)
-        elif isinstance(small_statement, cst.ImportFrom):
-            decorator = _dataclass_decorator_from_import_from(small_statement)
-        else:
-            decorator = None
-
-        if decorator is not None:
-            return decorator, True
-
-    return (
-        ensure_type(parse_expression("dataclasses.dataclass(frozen=True)"), cst.Call),
-        False,
-    )
-
-
-def _rewrite_typing_import(
-    statement: cst.BaseSmallStatement,
-) -> cst.ImportFrom | object | None:
-    if not isinstance(statement, cst.ImportFrom):
-        return None
-    if not (
-        isinstance(statement.module, cst.Name)
-        and statement.module.value in {"typing", "typing_extensions"}
-    ):
-        return None
-    if not isinstance(statement.names, tuple):
-        return None
-
-    filtered_aliases = tuple(
-        normalize_import_alias(alias)
-        for alias in statement.names
-        if not (isinstance(alias.name, cst.Name) and alias.name.value == "NamedTuple")
-    )
-    if len(filtered_aliases) == len(statement.names):
-        return None
-    if not filtered_aliases:
-        return _REMOVE_IMPORT
-    return statement.with_changes(names=filtered_aliases)
-
-
-def _insert_dataclasses_import(module: cst.Module) -> cst.Module:
-    dataclasses_import = cst.SimpleStatementLine(
-        body=(
-            cst.Import(
-                names=(cst.ImportAlias(name=cst.Name("dataclasses")),),
-            ),
-        )
-    )
-    body = list(module.body)
-    insert_at = 1 if body and is_docstring_statement(body[0]) else 0
-    while insert_at < len(body) and _is_future_import_statement(body[insert_at]):
-        insert_at += 1
-    body.insert(insert_at, dataclasses_import)
-    return module.with_changes(body=body)
-
-
-class NoNamedTupleTransformer(cst.CSTTransformer):
-    def __init__(
-        self,
-        *,
-        namedtuple_classes: dict[cst.ClassDef, tuple[cst.Arg, ...]],
-        decorator: cst.Decorator,
-        dataclasses_import_available: bool,
-    ) -> None:
-        self.namedtuple_classes = namedtuple_classes
-        self.decorator = decorator
-        self.has_dataclasses_import = dataclasses_import_available
-
-    def leave_ClassDef(
-        self, original_node: cst.ClassDef, updated_node: cst.ClassDef
-    ) -> cst.ClassDef:
-        new_bases = self.namedtuple_classes.get(original_node)
-        if new_bases is None:
-            return updated_node
-
-        return updated_node.with_changes(
-            lpar=MaybeSentinel.DEFAULT,
-            rpar=MaybeSentinel.DEFAULT,
-            bases=list(new_bases),
-            decorators=[*list(updated_node.decorators), self.decorator],
-        )
-
-    def _leave_simple_statement_line(
-        self,
-        _original_node: cst.SimpleStatementLine,
-        updated_node: cst.SimpleStatementLine,
-    ) -> cst.BaseStatement | cst.RemovalSentinel:
-        if len(updated_node.body) != 1:
-            return updated_node
-
-        statement = updated_node.body[0]
-        self.has_dataclasses_import = self.has_dataclasses_import or _is_dataclasses_import(
-            statement
-        )
-        rewritten_statement = _rewrite_typing_import(statement)
-        if rewritten_statement is None:
-            return updated_node
-        if rewritten_statement is _REMOVE_IMPORT:
-            return cst.RemoveFromParent()
-        return updated_node.with_changes(body=(rewritten_statement,))
-
-    def leave_SimpleStatementLine(
-        self,
-        original_node: cst.SimpleStatementLine,
-        updated_node: cst.SimpleStatementLine,
-    ) -> cst.BaseStatement | cst.RemovalSentinel:
-        return self._leave_simple_statement_line(original_node, updated_node)
-
-    def _leave_module(
-        self,
-        _original_node: cst.Module,
-        updated_node: cst.Module,
-    ) -> cst.Module:
-        if self.has_dataclasses_import:
-            return updated_node
-        return _insert_dataclasses_import(updated_node)
-
-    def leave_Module(self, original_node: cst.Module, updated_node: cst.Module) -> cst.Module:
-        return self._leave_module(original_node, updated_node)
 
 
 __all__ = [
