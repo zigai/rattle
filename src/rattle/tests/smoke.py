@@ -98,9 +98,7 @@ class SmokeTest(TestCase):
 
                 assert result.stdout == ""
                 assert result.exit_code == 0
-                assert result.stderr == (
-                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
-                )
+                assert result.stderr == "1 file checked, 1 fix applied\n"
                 assert expected_fix == path.read_text(), "unexpected file output"
 
             with self.subTest("fixing with formatting"):
@@ -115,9 +113,7 @@ class SmokeTest(TestCase):
 
                 assert result.stdout == ""
                 assert result.exit_code == 0
-                assert result.stderr == (
-                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
-                )
+                assert result.stderr == "1 file checked, 1 fix applied\n"
                 assert expected_format == path.read_text(), "unexpected file output"
 
             with self.subTest("fixing with ruff formatting"):
@@ -151,9 +147,7 @@ class SmokeTest(TestCase):
 
                 assert result.stdout == ""
                 assert result.exit_code == 0
-                assert result.stderr == (
-                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
-                )
+                assert result.stderr == "1 file checked, 1 fix applied\n"
                 assert expected_ruff_format == path.read_text(), "unexpected file output"
 
             with self.subTest("fixing with auto ruff formatting"):
@@ -178,9 +172,7 @@ class SmokeTest(TestCase):
 
                 assert result.stdout == ""
                 assert result.exit_code == 0
-                assert result.stderr == (
-                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
-                )
+                assert result.stderr == "1 file checked, 1 fix applied\n"
                 assert expected_ruff_format == path.read_text(), "unexpected file output"
 
             with self.subTest("fixing with auto and no formatter config"):
@@ -195,9 +187,7 @@ class SmokeTest(TestCase):
 
                 assert result.stdout == ""
                 assert result.exit_code == 0
-                assert result.stderr == (
-                    "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
-                )
+                assert result.stderr == "1 file checked, 1 fix applied\n"
                 assert expected_fix == path.read_text(), "unexpected file output"
 
             with self.subTest("linting via stdin"):
@@ -551,10 +541,7 @@ class SmokeTest(TestCase):
                 assert expected == multi.read_text()
 
             assert result.stdout == ""
-            assert (
-                result.stderr
-                == "3 files checked, 4 violations in 2 files, 4 autofixable, 4 fixes applied\n"
-            )
+            assert result.stderr == "3 files checked, 4 fixes applied\n"
 
     def test_lint_directory_with_no_rules_enabled(self) -> None:
         content = dedent(

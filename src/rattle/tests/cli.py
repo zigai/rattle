@@ -8,6 +8,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from textwrap import dedent
 from typing import cast
 from unittest import TestCase
 from unittest.mock import patch
@@ -44,6 +45,17 @@ def write_clean_file(path: Path) -> Path:
     file_path = path / "clean.py"
     file_path.write_text("value = 1\n")
     return file_path
+
+
+def write_custom_rules(path: Path, source: str) -> None:
+    (path / "custom_rules.py").write_text(dedent(source))
+    (path / "pyproject.toml").write_text(
+        "[tool.rattle]\n"
+        "root = true\n"
+        "enable-root-import = true\n"
+        'formatter = "none"\n'
+        'enable = [".custom_rules"]\n'
+    )
 
 
 class CliTest(TestCase):
@@ -444,9 +456,7 @@ class CliTest(TestCase):
         assert result.exit_code == 1
         assert "use-async-sleep-in-async-def" in result.stdout
         assert "no-redundant-f-string" not in result.stdout
-        assert "1 file checked, 2 violations in 1 file, 1 autofixable, 1 fix applied" in (
-            result.stderr
-        )
+        assert "1 file checked, 1 violation in 1 file, 1 fix applied" in (result.stderr)
         assert (
             fixed_content == 'import time\nasync def f():\n    value = "hello"\n    time.sleep(1)\n'
         )
@@ -477,9 +487,7 @@ class CliTest(TestCase):
 
             assert result.exit_code == 0
             assert result.stdout == ""
-            assert result.stderr == (
-                "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
-            )
+            assert result.stderr == ("1 file checked, 1 fix applied\n")
             assert path.read_text() == 'value = "hello"\n'
 
     def test_fix_diff_prints_applied_fixes(self) -> None:
@@ -498,6 +506,108 @@ class CliTest(TestCase):
             assert "--- a/fstring.py" in result.stdout
             assert 'value = f"hello"' in result.stdout
             assert path.read_text() == 'value = "hello"\n'
+
+    def test_fix_does_not_report_stale_violation_removed_by_autofix(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            write_custom_rules(
+                root,
+                """
+                import libcst as cst
+
+                from rattle import LintRule
+
+
+                class ReplaceBadCall(LintRule):
+                    def visit_Call(self, node: cst.Call) -> None:
+                        if isinstance(node.func, cst.Name) and node.func.value == "bad":
+                            self.report(node, "replace bad call", replacement=cst.Name("good"))
+
+
+                class FlagOopsString(LintRule):
+                    def visit_SimpleString(self, node: cst.SimpleString) -> None:
+                        if "oops" in node.value:
+                            self.report(node, "oops string is forbidden")
+                """,
+            )
+            path = root / "stale.py"
+            path.write_text('value = bad("oops")\n')
+
+            result = self.runner.invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
+            fixed_content = path.read_text()
+
+        assert result.exit_code == 0
+        assert "flag-oops-string" not in result.stdout
+        assert result.stderr == "1 file checked, 1 fix applied\n"
+        assert fixed_content == "value = good\n"
+
+    def test_fix_reports_violation_introduced_by_autofix(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            write_custom_rules(
+                root,
+                """
+                import libcst as cst
+
+                from rattle import LintRule
+
+
+                class ReplaceXWithBad(LintRule):
+                    def visit_Name(self, node: cst.Name) -> None:
+                        if node.value == "x":
+                            self.report(node, "replace x", replacement=cst.Name("bad"))
+
+
+                class FlagBadName(LintRule):
+                    def visit_Name(self, node: cst.Name) -> None:
+                        if node.value == "bad":
+                            self.report(node, "bad name is forbidden")
+                """,
+            )
+            path = root / "introduced.py"
+            path.write_text("value = x\n")
+
+            result = self.runner.invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
+            fixed_content = path.read_text()
+
+        assert result.exit_code == 1
+        assert "flag-bad-name" in result.stdout
+        assert result.stderr == "1 file checked, 1 violation in 1 file, 1 fix applied\n"
+        assert fixed_content == "value = bad\n"
+
+    def test_fix_applies_cascading_autofixes_until_stable(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            write_custom_rules(
+                root,
+                """
+                import libcst as cst
+
+                from rattle import LintRule
+
+
+                class ReplaceAWithB(LintRule):
+                    def visit_Name(self, node: cst.Name) -> None:
+                        if node.value == "a":
+                            self.report(node, "replace a", replacement=cst.Name("b"))
+
+
+                class ReplaceBWithC(LintRule):
+                    def visit_Name(self, node: cst.Name) -> None:
+                        if node.value == "b":
+                            self.report(node, "replace b", replacement=cst.Name("c"))
+                """,
+            )
+            path = root / "cascade.py"
+            path.write_text("value = a\n")
+
+            result = self.runner.invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
+            fixed_content = path.read_text()
+
+        assert result.exit_code == 0
+        assert result.stdout == ""
+        assert result.stderr == "1 file checked, 2 fixes applied\n"
+        assert fixed_content == "value = c\n"
 
     def test_fix_no_format_flag_removed(self) -> None:
         with TemporaryDirectory() as td:
@@ -629,26 +739,34 @@ class CliTest(TestCase):
 
             assert result.exit_code == 0
             assert result.stdout == ""
-            assert result.stderr == (
-                "1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied\n"
-            )
+            assert result.stderr == ("1 file checked, 1 fix applied\n")
             assert path.read_text() == 'value = "hello"\n'
 
-    def test_fix_stats_prints_violations_by_rule(self) -> None:
+    def test_fix_stats_prints_remaining_violations_by_rule(self) -> None:
         with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('first = f"hello"\nsecond = f"world"\n')
+            path = Path(td) / "mixed.py"
+            path.write_text(
+                'import time\nasync def f():\n    value = f"hello"\n    time.sleep(1)\n'
+            )
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "no-redundant-f-string", "--stats", path.as_posix()],
+                [
+                    "fix",
+                    "-r",
+                    "no-redundant-f-string,use-async-sleep-in-async-def",
+                    "--stats",
+                    path.as_posix(),
+                ],
                 catch_exceptions=False,
             )
 
-        assert result.exit_code == 0
-        assert result.stdout == ""
+        assert result.exit_code == 1
+        assert "use-async-sleep-in-async-def" in result.stdout
+        assert "no-redundant-f-string" not in result.stdout
         assert "Violation stats by rule:" in result.stderr
-        assert "no-redundant-f-string  2" in result.stderr
+        assert "use-async-sleep-in-async-def  1" in result.stderr
+        assert "no-redundant-f-string" not in result.stderr
 
     def test_fix_quiet_rejects_interactive(self) -> None:
         with TemporaryDirectory() as td:
@@ -722,3 +840,79 @@ class CliTest(TestCase):
 
             assert result.exit_code == 0
             assert path.read_text() == 'value = "hello"\n'
+
+    def test_fix_interactive_verifies_after_accepted_fix(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            write_custom_rules(
+                root,
+                """
+                import libcst as cst
+
+                from rattle import LintRule
+
+
+                class ReplaceXWithBad(LintRule):
+                    def visit_Name(self, node: cst.Name) -> None:
+                        if node.value == "x":
+                            self.report(node, "replace x", replacement=cst.Name("bad"))
+
+
+                class FlagBadName(LintRule):
+                    def visit_Name(self, node: cst.Name) -> None:
+                        if node.value == "bad":
+                            self.report(node, "bad name is forbidden")
+                """,
+            )
+            path = root / "interactive.py"
+            path.write_text("value = x\n")
+
+            result = self.runner.invoke(
+                main,
+                ["fix", "--interactive", path.as_posix()],
+                input="y",
+                catch_exceptions=False,
+            )
+            fixed_content = path.read_text()
+
+        assert result.exit_code == 1
+        assert "replace-x-with-bad" in result.stdout
+        assert "flag-bad-name" in result.stdout
+        assert fixed_content == "value = bad\n"
+
+    def test_fix_stdin_does_not_report_stale_violation_removed_by_autofix(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            write_custom_rules(
+                root,
+                """
+                import libcst as cst
+
+                from rattle import LintRule
+
+
+                class ReplaceBadCall(LintRule):
+                    def visit_Call(self, node: cst.Call) -> None:
+                        if isinstance(node.func, cst.Name) and node.func.value == "bad":
+                            self.report(node, "replace bad call", replacement=cst.Name("good"))
+
+
+                class FlagOopsString(LintRule):
+                    def visit_SimpleString(self, node: cst.SimpleString) -> None:
+                        if "oops" in node.value:
+                            self.report(node, "oops string is forbidden")
+                """,
+            )
+            path = root / "stdin.py"
+
+            result = self.runner.invoke(
+                main,
+                ["fix", "-", path.as_posix()],
+                input='value = bad("oops")\n',
+                catch_exceptions=False,
+            )
+
+        assert result.exit_code == 0
+        assert result.stdout == "value = good\n"
+        assert "flag-oops-string" not in result.stderr
+        assert result.stderr == "1 file checked, 1 fix applied\n"
