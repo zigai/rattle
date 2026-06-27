@@ -93,9 +93,11 @@ $ rattle lint [OPTIONS] [PATH ...]
 Apply available autofixes to files. Use `- PATH` to fix code from standard
 input as `PATH` and write the fixed code to standard output.
 
-By default, fixed diagnostics are omitted from the console output. Diagnostics
-that remain after fixing are still displayed. Pass `--diff` to show applied
-changes, or `--interactive` to review fixes one at a time.
+By default, automatic fixing runs available autofixes until the file stops
+changing or no more autofixes are found. Diagnostics shown after fixing are
+from a verification lint pass over the final code. Pass `--diff` to show
+applied changes, or `--interactive` to review one initial pass of fixes before
+verification.
 
 ```console
 $ rattle fix [OPTIONS] [--interactive] [PATH ...]

@@ -48,27 +48,24 @@ See the {ref}`commands` reference for more details.
 Given the following code:
 
 ```python
-# custom_object.py
+# handlers.py
 
-from typing import NamedTuple
+from typing import Callable
 
 
-class Foo(NamedTuple):
-    value: str
+handler: Callable[[...], int]
 ```
 
 With `fixit` enabled, running Rattle shows the rule violation:
 
 ```console
-$ rattle lint custom_object.py
-no-named-tuple [*] Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
- --> custom_object.py:4:1
+$ rattle lint handlers.py
+use-callable-ellipsis [*] Use Callable[..., T] instead of Callable[[...], T].
+ --> handlers.py:4:10
   |
 3 |
-4 | class Foo(NamedTuple):
-  | ^^^^^^^^^^^^^^^^^^^^^^
-5 |     value: str
-  | ^^^^^^^^^^^^^^
+4 | handler: Callable[[...], int]
+  |          ^^^^^^^^^^^^^^^^^^^^
   |
 help: Apply the available autofix
 ```
@@ -76,28 +73,21 @@ help: Apply the available autofix
 You can also see suggested changes by passing `--diff`:
 
 ```console
-$ rattle lint --diff custom_object.py
-no-named-tuple [*] Instead of NamedTuple, consider using the @dataclass decorator from dataclasses instead for simplicity, efficiency and consistency.
- --> custom_object.py:4:1
+$ rattle lint --diff handlers.py
+use-callable-ellipsis [*] Use Callable[..., T] instead of Callable[[...], T].
+ --> handlers.py:4:10
   |
 3 |
-4 | class Foo(NamedTuple):
-  | ^^^^^^^^^^^^^^^^^^^^^^
-5 |     value: str
-  | ^^^^^^^^^^^^^^
+4 | handler: Callable[[...], int]
+  |          ^^^^^^^^^^^^^^^^^^^^
   |
 help: Apply the available autofix
---- a/custom_object.py
-+++ b/custom_object.py
-@@ -1,5 +1,6 @@
--from typing import NamedTuple
-+import dataclasses
+--- a/handlers.py
++++ b/handlers.py
+@@ -3,2 +3,2 @@
 
-
--class Foo(NamedTuple):
-+@dataclasses.dataclass(frozen=True)
-+class Foo:
-     value: str
+-handler: Callable[[...], int]
++handler: Callable[..., int]
 ```
 
 (suppressions)=
@@ -238,7 +228,7 @@ The `fix` command applies those changes to the codebase:
 
 ```console
 $ rattle fix sourdough/baker.py
-1 file checked, 1 violation in 1 file, 1 autofixable, 1 fix applied
+1 file checked, 1 fix applied
 ```
 
 Pass `--interactive` to confirm each available autofix one at a time.
