@@ -23,7 +23,7 @@ from interfacy import Interfacy
 from jinja2 import Template
 
 from rattle.config import BUILTIN_RULE_COLLECTIONS, find_rules
-from rattle.ftypes import Invalid, QualifiedRule, Valid
+from rattle.ftypes import Invalid, QualifiedRule, RuleOptionValue, Valid
 from rattle.rule import LintRule, RuleReference, RuleSetting
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -424,7 +424,7 @@ def toml_key(value: str) -> str:
     return json.dumps(value)
 
 
-def toml_value(value: object) -> str:
+def toml_value(value: RuleOptionValue) -> str:
     if isinstance(value, str):
         return json.dumps(value)
     if isinstance(value, bool):
@@ -496,7 +496,8 @@ def split_examples_by_line_budget(
     return visible, examples[len(visible) :]
 
 
-def type_name(value: object) -> str:
+def setting_type_name(setting: RuleSetting) -> str:
+    value = setting.value_type
     if isinstance(value, type | GenericAlias):
         return value.__name__
 
@@ -552,7 +553,7 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
         settings.append(
             SettingDoc(
                 name=html_text(setting_name),
-                value_type=html_text(type_name(setting.value_type)),
+                value_type=html_text(setting_type_name(setting)),
                 default=html_text(default),
                 default_class=setting_default_class(default),
                 description=html_text(setting.description) or "—",
