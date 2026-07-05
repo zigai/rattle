@@ -1,8 +1,8 @@
 set positional-arguments
 set script-interpreter := ['uv', 'run', '--no-project', '--', 'python']
 
-@_:
-  just --list
+_:
+    @just help
 
 _require-uv:
   @uv --version > /dev/null || (echo "Please install uv: https://docs.astral.sh/uv/" && exit 1)
@@ -134,7 +134,7 @@ all: install test lint docs
 
 # list available recipes
 help:
-  just --list
+  @just --list
 
 alias fmt := format
 alias cov := coverage
