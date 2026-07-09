@@ -17,6 +17,7 @@ from typing import Any, cast
 import trailrunner
 from libcst import ParserSyntaxError
 
+from .ast import AstParseError
 from .cache import ResultCache
 from .config import collect_rules, generate_config
 from .console import echo, echo_color_precomputed_diff
@@ -561,7 +562,9 @@ def _print_error_result(
     error, tb = result.error or (None, "")
     assert error is not None
 
-    if output_format == OutputFormat.rattle and isinstance(error, ParserSyntaxError):
+    if output_format == OutputFormat.rattle and isinstance(
+        error, (AstParseError, ParserSyntaxError)
+    ):
         if _print_rattle_result(result, path=path, show_diff=show_diff, stderr=stderr, brief=brief):
             return True
         raise NotImplementedError("missing rattle renderer for syntax error")

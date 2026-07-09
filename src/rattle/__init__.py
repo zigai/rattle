@@ -7,6 +7,7 @@
 
 from .__version__ import __version__
 from .api import print_result, rattle_bytes, rattle_file, rattle_paths
+from .ast import AstContext, AstParseError, AstProvider
 from .format import Formatter
 from .ftypes import (
     CodePosition,
@@ -25,6 +26,9 @@ from .ftypes import (
 from .rule import LintRule, RuleReference, RuleSetting
 
 __all__ = [
+    "AstContext",
+    "AstParseError",
+    "AstProvider",
     "CodePosition",
     "CodeRange",
     "Config",

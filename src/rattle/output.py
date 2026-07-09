@@ -7,6 +7,7 @@ from pathlib import Path
 from libcst import ParserSyntaxError
 from stdl.st import colored
 
+from .ast import AstParseError
 from .console import color_precomputed_diff
 from .ftypes import CodePosition, CodeRange, FileContent, LintViolation, OutputFormat, Result
 
@@ -37,6 +38,8 @@ def render_rattle_result(
         error, _ = result.error
         if isinstance(error, ParserSyntaxError):
             return _render_syntax_error(path, error, result.source, color=color, brief=brief)
+        if isinstance(error, AstParseError):
+            return _render_ast_parse_error(path, error, result.source, color=color, brief=brief)
 
     return None
 
@@ -141,7 +144,9 @@ def _render_console_error(
     error, tb = result.error or (None, "")
     assert error is not None
 
-    if output_format == OutputFormat.rattle and isinstance(error, ParserSyntaxError):
+    if output_format == OutputFormat.rattle and isinstance(
+        error, (AstParseError, ParserSyntaxError)
+    ):
         rendered = render_rattle_result(result, path=path, color=True, brief=brief)
         if rendered is None:
             raise NotImplementedError("missing rattle renderer for syntax error")
@@ -201,6 +206,46 @@ def _render_syntax_error(
     header = (
         f"{_error_style('invalid-syntax', color=color)}: {_normalize_parser_message(error.message)}"
     )
+    if brief:
+        return _render_brief_block(header=header, path=path, code_range=error_range, color=color)
+
+    lines = _render_block(
+        header=header,
+        path=path,
+        code_range=error_range,
+        source=source,
+        color=color,
+    )
+    return "\n".join(lines)
+
+
+def _render_ast_parse_error(
+    path: Path,
+    error: AstParseError,
+    source: FileContent | None,
+    *,
+    color: bool,
+    brief: bool,
+) -> str:
+    source_lines = _decode_source_lines(source)
+    line_text = source_lines[error.line - 1] if error.line - 1 < len(source_lines) else ""
+
+    if error.end_line is not None and error.end_column is not None:
+        end_line = error.end_line
+        end_column = error.end_column
+    else:
+        end_line = error.line
+        end_column = _find_syntax_error_end_column(line_text, error.column)
+
+    if end_line < error.line or (end_line == error.line and end_column <= error.column):
+        end_line = error.line
+        end_column = _find_syntax_error_end_column(line_text, error.column)
+
+    error_range = CodeRange(
+        start=CodePosition(line=error.line, column=error.column),
+        end=CodePosition(line=end_line, column=end_column),
+    )
+    header = f"{_error_style('ast-parse-error', color=color)}: {error}"
     if brief:
         return _render_brief_block(header=header, path=path, code_range=error_range, color=color)
 
