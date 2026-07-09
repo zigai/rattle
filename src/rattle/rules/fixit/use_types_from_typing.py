@@ -164,6 +164,7 @@ class UseTypesFromTyping(LintRule):
     def visit_Module(self, node: libcst.Module) -> None:
         del node
 
+        self.annotation_counter = 0
         self.builtin_type_aliases_by_node = {}
 
     def visit_Assign(self, node: libcst.Assign) -> None:
@@ -180,6 +181,14 @@ class UseTypesFromTyping(LintRule):
             else:
                 self.builtin_type_aliases_by_node[target] = builtin_type
 
+    def visit_AnnAssign(self, node: libcst.AnnAssign) -> None:
+        if not isinstance(node.target, libcst.Name) or node.value is None:
+            return
+
+        builtin_type = self._builtin_type_name(node.value)
+        if builtin_type is not None:
+            self.builtin_type_aliases_by_node[node.target] = builtin_type
+
     def visit_Annotation(self, node: libcst.Annotation) -> None:
         del node
         self.annotation_counter += 1
@@ -188,37 +197,39 @@ class UseTypesFromTyping(LintRule):
         del original_node
         self.annotation_counter -= 1
 
-    def visit_Name(self, node: libcst.Name) -> None:
-        # Avoid a false-positive in this scenario:
-        #
-        # ```
-        # from typing import List as list
-        # from graphene import List
-        # ```
-        builtin_type = self._builtin_type_name(node)
+    def visit_Subscript(self, node: libcst.Subscript) -> None:
+        if self.annotation_counter <= 0:
+            return
 
-        if self.annotation_counter > 0 and builtin_type is not None:
-            correct_type = builtin_type.title()
-            scope = self.get_metadata(ScopeProvider, node, None)
-            replacement = None
-            if scope is not None and correct_type in scope:
-                replacement = node.with_changes(value=correct_type)
-            self.report(
-                node,
-                REPLACE_BUILTIN_TYPE_ANNOTATION.format(
-                    builtin_type=builtin_type, correct_type=correct_type
-                ),
-                replacement=replacement,
-            )
+        builtin_type = self._builtin_type_name(node.value)
+        if builtin_type is None:
+            return
 
-    def _builtin_type_name(self, node: libcst.Name) -> str | None:
+        correct_type = builtin_type.title()
+        replacement = (
+            libcst.Name(correct_type)
+            if self._typing_type_is_unambiguously_available(node.value, correct_type)
+            else None
+        )
+        self.report(
+            node.value,
+            REPLACE_BUILTIN_TYPE_ANNOTATION.format(
+                builtin_type=builtin_type, correct_type=correct_type
+            ),
+            replacement=replacement,
+        )
+
+    def _builtin_type_name(self, node: libcst.BaseExpression) -> str | None:
         qualified_names = self.get_metadata(QualifiedNameProvider, node, set())
         if not qualified_names:
-            return node.value if node.value in BUILTINS_TO_REPLACE else None
+            if isinstance(node, libcst.Name) and node.value in BUILTINS_TO_REPLACE:
+                return node.value
+            return None
 
-        alias_builtin_type = self._alias_builtin_type_name(node)
-        if alias_builtin_type is not None:
-            return alias_builtin_type
+        if isinstance(node, libcst.Name):
+            alias_builtin_type = self._alias_builtin_type_name(node)
+            if alias_builtin_type is not None:
+                return alias_builtin_type
 
         if any(
             qualified_name.name not in QUALIFIED_BUILTINS_TO_REPLACE
@@ -239,13 +250,18 @@ class UseTypesFromTyping(LintRule):
         except KeyError:
             return None
 
+        reference_assignments = [
+            assignment
+            for assignment in assignments
+            if any(access.node is node for access in assignment.references)
+        ]
         alias_types = [
             self.builtin_type_aliases_by_node.get(assignment_node)
             if (assignment_node := getattr(assignment, "node", None)) is not None
             else None
-            for assignment in assignments
+            for assignment in reference_assignments
         ]
-        if any(alias_type is None for alias_type in alias_types):
+        if not alias_types or any(alias_type is None for alias_type in alias_types):
             return None
 
         unique_alias_types = {alias_type for alias_type in alias_types if alias_type is not None}
@@ -253,6 +269,44 @@ class UseTypesFromTyping(LintRule):
             return None
 
         return unique_alias_types.pop()
+
+    def _typing_type_is_unambiguously_available(
+        self,
+        node: libcst.BaseExpression,
+        correct_type: str,
+    ) -> bool:
+        scope = self.get_metadata(ScopeProvider, node, None)
+        if scope is None:
+            return False
+        try:
+            assignments = scope[correct_type]
+        except KeyError:
+            return False
+
+        return bool(assignments) and all(
+            self._assignment_imports_typing_type(assignment, correct_type)
+            for assignment in assignments
+        )
+
+    @staticmethod
+    def _assignment_imports_typing_type(assignment: object, type_name: str) -> bool:
+        node = getattr(assignment, "node", None)
+        if not isinstance(node, libcst.ImportFrom):
+            return False
+        if not isinstance(node.module, libcst.Name) or node.module.value != "typing":
+            return False
+        if isinstance(node.names, libcst.ImportStar):
+            return False
+
+        for alias in node.names:
+            if not isinstance(alias.name, libcst.Name) or alias.name.value != type_name:
+                continue
+            bound_name = type_name
+            if alias.asname is not None and isinstance(alias.asname.name, libcst.Name):
+                bound_name = alias.asname.name.value
+            if bound_name == type_name:
+                return True
+        return False
 
 
 __all__ = [

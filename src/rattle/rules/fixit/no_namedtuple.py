@@ -12,6 +12,7 @@ from libcst.metadata import (
 )
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import dotted_name
 
 
 class NoNamedTuple(LintRule):
@@ -261,42 +262,52 @@ class NoNamedTuple(LintRule):
     def __init__(self) -> None:
         super().__init__()
         self.namedtuple_alias_nodes: set[cst.CSTNode] = set()
-        self.has_namedtuple_star_import = False
+        self.collections_namedtuple_alias_nodes: set[cst.CSTNode] = set()
+        self.star_import_modules: set[str] = set()
 
     def visit_Module(self, node: cst.Module) -> None:
         del node
 
         self.namedtuple_alias_nodes = set()
-        self.has_namedtuple_star_import = False
+        self.collections_namedtuple_alias_nodes = set()
+        self.star_import_modules = set()
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
-        if (
-            isinstance(node.module, cst.Name)
-            and node.module.value in {"typing", "typing_extensions"}
-            and isinstance(node.names, cst.ImportStar)
-        ):
-            self.has_namedtuple_star_import = True
+        if not isinstance(node.names, cst.ImportStar):
+            return
+
+        module_name = dotted_name(node.module)
+        if module_name in {"collections", "typing", "typing_extensions"}:
+            self.star_import_modules.add(module_name)
 
     def visit_Assign(self, node: cst.Assign) -> None:
+        is_namedtuple = self._is_namedtuple_expression(node.value)
+        is_collections_namedtuple = self._is_collections_namedtuple_factory(node.value)
+        for assign_target in node.targets:
+            if not isinstance(assign_target.target, cst.Name):
+                continue
+            if is_namedtuple:
+                self.namedtuple_alias_nodes.add(assign_target.target)
+            if is_collections_namedtuple:
+                self.collections_namedtuple_alias_nodes.add(assign_target.target)
+
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
+        if not isinstance(node.target, cst.Name) or node.value is None:
+            return
+
         if self._is_namedtuple_expression(node.value):
-            for assign_target in node.targets:
-                if isinstance(assign_target.target, cst.Name):
-                    self.namedtuple_alias_nodes.add(assign_target.target)
-        else:
-            for assign_target in node.targets:
-                if isinstance(assign_target.target, cst.Name):
-                    self.namedtuple_alias_nodes.discard(assign_target.target)
+            self.namedtuple_alias_nodes.add(node.target)
+        if self._is_collections_namedtuple_factory(node.value):
+            self.collections_namedtuple_alias_nodes.add(node.target)
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         if any(self._is_namedtuple_expression(base.value) for base in node.bases):
             self.report(node, self.MESSAGE)
 
     def visit_Call(self, node: cst.Call) -> None:
-        if QualifiedNameProvider.has_name(
-            self,
-            node.func,
-            self.qualified_collections_namedtuple,
-        ) or self._is_namedtuple_expression(node.func):
+        if self._is_collections_namedtuple_factory(node.func) or self._is_namedtuple_expression(
+            node.func
+        ):
             self.report(node, self.MESSAGE)
 
     def _is_namedtuple_expression(self, expression: cst.BaseExpression) -> bool:
@@ -307,13 +318,7 @@ class NoNamedTuple(LintRule):
         )
 
     def _is_imported_namedtuple(self, expression: cst.BaseExpression) -> bool:
-        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
-        if any(
-            qualified_name.source is QualifiedNameSource.LOCAL for qualified_name in qualified_names
-        ):
-            return False
-
-        return bool(self.qualified_namedtuples.intersection(qualified_names))
+        return self._has_active_qualified_import(expression, self.qualified_namedtuples)
 
     def _is_namedtuple_alias(self, expression: cst.BaseExpression) -> bool:
         if not isinstance(expression, cst.Name):
@@ -328,20 +333,119 @@ class NoNamedTuple(LintRule):
         except KeyError:
             return False
 
-        return bool(assignments) and all(
+        reference_assignments = [
+            assignment
+            for assignment in assignments
+            if any(access.node is expression for access in assignment.references)
+        ]
+        return bool(reference_assignments) and all(
             (assignment_node := getattr(assignment, "node", None)) is not None
             and assignment_node in self.namedtuple_alias_nodes
-            for assignment in assignments
+            for assignment in reference_assignments
         )
 
     def _is_star_imported_namedtuple(self, expression: cst.BaseExpression) -> bool:
-        if not self.has_namedtuple_star_import:
+        if not self.star_import_modules.intersection({"typing", "typing_extensions"}):
             return False
         if not isinstance(expression, cst.Name) or expression.value != "NamedTuple":
             return False
 
         qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
         return not qualified_names
+
+    def _is_collections_namedtuple_factory(self, expression: cst.BaseExpression) -> bool:
+        if self._has_active_qualified_import(
+            expression, frozenset({self.qualified_collections_namedtuple})
+        ):
+            return True
+        if self._is_collections_namedtuple_alias(expression):
+            return True
+        if "collections" not in self.star_import_modules:
+            return False
+        if not isinstance(expression, cst.Name) or expression.value != "namedtuple":
+            return False
+
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        return not qualified_names
+
+    def _is_collections_namedtuple_alias(self, expression: cst.BaseExpression) -> bool:
+        if not isinstance(expression, cst.Name):
+            return False
+
+        scope = self.get_metadata(ScopeProvider, expression, None)
+        if scope is None:
+            return False
+        try:
+            assignments = scope[expression.value]
+        except KeyError:
+            return False
+
+        reference_assignments = [
+            assignment
+            for assignment in assignments
+            if any(access.node is expression for access in assignment.references)
+        ]
+        return bool(reference_assignments) and all(
+            (assignment_node := getattr(assignment, "node", None)) is not None
+            and assignment_node in self.collections_namedtuple_alias_nodes
+            for assignment in reference_assignments
+        )
+
+    def _has_active_qualified_import(
+        self,
+        expression: cst.BaseExpression,
+        imported_names: frozenset[QualifiedName],
+    ) -> bool:
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        matching_names = imported_names.intersection(qualified_names)
+        has_local_name = any(name.source is QualifiedNameSource.LOCAL for name in qualified_names)
+        if matching_names and has_local_name and isinstance(expression, cst.Attribute):
+            root: cst.BaseExpression = expression
+            while isinstance(root, cst.Attribute):
+                root = root.value
+            if isinstance(root, cst.Name):
+                scope = self.get_metadata(ScopeProvider, root, None)
+                if scope is not None:
+                    try:
+                        assignments = scope[root.value]
+                    except KeyError:
+                        assignments = set()
+                    module_names = {name.name.rpartition(".")[0] for name in matching_names}
+                    reference_assignments = [
+                        assignment
+                        for assignment in assignments
+                        if any(access.node is root for access in assignment.references)
+                    ]
+                    return bool(reference_assignments) and all(
+                        any(
+                            self._assignment_imports_module(assignment, root.value, module_name)
+                            for module_name in module_names
+                        )
+                        for assignment in reference_assignments
+                    )
+
+        return bool(matching_names) and not has_local_name
+
+    @staticmethod
+    def _assignment_imports_module(
+        assignment: object,
+        bound_name: str,
+        module_name: str,
+    ) -> bool:
+        node = getattr(assignment, "node", None)
+        if not isinstance(node, cst.Import):
+            return False
+        for alias in node.names:
+            if dotted_name(alias.name) != module_name:
+                continue
+            imported_name = (
+                dotted_name(alias.asname.name)
+                if alias.asname is not None
+                else module_name.partition(".")[0]
+            )
+            if imported_name == bound_name:
+                return True
+        return False
 
 
 __all__ = [

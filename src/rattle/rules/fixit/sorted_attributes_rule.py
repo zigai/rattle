@@ -106,8 +106,21 @@ class SortedAttributes(LintRule):
         ),
     ]
 
-    def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        doc_string = node.get_docstring()
+    def __init__(self) -> None:
+        super().__init__()
+        self._fixed_classes: dict[cst.ClassDef, cst.ClassDef] = {}
+
+    def visit_Module(self, node: cst.Module) -> None:
+        del node
+        self._fixed_classes = {}
+
+    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
+        node = original_node
+        for child, replacement in self._fixed_classes.items():
+            if child is not original_node:
+                node = node.deep_replace(child, replacement)
+
+        doc_string = original_node.get_docstring()
         if not doc_string or "@sorted-attributes" not in doc_string:
             return
 
@@ -129,6 +142,8 @@ class SortedAttributes(LintRule):
             assign_lines.clear()
 
         for line in node.body.body:
+            if self._starts_new_group(line):
+                _flush_assign_lines()
             if self._is_sortable_assignment(line):
                 assign_lines.append(line)
             else:
@@ -138,11 +153,19 @@ class SortedAttributes(LintRule):
         _flush_assign_lines()
         if not changed:
             return
+        replacement = node.with_changes(body=node.body.with_changes(body=replacement_lines))
+        self._fixed_classes[original_node] = replacement
         self.report(
-            node,
+            original_node,
             self.MESSAGE,
-            replacement=node.with_changes(body=node.body.with_changes(body=replacement_lines)),
+            replacement=replacement,
         )
+
+    @staticmethod
+    def _starts_new_group(line: LineType) -> bool:
+        if not isinstance(line, (cst.SimpleStatementLine, cst.BaseCompoundStatement)):
+            return False
+        return any(empty_line.comment is None for empty_line in line.leading_lines)
 
     def _is_sortable_assignment(self, line: LineType) -> bool:
         return m.matches(

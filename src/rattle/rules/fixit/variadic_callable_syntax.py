@@ -174,6 +174,10 @@ class VariadicCallableSyntax(LintRule):
         {
             QualifiedName(name="typing.Callable", source=QualifiedNameSource.IMPORT),
             QualifiedName(
+                name="typing_extensions.Callable",
+                source=QualifiedNameSource.IMPORT,
+            ),
+            QualifiedName(
                 name="collections.abc.Callable",
                 source=QualifiedNameSource.IMPORT,
             ),
@@ -203,7 +207,7 @@ class VariadicCallableSyntax(LintRule):
             return
 
         module_name = dotted_name(node.module)
-        if module_name in {"collections.abc", "typing"}:
+        if module_name in {"collections.abc", "typing", "typing_extensions"}:
             self._star_import_modules.add(module_name)
 
     def visit_Assign(self, node: cst.Assign) -> None:
@@ -215,6 +219,13 @@ class VariadicCallableSyntax(LintRule):
             for assign_target in node.targets:
                 if isinstance(assign_target.target, cst.Name):
                     self._callable_alias_nodes.discard(assign_target.target)
+
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
+        if not isinstance(node.target, cst.Name) or node.value is None:
+            return
+
+        if self._is_callable_annotation(node.value):
+            self._callable_alias_nodes.add(node.target)
 
     def visit_Subscript(self, node: cst.Subscript) -> None:
         if not self._is_callable_annotation(node.value):
@@ -241,10 +252,13 @@ class VariadicCallableSyntax(LintRule):
 
     def _is_imported_callable(self, expression: cst.BaseExpression) -> bool:
         qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
-        if any(name.source is QualifiedNameSource.LOCAL for name in qualified_names):
+        matching_names = self._QUALIFIED_CALLABLES.intersection(qualified_names)
+        if not matching_names:
             return False
+        if not any(name.source is QualifiedNameSource.LOCAL for name in qualified_names):
+            return True
 
-        return any(name in self._QUALIFIED_CALLABLES for name in qualified_names)
+        return self._attribute_root_is_active_module_import(expression, matching_names)
 
     def _is_callable_alias(self, expression: cst.BaseExpression) -> bool:
         if not isinstance(expression, cst.Name):
@@ -259,10 +273,15 @@ class VariadicCallableSyntax(LintRule):
         except KeyError:
             return False
 
-        return bool(assignments) and all(
+        reference_assignments = [
+            assignment
+            for assignment in assignments
+            if any(access.node is expression for access in assignment.references)
+        ]
+        return bool(reference_assignments) and all(
             (assignment_node := getattr(assignment, "node", None)) is not None
             and assignment_node in self._callable_alias_nodes
-            for assignment in assignments
+            for assignment in reference_assignments
         )
 
     def _is_star_imported_callable(self, expression: cst.BaseExpression) -> bool:
@@ -273,6 +292,63 @@ class VariadicCallableSyntax(LintRule):
 
         qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
         return not qualified_names
+
+    def _attribute_root_is_active_module_import(
+        self,
+        expression: cst.BaseExpression,
+        imported_names: frozenset[QualifiedName],
+    ) -> bool:
+        if not isinstance(expression, cst.Attribute):
+            return False
+
+        root: cst.BaseExpression = expression
+        while isinstance(root, cst.Attribute):
+            root = root.value
+        if not isinstance(root, cst.Name):
+            return False
+
+        scope = self.get_metadata(ScopeProvider, root, None)
+        if scope is None:
+            return False
+        try:
+            assignments = scope[root.value]
+        except KeyError:
+            return False
+
+        module_names = {name.name.rpartition(".")[0] for name in imported_names}
+        reference_assignments = [
+            assignment
+            for assignment in assignments
+            if any(access.node is root for access in assignment.references)
+        ]
+        return bool(reference_assignments) and all(
+            any(
+                self._assignment_imports_module(assignment, root.value, module_name)
+                for module_name in module_names
+            )
+            for assignment in reference_assignments
+        )
+
+    @staticmethod
+    def _assignment_imports_module(
+        assignment: object,
+        bound_name: str,
+        module_name: str,
+    ) -> bool:
+        node = getattr(assignment, "node", None)
+        if not isinstance(node, cst.Import):
+            return False
+        for alias in node.names:
+            if dotted_name(alias.name) != module_name:
+                continue
+            imported_name = (
+                dotted_name(alias.asname.name)
+                if alias.asname is not None
+                else module_name.partition(".")[0]
+            )
+            if imported_name == bound_name:
+                return True
+        return False
 
 
 __all__ = [
