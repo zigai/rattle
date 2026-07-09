@@ -166,6 +166,56 @@ def visit_SimpleString(self, node: libcst.SimpleString) -> None:
         self.report(node, "It's underproved!", replacement=new_node)
 ```
 
+### Optional AST analysis
+
+Rules that need Python's compiler-normalized syntax can request a cached AST
+through {class}`~rattle.AstProvider`. LibCST remains responsible for traversal,
+reporting, ignore comments, and autofixes:
+
+```python
+import ast
+
+import libcst
+from libcst.metadata import PositionProvider
+
+from rattle import AstContext, AstProvider, CodeRange, LintRule
+
+
+class LargeIntegerRule(LintRule):
+    METADATA_DEPENDENCIES = (AstProvider, PositionProvider)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.large_integer_ranges: set[CodeRange] = set()
+
+    def visit_Module(self, node: libcst.Module) -> None:
+        context = self.get_metadata(AstProvider, node, None)
+        assert isinstance(context, AstContext)
+        self.large_integer_ranges = {
+            context.code_range(ast_node)
+            for ast_node in ast.walk(context.tree)
+            if isinstance(ast_node, ast.Constant)
+            and isinstance(ast_node.value, int)
+            and ast_node.value > 1_000
+        }
+
+    def visit_Integer(self, node: libcst.Integer) -> None:
+        if self.get_metadata(PositionProvider, node) in self.large_integer_ranges:
+            self.report(node, "Avoid large integer literals")
+```
+
+{class}`~rattle.AstContext.code_range` converts CPython AST byte offsets into
+Rattle character-based ranges, including for non-ASCII source. Reporting still
+uses a CST node so local `# rattle: ignore` directives and CST replacements keep
+their existing behavior. Rattle does not automatically map AST nodes to CST
+nodes.
+
+AST parsing uses the Python interpreter running Rattle and includes legacy
+`# type:` comments. If that interpreter cannot parse the source, or a type
+comment is misplaced, Rattle reports an {class}`~rattle.AstParseError`. This can
+happen even when LibCST supports the target syntax, so AST analysis should only
+be requested by rules that need it.
+
 The best lint rules provide a clear error message, a suggested replacement, and
 multiple valid and invalid test cases that exercise important edge cases.
 

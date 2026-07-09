@@ -204,6 +204,19 @@ Use visitor state only when needed, for example:
 - tracking imports or aliases
 - distinguishing syntactic context such as decorators, type annotations, or class bodies
 
+If the rule specifically needs Python's compiler-normalized representation,
+request `rattle.AstProvider` through `METADATA_DEPENDENCIES`. Retrieve its
+`AstContext` from the CST `Module`, analyze `context.tree`, and use
+`context.code_range(ast_node)` to compare AST findings with CST positions. Keep
+`self.report(...)` anchored to the corresponding CST node so local
+`# rattle: ignore` comments and autofixes continue to work. Do not attempt AST
+analysis merely to avoid learning the LibCST node model.
+
+AST parsing is opt-in, uses the interpreter running Rattle, and parses legacy
+type comments. It can therefore fail on target syntax newer than the host
+interpreter or on misplaced `# type:` comments. AST analysis does not support
+AST replacements; autofixes must still use LibCST nodes.
+
 ### 2. Implement the rule
 
 Skeleton:

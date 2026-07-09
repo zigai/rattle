@@ -33,3 +33,21 @@
 ```{eval-rst}
 .. autodata:: rattle.RuleReference
 ```
+
+## Optional AST Analysis
+
+```{eval-rst}
+.. autoclass:: rattle.AstProvider
+```
+
+```{eval-rst}
+.. autoclass:: rattle.AstContext
+   :members:
+   :exclude-members: __init__, __new__
+```
+
+```{eval-rst}
+.. autoclass:: rattle.AstParseError
+   :members:
+   :exclude-members: __init__, __new__
+```
