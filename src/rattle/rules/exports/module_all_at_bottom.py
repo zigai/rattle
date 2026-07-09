@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import libcst as cst
 
 from rattle import Invalid, LintRule, Valid
@@ -190,6 +192,33 @@ def _build_safe_replacement(node: cst.Module) -> cst.Module | None:
     return node.with_changes(body=reordered_body)
 
 
+class ModuleStatementCollector(cst.CSTVisitor):
+    def __init__(self) -> None:
+        self.entries: list[tuple[cst.CSTNode, bool]] = []
+
+    def visit_ClassDef(self, node: cst.ClassDef) -> bool:
+        self.entries.append((node, False))
+        return False
+
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
+        self.entries.append((node, False))
+        return False
+
+    def visit_SimpleStatementLine(self, node: cst.SimpleStatementLine) -> bool:
+        self._remember_small_statements(node.body)
+        return False
+
+    def visit_SimpleStatementSuite(self, node: cst.SimpleStatementSuite) -> bool:
+        self._remember_small_statements(node.body)
+        return False
+
+    def _remember_small_statements(
+        self,
+        statements: Sequence[cst.BaseSmallStatement],
+    ) -> None:
+        self.entries.extend((statement, _is_all_statement(statement)) for statement in statements)
+
+
 class ModuleAllAtBottom(LintRule):
     """Require module __all__ declarations to appear after runtime definitions."""
 
@@ -282,19 +311,16 @@ class ModuleAllAtBottom(LintRule):
             self.report(node, self.MESSAGE, replacement=replacement)
             return
 
-        last_statement_index = len(node.body) - 1
-        for statement_index, statement in enumerate(node.body):
-            if not isinstance(statement, cst.SimpleStatementLine):
-                continue
-
-            last_small_statement_index = len(statement.body) - 1
-            for small_statement_index, small_statement in enumerate(statement.body):
-                if not _is_all_statement(small_statement):
-                    continue
-                if (
-                    statement_index == last_statement_index
-                    and small_statement_index == last_small_statement_index
-                ):
-                    continue
-
-                self.report(small_statement, self.MESSAGE)
+        collector = ModuleStatementCollector()
+        node.visit(collector)
+        last_non_all_index = max(
+            (
+                index
+                for index, (_statement, is_all_statement) in enumerate(collector.entries)
+                if not is_all_statement
+            ),
+            default=-1,
+        )
+        for index, (statement, is_all_statement) in enumerate(collector.entries):
+            if is_all_statement and index < last_non_all_index:
+                self.report(statement, self.MESSAGE)

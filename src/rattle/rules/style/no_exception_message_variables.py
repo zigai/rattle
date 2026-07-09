@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import libcst as cst
+from libcst.metadata import PositionProvider, ScopeProvider
+from libcst.metadata.scope_provider import Assignment
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import callable_dotted_name, is_name, single_small_statement
+from rattle.rules.helpers import callable_dotted_name, single_small_statement
 
 SuiteNode = cst.Module | cst.IndentedBlock
 
@@ -28,7 +30,7 @@ def _name_use_count(node: cst.CSTNode, name: str) -> int:
     return counter.count
 
 
-def _message_assignment(statement: cst.BaseStatement) -> tuple[str, cst.BaseExpression] | None:
+def _message_assignment(statement: cst.BaseStatement) -> tuple[cst.Name, cst.BaseExpression] | None:
     small_statement = single_small_statement(statement, allow_leading_lines=False)
     if isinstance(small_statement, cst.Assign):
         if len(small_statement.targets) != 1:
@@ -47,7 +49,7 @@ def _message_assignment(statement: cst.BaseStatement) -> tuple[str, cst.BaseExpr
     if _looks_like_exception_object(value):
         return None
 
-    return target.value, value
+    return target, value
 
 
 def _raise_statement(statement: cst.BaseStatement) -> cst.Raise | None:
@@ -75,7 +77,7 @@ def _inline_exception_argument(
     *,
     variable_name: str,
     value: cst.BaseExpression,
-) -> cst.Raise | None:
+) -> tuple[cst.Raise, cst.Name] | None:
     if _name_use_count(raise_statement, variable_name) != 1:
         return None
 
@@ -84,19 +86,24 @@ def _inline_exception_argument(
         return None
 
     replaced_count = 0
+    replaced_name: cst.Name | None = None
     arguments: list[cst.Arg] = []
     for argument in exception.args:
-        if is_name(argument.value, variable_name):
+        if isinstance(argument.value, cst.Name) and argument.value.value == variable_name:
             arguments.append(argument.with_changes(value=value))
             replaced_count += 1
+            replaced_name = argument.value
             continue
 
         arguments.append(argument)
 
-    if replaced_count != 1:
+    if replaced_count != 1 or replaced_name is None:
         return None
 
-    return raise_statement.with_changes(exc=exception.with_changes(args=arguments))
+    return (
+        raise_statement.with_changes(exc=exception.with_changes(args=arguments)),
+        replaced_name,
+    )
 
 
 def _updated_raise_line(
@@ -104,39 +111,44 @@ def _updated_raise_line(
     *,
     variable_name: str,
     value: cst.BaseExpression,
-) -> cst.BaseStatement | None:
+) -> tuple[cst.BaseStatement, cst.Name] | None:
     raise_statement = _raise_statement(statement)
     if raise_statement is None:
         return None
 
-    replacement = _inline_exception_argument(
+    replacement_and_name = _inline_exception_argument(
         raise_statement,
         variable_name=variable_name,
         value=value,
     )
-    if replacement is None:
+    if replacement_and_name is None:
         return None
+    replacement, replaced_name = replacement_and_name
 
-    return statement.with_changes(body=[replacement])
+    return statement.with_changes(body=[replacement]), replaced_name
 
 
-def _suite_replacement(suite: SuiteNode) -> SuiteNode | None:
+def _suite_replacement(
+    suite: SuiteNode,
+) -> tuple[SuiteNode, cst.Name, cst.Name] | None:
     body = suite.body
     for index, statement in enumerate(body[:-1]):
         assignment = _message_assignment(statement)
         if assignment is None:
             continue
 
-        variable_name, value = assignment
-        updated_raise = _updated_raise_line(
+        target, value = assignment
+        updated_raise_and_name = _updated_raise_line(
             body[index + 1],
-            variable_name=variable_name,
+            variable_name=target.value,
             value=value,
         )
-        if updated_raise is None:
+        if updated_raise_and_name is None:
             continue
+        updated_raise, replaced_name = updated_raise_and_name
 
-        return suite.with_changes(body=(*body[:index], updated_raise, *body[index + 2 :]))
+        replacement = suite.with_changes(body=(*body[:index], updated_raise, *body[index + 2 :]))
+        return replacement, target, replaced_name
 
     return None
 
@@ -145,6 +157,7 @@ class NoExceptionMessageVariables(LintRule):
     """Forbid throwaway local variables used only as exception messages."""
 
     MESSAGE = "Inline exception message strings instead of assigning throwaway variables."
+    METADATA_DEPENDENCIES = (PositionProvider, ScopeProvider)
 
     VALID = [
         Valid(
@@ -245,8 +258,86 @@ class NoExceptionMessageVariables(LintRule):
         self._report_suite(node)
 
     def _report_suite(self, node: SuiteNode) -> None:
-        replacement = _suite_replacement(node)
-        if replacement is None:
+        replacement_and_names = _suite_replacement(node)
+        if replacement_and_names is None:
+            return
+        replacement, target, reference = replacement_and_names
+        if not self._is_only_reference(target, reference):
             return
 
         self.report(node, self.MESSAGE, replacement=replacement)
+
+    def _is_only_reference(self, target: cst.Name, reference: cst.Name) -> bool:
+        scope = self.get_metadata(ScopeProvider, target, None)
+        if scope is None:
+            return False
+
+        try:
+            assignments = scope[target.value]
+        except KeyError:
+            return False
+
+        concrete_assignments = [
+            assignment for assignment in assignments if isinstance(assignment, Assignment)
+        ]
+        matching_assignments = [
+            assignment for assignment in concrete_assignments if assignment.node is target
+        ]
+        if len(matching_assignments) != 1:
+            return False
+
+        target_position = self._position(target)
+        if target_position is None:
+            return False
+
+        next_assignment_position = self._next_assignment_position(
+            concrete_assignments,
+            target,
+            target_position,
+        )
+        relevant_references = self._relevant_references(
+            concrete_assignments,
+            target_position,
+            next_assignment_position,
+        )
+        return relevant_references == {reference}
+
+    def _next_assignment_position(
+        self,
+        assignments: list[Assignment],
+        target: cst.Name,
+        target_position: tuple[int, int],
+    ) -> tuple[int, int] | None:
+        positions = [
+            position
+            for assignment in assignments
+            if assignment.node is not target
+            if (position := self._position(assignment.node)) is not None
+            if position > target_position
+        ]
+        return min(positions, default=None)
+
+    def _relevant_references(
+        self,
+        assignments: list[Assignment],
+        target_position: tuple[int, int],
+        next_assignment_position: tuple[int, int] | None,
+    ) -> set[cst.CSTNode]:
+        references: set[cst.CSTNode] = set()
+        for assignment in assignments:
+            for access in assignment.references:
+                position = self._position(access.node)
+                if position is None or position <= target_position:
+                    continue
+                if next_assignment_position is not None and position >= next_assignment_position:
+                    continue
+                references.add(access.node)
+
+        return references
+
+    def _position(self, node: cst.CSTNode) -> tuple[int, int] | None:
+        code_range = self.get_metadata(PositionProvider, node, None)
+        if code_range is None:
+            return None
+
+        return code_range.start.line, code_range.start.column

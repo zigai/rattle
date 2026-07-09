@@ -277,6 +277,15 @@ class NoBareObjectAnnotations(LintRule):
         if self._is_bare_object_annotation(node.annotation.annotation):
             self.report(node.annotation, self.MESSAGE)
 
+    def visit_TypeAlias(self, node: cst.TypeAlias) -> None:
+        if self._should_skip_current_file():
+            return
+
+        if self._is_bare_object_annotation(node.value):
+            self._object_type_alias_nodes.add(node)
+        else:
+            self._object_type_alias_nodes.discard(node)
+
     def _report_param_if_needed(self, parameter: cst.Param) -> None:
         if parameter.annotation is None:
             return
@@ -286,7 +295,7 @@ class NoBareObjectAnnotations(LintRule):
 
     def _is_bare_object_annotation(self, expression: cst.BaseExpression) -> bool:
         if isinstance(expression, cst.ConcatenatedString | cst.SimpleString):
-            return _is_bare_object_string_annotation(expression)
+            return self._is_bare_object_string_annotation(expression)
 
         if self._is_object_annotation_atom(expression):
             return True
@@ -298,6 +307,43 @@ class NoBareObjectAnnotations(LintRule):
             return self._is_bare_object_subscript_annotation(expression)
 
         return False
+
+    def _is_bare_object_string_annotation(
+        self,
+        expression: cst.ConcatenatedString | cst.SimpleString,
+    ) -> bool:
+        value = expression.evaluated_value
+        if not isinstance(value, str):
+            return False
+        try:
+            parsed_expression = cst.parse_expression(value)
+        except cst.ParserSyntaxError:
+            return False
+
+        if isinstance(parsed_expression, cst.Name) and self._is_object_type_alias_name(
+            parsed_expression.value,
+            expression,
+        ):
+            return True
+
+        if is_name(parsed_expression, "object"):
+            scope = self.get_metadata(ScopeProvider, expression, None)
+            if scope is not None:
+                try:
+                    qualified_names = {
+                        qualified_name
+                        for assignment in scope["object"]
+                        for qualified_name in assignment.get_qualified_names_for("object")
+                    }
+                    if any(
+                        qualified_name.source is QualifiedNameSource.LOCAL
+                        for qualified_name in qualified_names
+                    ):
+                        return False
+                except KeyError:
+                    pass
+
+        return _is_bare_object_annotation(parsed_expression)
 
     def _is_object_annotation_atom(self, expression: cst.BaseExpression) -> bool:
         return self._is_builtin_object_annotation(
@@ -324,12 +370,15 @@ class NoBareObjectAnnotations(LintRule):
         if not isinstance(expression, cst.Name):
             return False
 
-        scope = self.get_metadata(ScopeProvider, expression, None)
+        return self._is_object_type_alias_name(expression.value, expression)
+
+    def _is_object_type_alias_name(self, name: str, scope_node: cst.CSTNode) -> bool:
+        scope = self.get_metadata(ScopeProvider, scope_node, None)
         if scope is None:
             return False
 
         try:
-            assignments = scope[expression.value]
+            assignments = scope[name]
         except KeyError:
             return False
 
@@ -409,7 +458,7 @@ class NoBareObjectAnnotations(LintRule):
         if (
             node.value is not None
             and self._is_type_alias_annotation(node.annotation.annotation)
-            and self._is_builtin_object_annotation(node.value)
+            and self._is_bare_object_annotation(node.value)
         ):
             self._object_type_alias_nodes.add(node.target)
         else:

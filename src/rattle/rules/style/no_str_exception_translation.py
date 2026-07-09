@@ -4,7 +4,7 @@ import libcst as cst
 from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import callable_dotted_name
+from rattle.rules.helpers import alias_name, target_names
 
 
 class NoStrExceptionTranslation(LintRule):
@@ -151,7 +151,7 @@ class NoStrExceptionTranslation(LintRule):
         self._scope_depth = 0
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        del node
+        self._discard_exception_name(node.name.value)
         self._scope_depth += 1
 
     def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
@@ -159,7 +159,7 @@ class NoStrExceptionTranslation(LintRule):
         self._scope_depth -= 1
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-        del node
+        self._discard_exception_name(node.name.value)
         self._scope_depth += 1
 
     def leave_FunctionDef(self, original_node: cst.FunctionDef) -> None:
@@ -184,11 +184,63 @@ class NoStrExceptionTranslation(LintRule):
         current_exception_names = self._current_exception_names()
         for target in node.targets:
             if not isinstance(target.target, cst.Name):
+                for name in target_names(target.target):
+                    current_exception_names.discard(name.value)
                 continue
             if self._is_exception_name(node.value, current_exception_names):
                 current_exception_names.add(target.target.value)
             else:
                 current_exception_names.discard(target.target.value)
+
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
+        if not self._exception_name_stack or node.value is None:
+            return
+
+        current_exception_names = self._current_exception_names()
+        if not isinstance(node.target, cst.Name):
+            for name in target_names(node.target):
+                current_exception_names.discard(name.value)
+            return
+
+        if self._is_exception_name(node.value, current_exception_names):
+            current_exception_names.add(node.target.value)
+        else:
+            current_exception_names.discard(node.target.value)
+
+    def visit_AugAssign(self, node: cst.AugAssign) -> None:
+        self._discard_exception_target(node.target)
+
+    def visit_Del(self, node: cst.Del) -> None:
+        self._discard_exception_target(node.target)
+
+    def visit_For(self, node: cst.For) -> None:
+        self._discard_exception_target(node.target)
+
+    def visit_With(self, node: cst.With) -> None:
+        for item in node.items:
+            if item.asname is not None:
+                self._discard_exception_target(item.asname.name)
+
+    def visit_Import(self, node: cst.Import) -> None:
+        for import_alias in node.names:
+            if import_alias.asname is not None:
+                self._discard_exception_name(alias_name(import_alias.asname, ""))
+                continue
+
+            imported_name = import_alias.name
+            while isinstance(imported_name, cst.Attribute):
+                imported_name = imported_name.value
+            if isinstance(imported_name, cst.Name):
+                self._discard_exception_name(imported_name.value)
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
+        if isinstance(node.names, cst.ImportStar):
+            return
+
+        for import_alias in node.names:
+            if not isinstance(import_alias.name, cst.Name):
+                continue
+            self._discard_exception_name(alias_name(import_alias.asname, import_alias.name.value))
 
     def visit_Raise(self, node: cst.Raise) -> None:
         exception_names = self._current_exception_names()
@@ -229,7 +281,11 @@ class NoStrExceptionTranslation(LintRule):
         if isinstance(node, cst.FormattedString):
             return self._is_exception_only_f_string(node, exception_names)
 
-        if isinstance(node, cst.BinaryOperation) and isinstance(node.operator, cst.Modulo):
+        if (
+            isinstance(node, cst.BinaryOperation)
+            and isinstance(node.operator, cst.Modulo)
+            and isinstance(node.left, cst.ConcatenatedString | cst.SimpleString)
+        ):
             return self._is_exception_name_or_singleton_tuple(node.right, exception_names)
 
         return False
@@ -255,7 +311,11 @@ class NoStrExceptionTranslation(LintRule):
         )
 
     def _single_format_argument(self, node: cst.Call) -> cst.Arg | None:
-        if callable_dotted_name(node.func) != "format":
+        if not isinstance(node.func, cst.Attribute):
+            return None
+        if node.func.attr.value != "format":
+            return None
+        if not isinstance(node.func.value, cst.ConcatenatedString | cst.SimpleString):
             return None
         if len(node.args) != 1:
             return None
@@ -294,3 +354,10 @@ class NoStrExceptionTranslation(LintRule):
             return False
 
         return self._is_exception_name(node.elements[0].value, exception_names)
+
+    def _discard_exception_target(self, target: cst.BaseExpression) -> None:
+        for name in target_names(target):
+            self._discard_exception_name(name.value)
+
+    def _discard_exception_name(self, name: str) -> None:
+        self._current_exception_names().discard(name)
