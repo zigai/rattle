@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from pathlib import Path
 
 import libcst as cst
 from libcst.metadata import (
     FilePathProvider,
+    PositionProvider,
     QualifiedName,
     QualifiedNameProvider,
     QualifiedNameSource,
@@ -23,6 +25,7 @@ class NoUnsafeTempfileFactories(LintRule):
     METADATA_DEPENDENCIES = (
         *LintRule.METADATA_DEPENDENCIES,
         FilePathProvider,
+        PositionProvider,
         QualifiedNameProvider,
         ScopeProvider,
     )
@@ -224,14 +227,20 @@ class NoUnsafeTempfileFactories(LintRule):
         if self._should_skip_current_file():
             return
 
-        if self._is_known_tempfile_factory(node.value) or self._is_factory_alias(node.value):
-            for assign_target in node.targets:
-                if isinstance(assign_target.target, cst.Name):
-                    self._factory_alias_nodes.add(assign_target.target)
-        else:
-            for assign_target in node.targets:
-                if isinstance(assign_target.target, cst.Name):
-                    self._factory_alias_nodes.discard(assign_target.target)
+        for assign_target in node.targets:
+            self._record_factory_alias(assign_target.target, node.value)
+
+    def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
+        if self._should_skip_current_file() or node.value is None:
+            return
+
+        self._record_factory_alias(node.target, node.value)
+
+    def visit_NamedExpr(self, node: cst.NamedExpr) -> None:
+        if self._should_skip_current_file():
+            return
+
+        self._record_factory_alias(node.target, node.value)
 
     def visit_Call(self, node: cst.Call) -> None:
         if self._should_skip_current_file():
@@ -245,7 +254,7 @@ class NoUnsafeTempfileFactories(LintRule):
             self.report(node.func, self.MESSAGE)
 
     def _is_known_tempfile_factory(self, expression: cst.BaseExpression) -> bool:
-        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        qualified_names = self._qualified_names_for_reaching_binding(expression)
         if any(
             qualified_name.source is QualifiedNameSource.LOCAL for qualified_name in qualified_names
         ):
@@ -254,6 +263,74 @@ class NoUnsafeTempfileFactories(LintRule):
         return any(
             qualified_name in self._QUALIFIED_BLOCKED_NAMES for qualified_name in qualified_names
         )
+
+    def _qualified_names_for_reaching_binding(
+        self,
+        expression: cst.BaseExpression,
+    ) -> Collection[QualifiedName]:
+        qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
+        root_name = expression
+        while isinstance(root_name, cst.Attribute):
+            root_name = root_name.value
+        if not isinstance(root_name, cst.Name):
+            return qualified_names
+
+        binding_names = self._latest_same_scope_binding_names(root_name)
+        if binding_names is None:
+            return qualified_names
+
+        expression_name = dotted_name(expression)
+        if expression_name is None:
+            return qualified_names
+        _, _, suffix = expression_name.partition(".")
+        if not suffix:
+            return binding_names
+
+        return {
+            QualifiedName(name=f"{binding_name.name}.{suffix}", source=binding_name.source)
+            for binding_name in binding_names
+        }
+
+    def _latest_same_scope_binding_names(
+        self,
+        root_name: cst.Name,
+    ) -> Collection[QualifiedName] | None:
+        scope = self.get_metadata(ScopeProvider, root_name, None)
+        reference_position = self.get_metadata(PositionProvider, root_name, None)
+        if scope is None or reference_position is None:
+            return None
+
+        try:
+            assignments = scope[root_name.value]
+        except KeyError:
+            return None
+
+        preceding_assignments = []
+        for assignment in assignments:
+            if assignment.scope is not scope:
+                continue
+            assignment_node = getattr(assignment, "node", None)
+            if not isinstance(assignment_node, cst.CSTNode):
+                continue
+            assignment_position = self.get_metadata(PositionProvider, assignment_node, None)
+            if assignment_position is None or (
+                assignment_position.start.line,
+                assignment_position.start.column,
+            ) > (reference_position.start.line, reference_position.start.column):
+                continue
+            preceding_assignments.append(
+                (
+                    assignment_position.start.line,
+                    assignment_position.start.column,
+                    assignment,
+                )
+            )
+
+        if not preceding_assignments:
+            return None
+
+        assignment = max(preceding_assignments, key=lambda item: item[:2])[2]
+        return set(assignment.get_qualified_names_for(root_name.value))
 
     def _is_factory_alias(self, expression: cst.BaseExpression) -> bool:
         if not isinstance(expression, cst.Name):
@@ -268,11 +345,34 @@ class NoUnsafeTempfileFactories(LintRule):
         except KeyError:
             return False
 
-        return bool(assignments) and all(
-            (assignment_node := getattr(assignment, "node", None)) is not None
-            and assignment_node in self._factory_alias_nodes
-            for assignment in assignments
-        )
+        reference_position = self.get_metadata(PositionProvider, expression, None)
+        if reference_position is None:
+            return False
+
+        preceding_assignments: list[tuple[int, int, cst.CSTNode]] = []
+        for assignment in assignments:
+            assignment_node = getattr(assignment, "node", None)
+            if not isinstance(assignment_node, cst.CSTNode):
+                continue
+            assignment_position = self.get_metadata(PositionProvider, assignment_node, None)
+            if assignment_position is None or (
+                assignment_position.start.line,
+                assignment_position.start.column,
+            ) > (reference_position.start.line, reference_position.start.column):
+                continue
+            preceding_assignments.append(
+                (
+                    assignment_position.start.line,
+                    assignment_position.start.column,
+                    assignment_node,
+                )
+            )
+
+        if not preceding_assignments:
+            return False
+
+        assignment_node = max(preceding_assignments, key=lambda item: item[:2])[2]
+        return assignment_node in self._factory_alias_nodes
 
     def _is_star_imported_factory(self, expression: cst.BaseExpression) -> bool:
         if not self._has_tempfile_star_import:
@@ -282,6 +382,27 @@ class NoUnsafeTempfileFactories(LintRule):
 
         qualified_names = self.get_metadata(QualifiedNameProvider, expression, set())
         return not qualified_names
+
+    def _record_factory_alias(
+        self,
+        target: cst.BaseExpression,
+        value: cst.BaseExpression,
+    ) -> None:
+        if isinstance(target, cst.List | cst.Tuple) and isinstance(value, cst.List | cst.Tuple):
+            if len(target.elements) != len(value.elements):
+                return
+            for target_element, value_element in zip(target.elements, value.elements, strict=True):
+                self._record_factory_alias(target_element.value, value_element.value)
+            return
+
+        if not isinstance(target, cst.Name):
+            return
+
+        if self._is_known_tempfile_factory(value) or self._is_factory_alias(value):
+            self._factory_alias_nodes.add(target)
+            return
+
+        self._factory_alias_nodes.discard(target)
 
     def _should_skip_current_file(self) -> bool:
         if self._current_file_path is None:

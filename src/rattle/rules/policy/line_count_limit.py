@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -180,11 +181,13 @@ class LineCountLimit(LintRule):
         if is_nested_function or max_lines <= 0:
             return
 
-        code_range = self.get_metadata(PositionProvider, node, None)
-        if code_range is None:
+        range_node = node.decorators[0] if node.decorators else node
+        code_range = self.get_metadata(PositionProvider, range_node, None)
+        definition_range = self.get_metadata(PositionProvider, node, None)
+        if code_range is None or definition_range is None:
             return
 
-        line_count = _line_span(code_range.start.line, code_range.end.line)
+        line_count = _line_span(code_range.start.line, definition_range.end.line)
         if line_count <= max_lines:
             return
 
@@ -216,7 +219,7 @@ class LineCountLimit(LintRule):
         for path_pattern, configured_limits in sorted(
             glob_limits.items(), key=lambda item: len(item[0])
         ):
-            if not matches_path(path_pattern, self._current_file_path):
+            if not self._matches_glob_path(path_pattern, self._current_file_path):
                 continue
 
             limits = _apply_limits(limits, configured_limits)
@@ -229,6 +232,17 @@ class LineCountLimit(LintRule):
             limits = _apply_limits(limits, configured_limits)
 
         return limits
+
+    def _matches_glob_path(self, path_pattern: str, file_path: Path) -> bool:
+        if matches_path(path_pattern, file_path):
+            return True
+
+        if Path(path_pattern).is_absolute():
+            return False
+
+        normalized_path = file_path.as_posix()
+        normalized_pattern = Path(path_pattern).as_posix()
+        return fnmatch.fnmatchcase(normalized_path, f"*/{normalized_pattern}")
 
     def _is_direct_class_member(self, node: cst.FunctionDef) -> bool:
         parent = self.get_metadata(ParentNodeProvider, node, None)

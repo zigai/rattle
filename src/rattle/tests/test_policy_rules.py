@@ -11,6 +11,7 @@ from rattle.rules.policy.forbidden_call import ForbiddenCall
 from rattle.rules.policy.forbidden_import import ForbiddenImport
 from rattle.rules.policy.forbidden_name import ForbiddenName
 from rattle.rules.policy.line_count_limit import LineCountLimit
+from rattle.rules.policy.no_unsafe_tempfile_factories import NoUnsafeTempfileFactories
 
 
 def _dedent(source: str) -> str:
@@ -152,6 +153,19 @@ def test_forbidden_call_accepts_plain_callable_name() -> None:
     assert [report.message for report in reports] == ["Do not call forbidden callable 'print'."]
 
 
+def test_forbidden_call_reports_imported_plain_callable_name() -> None:
+    reports = _run_forbidden_call(
+        """
+        from os import remove
+
+        remove("path")
+        """,
+        ["remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'remove'."]
+
+
 def test_forbidden_call_reports_local_alias_to_imported_symbol() -> None:
     reports = _run_forbidden_call(
         """
@@ -190,6 +204,78 @@ def test_forbidden_call_reports_assignment_alias() -> None:
         """
         import os
 
+        delete = os.remove
+        delete("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_reports_annotated_assignment_alias() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        delete: object = os.remove
+        delete("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_reports_assignment_expression_alias() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        if delete := os.remove:
+            delete("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_reports_destructured_literal_alias() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        (delete, allowed) = (os.remove, print)
+        delete("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_uses_assignment_reaching_call_before_later_rebinding() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        delete = os.remove
+        delete("path")
+        delete = print
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_forbidden_call_uses_latest_assignment_reaching_call() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        delete = print
         delete = os.remove
         delete("path")
         """,
@@ -257,6 +343,34 @@ def test_forbidden_call_allows_shadowed_assignment_alias() -> None:
     )
 
     assert reports == []
+
+
+def test_forbidden_call_uses_latest_import_binding() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+        import fake_os as os
+
+        os.remove("path")
+        """,
+        ["os.remove"],
+    )
+
+    assert reports == []
+
+
+def test_forbidden_call_uses_import_binding_before_later_rebinding() -> None:
+    reports = _run_forbidden_call(
+        """
+        import os
+
+        os.remove("path")
+        os = fake_os
+        """,
+        ["os.remove"],
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
 
 
 def test_forbidden_call_reports_star_import() -> None:
@@ -371,6 +485,32 @@ def test_forbidden_import_reports_relative_import_without_module() -> None:
 
     assert [report.message for report in reports] == [
         "Do not import across forbidden boundary 'pkg.private'."
+    ]
+
+
+def test_forbidden_import_allows_module_with_boundary_prefix_only() -> None:
+    reports = _run_forbidden_import(
+        """
+        import blocked_package.internalized
+        """,
+        ["blocked_package.internal"],
+    )
+
+    assert reports == []
+
+
+def test_forbidden_import_reports_parenthesized_aliased_member() -> None:
+    reports = _run_forbidden_import(
+        """
+        from blocked_package import (
+            internal as implementation,
+        )
+        """,
+        ["blocked_package.internal"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not import across forbidden boundary 'blocked_package.internal'."
     ]
 
 
@@ -504,6 +644,33 @@ def test_forbidden_name_reports_match_mapping_rest_target() -> None:
     ]
 
 
+def test_forbidden_name_reports_nested_destructuring_targets_once_each() -> None:
+    reports = _run_forbidden_name(
+        """
+        (blocked_name, [*blocked_tail]) = values
+        """,
+        ["variable:blocked_*"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not use forbidden variable name 'blocked_name'.",
+        "Do not use forbidden variable name 'blocked_tail'.",
+    ]
+
+
+def test_forbidden_name_distinguishes_attribute_from_variable_target() -> None:
+    reports = _run_forbidden_name(
+        """
+        service.blocked_name = value
+        """,
+        ["variable:blocked_name", "attribute:blocked_name"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not use forbidden attribute name 'blocked_name'."
+    ]
+
+
 def test_line_count_limit_reports_function_limit() -> None:
     reports = _run_line_count_limit(
         """
@@ -533,6 +700,147 @@ def test_line_count_limit_reports_method_limit() -> None:
     assert [report.message for report in reports] == [
         "Method 'oversized' has 3 lines, exceeding the configured limit of 2."
     ]
+
+
+def test_line_count_limit_includes_decorators_in_function_limit() -> None:
+    reports = _run_line_count_limit(
+        """
+        @first
+        @second(
+            option=True,
+        )
+        def oversized() -> None:
+            pass
+        """,
+        {"max_function_lines": 5},
+    )
+
+    assert [report.message for report in reports] == [
+        "Function 'oversized' has 6 lines, exceeding the configured limit of 5."
+    ]
+
+
+def test_line_count_limit_includes_decorators_in_method_limit() -> None:
+    reports = _run_line_count_limit(
+        """
+        class Service:
+            @classmethod
+            def oversized(cls) -> None:
+                pass
+        """,
+        {"max_method_lines": 2},
+    )
+
+    assert [report.message for report in reports] == [
+        "Method 'oversized' has 3 lines, exceeding the configured limit of 2."
+    ]
+
+
+def test_unsafe_tempfile_reports_annotated_assignment_alias() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+
+        make_temp: object = tempfile.mkstemp
+        make_temp()
+        """,
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
+
+
+def test_unsafe_tempfile_reports_assignment_expression_alias() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+
+        if make_temp := tempfile.mkdtemp:
+            make_temp()
+        """,
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
+
+
+def test_unsafe_tempfile_reports_destructured_literal_alias() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+
+        [make_temp, allowed] = [tempfile.mkdtemp, print]
+        make_temp()
+        """,
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
+
+
+def test_unsafe_tempfile_uses_assignment_reaching_call_before_later_rebinding() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+
+        make_temp = tempfile.mkstemp
+        make_temp()
+        make_temp = print
+        """,
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
+
+
+def test_unsafe_tempfile_uses_latest_assignment_reaching_call() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+
+        make_temp = print
+        make_temp = tempfile.mkdtemp
+        make_temp()
+        """,
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
+
+
+def test_unsafe_tempfile_uses_latest_import_binding() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+        import fake_tempfile as tempfile
+
+        tempfile.mkstemp()
+        """,
+    )
+
+    assert reports == []
+
+
+def test_unsafe_tempfile_uses_import_binding_before_later_rebinding() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+
+        tempfile.mkstemp()
+        tempfile = fake_tempfile
+        """,
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
 
 
 def test_line_count_limit_reports_outer_function_for_nested_function_lines() -> None:
@@ -566,6 +874,28 @@ def test_line_count_limit_glob_limits_override_base_limit() -> None:
     )
 
     assert reports == []
+
+
+def test_line_count_limit_glob_matches_repo_relative_path_outside_cwd(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    path = root / "src" / "fixture.py"
+    reports = _run_line_count_limit(
+        """
+        def large() -> None:
+            first()
+            second()
+        """,
+        {
+            "max_function_lines": 10,
+            "glob_limits": {"src/*.py": {"max_function_lines": 2}},
+        },
+        path=path,
+        root=root,
+    )
+
+    assert [report.message for report in reports] == [
+        "Function 'large' has 3 lines, exceeding the configured limit of 2."
+    ]
 
 
 def test_line_count_limit_per_file_limits_match_repo_relative_path(tmp_path: Path) -> None:
