@@ -1,16 +1,20 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
+from typing import ClassVar
 
 import libcst as cst
-from libcst.metadata import ParentNodeProvider
+from libcst.metadata import ParentNodeProvider, ProviderT, ScopeProvider
+from libcst.metadata.scope_provider import Assignment as ScopeAssignment
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.blank_lines.base import BaseBlankLinesRule, validate_non_negative_int
 from rattle.rules.blank_lines.utils import (
+    assigned_name_nodes,
     assigned_names,
     assignment_small_statement,
     collect_attribute_receivers,
+    collect_name_nodes_including_nested,
     expression_statement_value,
     has_blank_line_separator,
     has_nontrivial_related_use,
@@ -19,7 +23,6 @@ from rattle.rules.blank_lines.utils import (
     is_control_block_statement,
     is_terminal_exception_cleanup_run,
     next_control_block_consumes_assignment,
-    next_local_definition_uses_assignment,
     prepend_blank_line,
     remove_blank_leading_lines,
 )
@@ -28,6 +31,10 @@ from rattle.rules.blank_lines.utils import (
 class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
     """Require separators before assignments that do not continue the local flow."""
 
+    METADATA_DEPENDENCIES: ClassVar[Collection[ProviderT]] = (
+        *BaseBlankLinesRule.METADATA_DEPENDENCIES,
+        ScopeProvider,
+    )
     SOURCE_PATTERNS = (b"=", b":")
     MESSAGE = (
         "Missing blank line before assignment statement that follows a non-assignment statement."
@@ -352,15 +359,26 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
         )
 
     def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:
-        parent = self.get_metadata(ParentNodeProvider, node)
+        parent = self.get_metadata(ParentNodeProvider, node, None)
         short_control_flow_max_statements = int(self.settings["short_control_flow_max_statements"])
         self._check_suite_body(
             node.body,
             suite_can_have_docstring=self._suite_can_have_docstring(node),
             suite_parent=parent,
             skip_short_control_flow_suite=(
-                isinstance(parent, cst.BaseStatement)
-                and is_control_block_statement(parent)
+                (
+                    (isinstance(parent, cst.BaseStatement) and is_control_block_statement(parent))
+                    or isinstance(
+                        parent,
+                        (
+                            cst.Else,
+                            cst.ExceptHandler,
+                            cst.ExceptStarHandler,
+                            cst.Finally,
+                            cst.MatchCase,
+                        ),
+                    )
+                )
                 and len(node.body) <= short_control_flow_max_statements
             ),
         )
@@ -458,7 +476,7 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             )
             or (
                 self._allow_local_helper_capture()
-                and next_local_definition_uses_assignment(body, index)
+                and self._next_local_definition_captures_assignment(body, index)
             )
             or (
                 self._allow_post_guard_continuation()
@@ -467,6 +485,43 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             )
             or (related_use and not previous_is_compact_guard)
         )
+
+    def _next_local_definition_captures_assignment(
+        self,
+        body: Sequence[cst.BaseStatement],
+        assignment_index: int,
+    ) -> bool:
+        next_index = assignment_index + 1
+        if next_index >= len(body):
+            return False
+
+        next_statement = body[next_index]
+        if not isinstance(next_statement, (cst.ClassDef, cst.FunctionDef)):
+            return False
+
+        assignment_nodes = {
+            name.value: name for name in assigned_name_nodes(body[assignment_index])
+        }
+        if not assignment_nodes:
+            return False
+
+        for name_node in collect_name_nodes_including_nested(next_statement):
+            assignment_node = assignment_nodes.get(name_node.value)
+            if assignment_node is None:
+                continue
+
+            scope = self.get_metadata(ScopeProvider, name_node, None)
+            if scope is None:
+                continue
+
+            for access in scope.accesses[name_node.value]:
+                if access.node is name_node and any(
+                    isinstance(referent, ScopeAssignment) and referent.node is assignment_node
+                    for referent in access.referents
+                ):
+                    return True
+
+        return False
 
     def _continues_same_receiver_setup(
         self,

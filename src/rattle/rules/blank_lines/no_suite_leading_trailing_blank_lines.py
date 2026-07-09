@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
+from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
 from rattle.rules.blank_lines.base import BaseBlankLinesRule
@@ -155,12 +156,11 @@ class NoSuiteLeadingTrailingBlankLines(BaseBlankLinesRule, LintRule):
         while keep_count > 0 and is_blank_line(footer[keep_count - 1]):
             keep_count -= 1
 
-        if keep_count != len(footer):
-            suite_replacement = suite.with_changes(footer=tuple(footer[:keep_count]))
+        for trailing_line in footer[keep_count:]:
             self.report(
-                suite,
+                trailing_line,
                 message=self.TRAILING_MESSAGE,
-                replacement=suite_replacement,
+                replacement=cst.RemovalSentinel.REMOVE,
             )
 
     def _allowed_leading_blank_prefix(
@@ -174,7 +174,7 @@ class NoSuiteLeadingTrailingBlankLines(BaseBlankLinesRule, LintRule):
         if isinstance(suite, cst.Module):
             return 0
 
-        parent = self.get_metadata(cst.metadata.ParentNodeProvider, suite)
+        parent = self.get_metadata(ParentNodeProvider, suite, None)
         if isinstance(parent, cst.FunctionDef):
             return 1
 

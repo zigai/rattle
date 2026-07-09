@@ -113,8 +113,10 @@ class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
             if self._node_non_empty_line_count(current_case.body) <= max_case_non_empty_lines:
                 continue
 
-            current_position = self.get_metadata(PositionProvider, current_case)
-            next_position = self.get_metadata(PositionProvider, next_case)
+            current_position = self.get_metadata(PositionProvider, current_case, None)
+            next_position = self.get_metadata(PositionProvider, next_case, None)
+            assert current_position is not None
+            assert next_position is not None
             if next_position.start.line > current_position.end.line + 1:
                 continue
 
@@ -122,6 +124,9 @@ class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
                 next_case,
                 message=self.MESSAGE,
                 position=self._match_case_anchor_range(next_case),
+                replacement=next_case.with_changes(
+                    leading_lines=(cst.EmptyLine(indent=False), *next_case.leading_lines)
+                ),
             )
 
 

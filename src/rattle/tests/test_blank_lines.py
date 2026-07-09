@@ -9,6 +9,7 @@ import pytest
 from rattle import Config, Invalid, LintRule, Valid
 from rattle.config import QualifiedRule, find_rules, resolve_rule_settings
 from rattle.engine import LintRunner
+from rattle.ftypes import RuleOptions
 from rattle.rules.blank_lines import (
     BlankLineAfterControlBlock,
     BlankLineAfterTerminalControlBlock,
@@ -61,7 +62,7 @@ def _as_invalid(case: str | Invalid) -> Invalid:
 def _run_rule(
     rule_cls: type[LintRule],
     source: str,
-    options: dict[str, str | int | float | bool | list[str | int | float | bool]] | None = None,
+    options: RuleOptions | None = None,
 ) -> tuple[LintRunner, list]:
     path = Path("fixture.py")
     rule = rule_cls()
@@ -749,3 +750,548 @@ def test_bl400_reports_case_keyword_only() -> None:
     assert report.range.start.line == 7
     assert report.range.end.line == 7
     assert report.range.end.column - report.range.start.column == len("case")
+
+
+def test_bl100_combined_suite_boundary_fixes_do_not_overlap() -> None:
+    runner, reports = _run_rule(
+        NoSuiteLeadingTrailingBlankLines,
+        """
+        def f() -> None:
+
+            work()
+
+
+        """,
+    )
+
+    assert {report.message for report in reports} == {
+        NoSuiteLeadingTrailingBlankLines.LEADING_MESSAGE,
+        NoSuiteLeadingTrailingBlankLines.TRAILING_MESSAGE,
+    }
+
+    fixed_code = runner.apply_replacements(reports).code
+    assert fixed_code == _dedent(
+        """
+        def f() -> None:
+            work()
+        """
+    )
+    _, fixed_reports = _run_rule(NoSuiteLeadingTrailingBlankLines, fixed_code)
+    assert fixed_reports == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+        def f(first: bool, second: bool) -> None:
+            if first:
+                work()
+            elif second:
+                work()
+            else:
+                return
+            followup()
+        """,
+        """
+        def f(items: list[int]) -> None:
+            for item in items:
+                work(item)
+            else:
+                return
+            followup()
+        """,
+        """
+        def f(items: list[int]) -> None:
+            while items:
+                items.pop()
+            else:
+                return
+            followup()
+        """,
+    ],
+)
+def test_terminal_rule_checks_terminal_alternative_suites(source: str) -> None:
+    runner, reports = _run_rule(BlankLineAfterTerminalControlBlock, source)
+
+    assert len(reports) == 1
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rule(BlankLineAfterTerminalControlBlock, fixed_code)
+    assert fixed_reports == []
+
+
+def test_terminal_rule_does_not_join_noncontiguous_guards_into_ladder() -> None:
+    runner, reports = _run_rule(
+        BlankLineAfterTerminalControlBlock,
+        """
+        def f(first: bool, second: bool) -> int:
+            if first:
+                return 1
+
+            work()
+            if second:
+                return 2
+            return 3
+        """,
+    )
+
+    assert len(reports) == 1
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rule(BlankLineAfterTerminalControlBlock, fixed_code)
+    assert fixed_reports == []
+
+
+def test_terminal_rule_supports_exception_group_try_blocks() -> None:
+    runner, reports = _run_rule(
+        BlankLineAfterTerminalControlBlock,
+        """
+        def f() -> None:
+            try:
+                return
+            except* ValueError:
+                recover()
+            followup()
+        """,
+    )
+
+    assert len(reports) == 1
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rule(BlankLineAfterTerminalControlBlock, fixed_code)
+    assert fixed_reports == []
+
+
+def test_terminal_rule_disabled_guard_ladder_exemption_requires_spacing() -> None:
+    _, reports = _run_rule(
+        BlankLineAfterTerminalControlBlock,
+        """
+        def f(first: bool, second: bool) -> int:
+            if first:
+                return 1
+            if second:
+                return 2
+            return 3
+        """,
+        {"allow_compact_guard_ladders": False},
+    )
+
+    assert len(reports) == 1
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+        def f(flag: bool) -> None:
+            if flag:
+                pass
+            else:
+                log()
+                value = compute()
+        """,
+        """
+        def f(value: object) -> None:
+            match value:
+                case _:
+                    log()
+                    result = compute()
+        """,
+        """
+        def f() -> None:
+            try:
+                work()
+            except Exception:
+                log()
+                result = compute()
+        """,
+        """
+        def f() -> None:
+            try:
+                work()
+            finally:
+                log()
+                result = compute()
+        """,
+    ],
+)
+def test_bl210_short_control_flow_limit_applies_to_alternative_suites(source: str) -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeAssignment,
+        source,
+        {"short_control_flow_max_statements": 2},
+    )
+
+    assert reports == []
+
+
+def test_bl210_local_helper_parameter_shadow_is_not_a_capture() -> None:
+    runner, reports = _run_rule(
+        BlankLineBeforeAssignment,
+        """
+        def f() -> None:
+            log()
+            payload = make_payload()
+            def helper(payload: object) -> object:
+                return payload
+        """,
+    )
+
+    assert len(reports) == 1
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rule(BlankLineBeforeAssignment, fixed_code)
+    assert fixed_reports == []
+
+
+def test_bl210_short_exception_group_handler_is_control_flow() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeAssignment,
+        """
+        def f() -> None:
+            try:
+                work()
+            except* ValueError:
+                log()
+                result = compute()
+        """,
+        {"short_control_flow_max_statements": 2},
+    )
+
+    assert reports == []
+
+
+def test_bl210_local_helper_real_closure_capture_remains_compact() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeAssignment,
+        """
+        def f() -> None:
+            log()
+            payload = make_payload()
+            def helper() -> object:
+                return payload
+        """,
+    )
+
+    assert reports == []
+
+
+def test_bl210_disabled_local_capture_exemption_requires_spacing() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeAssignment,
+        """
+        def f() -> None:
+            log()
+            payload = make_payload()
+            def helper() -> object:
+                return payload
+        """,
+        {"allow_local_helper_capture": False},
+    )
+
+    assert len(reports) == 1
+
+
+def test_bl210_enabled_post_guard_continuation_stays_compact() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeAssignment,
+        """
+        def f(flag: bool) -> str:
+            if not flag:
+                return ""
+            result = compute()
+            return result
+        """,
+        {"allow_post_guard_continuation": True},
+    )
+
+    assert reports == []
+
+
+def test_bl210_related_use_honors_configured_lookahead() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeAssignment,
+        """
+        def f() -> None:
+            log_start()
+            result = compute()
+            log_progress()
+            consume(result)
+        """,
+        {"related_use_lookahead": 1},
+    )
+
+    assert len(reports) == 1
+
+
+def test_bl200_disabled_related_tails_preserve_annotated_return_separator() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeBranchInLargeSuite,
+        """
+        def f() -> int:
+            first = 1
+            second = 2
+            payload: int = first + second
+
+            return payload
+        """,
+        {"allow_related_return_tails": False},
+    )
+
+    assert reports == []
+
+
+def test_bl200_disabled_guard_ladder_tail_exemption_requires_spacing() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeBranchInLargeSuite,
+        """
+        def f(first: bool, second: bool) -> int:
+            if first:
+                return 1
+            if second:
+                return 2
+            return 3
+        """,
+        {"allow_guard_ladder_final_branch": False},
+    )
+
+    assert len(reports) == 1
+
+
+def test_bl200_compact_tail_limit_is_enforced() -> None:
+    _, reports = _run_rule(
+        BlankLineBeforeBranchInLargeSuite,
+        """
+        def f(value: int) -> int:
+            first = value + 1
+            second = first + 1
+            return first + second
+        """,
+        {"compact_tail_max_statements": 1},
+    )
+
+    assert len(reports) == 1
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+        def f(items: list[object]) -> None:
+            item = default_item()
+            for item in items:
+                consume(item)
+        """,
+        """
+        def f(manager: object) -> None:
+            resource = fallback_resource()
+            with manager.open() as resource:
+                consume(resource)
+        """,
+        """
+        def f(subject: object) -> None:
+            item = default_item()
+            match subject:
+                case item:
+                    consume(item)
+        """,
+    ],
+)
+def test_bl300_bound_block_names_do_not_fake_setup_relationship(source: str) -> None:
+    runner, reports = _run_rule(BlockHeaderCuddleRelaxed, source)
+
+    assert len(reports) == 1
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rule(BlockHeaderCuddleRelaxed, fixed_code)
+    assert fixed_reports == []
+
+
+def test_bl300_zero_body_lookahead_disables_body_only_relationships() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(flag: bool) -> None:
+            prepared = compute()
+            if flag:
+                consume(prepared)
+        """,
+        {"body_usage_lookahead": 0},
+    )
+
+    assert len(reports) == 1
+
+
+def test_bl300_disabled_guard_ladder_setup_exemption_requires_spacing() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(first: bool, second: bool) -> int:
+            result = default_result()
+            if first:
+                return 1
+            if second:
+                return 2
+            return result
+        """,
+        {"allow_setup_before_compact_guard_ladder": False},
+    )
+
+    assert len(reports) == 1
+
+
+def test_bl300_setup_run_lookback_is_enforced() -> None:
+    _, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        """
+        def f(first: bool, second: bool) -> int:
+            result = default_result()
+            if first:
+                return 1
+            if second:
+                return 2
+            return result
+        """,
+        {"setup_run_lookback": 0},
+    )
+
+    assert len(reports) == 1
+
+
+def test_strict_block_cuddle_does_not_allow_body_only_assignment_use() -> None:
+    runner, reports = _run_rule(
+        BlockHeaderCuddleStrict,
+        """
+        def f(flag: bool) -> None:
+            prepared = compute()
+            if flag:
+                consume(prepared)
+        """,
+    )
+
+    assert len(reports) == 1
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rule(BlockHeaderCuddleStrict, fixed_code)
+    assert fixed_reports == []
+
+
+def test_bl350_related_value_may_be_created_in_else_suite() -> None:
+    _, reports = _run_rule(
+        BlankLineAfterControlBlock,
+        """
+        def f(flag: bool) -> None:
+            if flag:
+                pass
+            else:
+                value = compute()
+            consume(value)
+        """,
+    )
+
+    assert reports == []
+
+
+def test_bl350_disabled_pytest_cluster_exemption_reports_and_fixes() -> None:
+    runner, reports = _run_rule(
+        BlankLineAfterControlBlock,
+        """
+        def f() -> None:
+            with pytest.raises(ValueError):
+                parse("x")
+            with pytest.raises(TypeError):
+                parse(3)
+        """,
+        {"allow_pytest_raises_clusters": False},
+    )
+
+    assert len(reports) == 1
+    fixed_code = runner.apply_replacements(reports).code
+    _, fixed_reports = _run_rule(
+        BlankLineAfterControlBlock,
+        fixed_code,
+        {"allow_pytest_raises_clusters": False},
+    )
+    assert fixed_reports == []
+
+
+def test_bl350_disabled_with_inspection_exemption_requires_spacing() -> None:
+    _, reports = _run_rule(
+        BlankLineAfterControlBlock,
+        """
+        def f(path: str) -> None:
+            with open(path) as handle:
+                content = handle.read()
+            assert content
+        """,
+        {"allow_with_immediate_inspection": False},
+    )
+
+    assert len(reports) == 1
+
+
+def test_bl350_disabled_guard_ladder_exemption_requires_spacing() -> None:
+    _, reports = _run_rule(
+        BlankLineAfterControlBlock,
+        """
+        def f(first: bool, second: bool) -> int:
+            if first:
+                return 1
+            if second:
+                return 2
+            return 3
+        """,
+        {"allow_compact_guard_ladders": False},
+    )
+
+    assert len(reports) == 2
+
+
+def test_bl350_related_assignment_lookahead_zero_requires_spacing() -> None:
+    _, reports = _run_rule(
+        BlankLineAfterControlBlock,
+        """
+        def f(flag: bool) -> None:
+            if flag:
+                work()
+            result = compute()
+            consume(result)
+        """,
+        {"related_use_lookahead": 0},
+    )
+
+    assert len(reports) == 1
+
+
+def test_bl350_related_assignment_uses_configured_lookahead() -> None:
+    _, reports = _run_rule(
+        BlankLineAfterControlBlock,
+        """
+        def f(flag: bool) -> None:
+            if flag:
+                work()
+            result = compute()
+            log()
+            consume(result)
+        """,
+        {"related_use_lookahead": 2},
+    )
+
+    assert reports == []
+
+
+def test_bl400_fix_inserts_one_case_separator_and_converges() -> None:
+    runner, reports = _run_rule(
+        MatchCaseSeparation,
+        """
+        def f(value: int) -> int:
+            match value:
+                case 1:
+                    first = 1
+                    second = 2
+                    third = 3
+                case _:
+                    return 0
+        """,
+    )
+
+    assert len(reports) == 1
+    fixed_code = runner.apply_replacements(reports).code
+    assert "        third = 3\n\n        case _:" in fixed_code
+    _, fixed_reports = _run_rule(MatchCaseSeparation, fixed_code)
+    assert fixed_reports == []

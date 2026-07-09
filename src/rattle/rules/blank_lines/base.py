@@ -15,6 +15,7 @@ from libcst.metadata import (
 
 from rattle.rules.blank_lines.utils import (
     assignment_small_statement,
+    block_body_bound_names,
     collect_attribute_receivers,
     collect_comparable_expressions,
     collect_names,
@@ -81,8 +82,14 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
 
         return 0
 
+    def _position(self, node: cst.CSTNode) -> CodeRange:
+        position = self.get_metadata(PositionProvider, node, None)
+        assert position is not None
+
+        return position
+
     def _first_line_range(self, node: cst.CSTNode) -> CodeRange:
-        position = self.get_metadata(PositionProvider, node)
+        position = self._position(node)
         return CodeRange(
             start=position.start,
             end=CodePosition(
@@ -92,7 +99,7 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
         )
 
     def _range_for_keyword(self, node: cst.CSTNode, keyword: str) -> CodeRange:
-        position = self.get_metadata(PositionProvider, node)
+        position = self._position(node)
         return CodeRange(
             start=position.start,
             end=CodePosition(
@@ -136,20 +143,20 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
         if not body:
             return 0
 
-        start_line = self.get_metadata(PositionProvider, body[0]).start.line
-        end_line = self.get_metadata(PositionProvider, body[-1]).end.line
+        start_line = self._position(body[0]).start.line
+        end_line = self._position(body[-1]).end.line
 
         return count_non_empty_lines(self._source_lines(), start_line, end_line)
 
     def _node_non_empty_line_count(self, node: cst.CSTNode) -> int:
-        position = self.get_metadata(PositionProvider, node)
+        position = self._position(node)
         return count_non_empty_lines(self._source_lines(), position.start.line, position.end.line)
 
     def _suite_can_have_docstring(self, suite: cst.Module | cst.IndentedBlock) -> bool:
         if isinstance(suite, cst.Module):
             return True
 
-        parent = self.get_metadata(ParentNodeProvider, suite)
+        parent = self.get_metadata(ParentNodeProvider, suite, None)
 
         return isinstance(parent, (cst.ClassDef, cst.FunctionDef))
 
@@ -418,6 +425,7 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             self._header_uses_name(statement, name)
             or (
                 self.ALLOW_FIRST_BODY_USAGE
+                and self._body_usage_lookahead() > 0
                 and self._first_body_statement_uses_name(statement, name)
             )
             or self._early_body_statement_uses_name(statement, name)
@@ -432,6 +440,7 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             self._header_uses_target_expression(statement, target_expression)
             or (
                 self.ALLOW_FIRST_BODY_USAGE
+                and self._body_usage_lookahead() > 0
                 and self._first_body_statement_uses_target_expression(
                     statement,
                     target_expression,
@@ -471,6 +480,12 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         return False
 
     def _block_is_related_to_name(self, statement: cst.BaseStatement, name: str) -> bool:
+        if self._header_uses_name(statement, name):
+            return True
+
+        if name in block_body_bound_names(statement):
+            return False
+
         return self._block_uses_name(statement, name) or self._early_body_statement_touches_name(
             statement,
             name,
@@ -481,6 +496,11 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
         statement: cst.BaseStatement,
         target_expression: cst.BaseExpression,
     ) -> bool:
+        if isinstance(
+            target_expression, cst.Name
+        ) and target_expression.value in block_body_bound_names(statement):
+            return self._header_uses_target_expression(statement, target_expression)
+
         return self._block_uses_target_expression(
             statement,
             target_expression,

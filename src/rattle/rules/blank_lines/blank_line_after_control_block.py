@@ -9,7 +9,7 @@ from rattle.rules.blank_lines.base import BaseBlankLinesRule, validate_non_negat
 from rattle.rules.blank_lines.utils import (
     assignment_small_statement,
     control_block_ends_with_continue,
-    flat_body_assigned_names,
+    flat_control_block_assigned_names,
     has_nontrivial_related_use,
     has_separator,
     is_branch_statement,
@@ -264,8 +264,8 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
         return (
             not is_control_block_statement(current_statement)
             or is_single_line_control_block(current_statement)
-            or is_header_block_statement(next_statement)
-            or assignment_small_statement(next_statement) is not None
+            or self._is_allowed_adjacent_header(current_statement, next_statement)
+            or self._is_compact_guard_assignment(current_statement, next_statement)
             or is_same_subject_simple_if_chain(current_statement, next_statement)
             or has_separator(next_statement)
             or self._is_pytest_raises_cluster(current_statement, next_statement)
@@ -280,6 +280,22 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             )
         )
 
+    def _is_allowed_adjacent_header(
+        self,
+        current_statement: cst.BaseStatement,
+        next_statement: cst.BaseStatement,
+    ) -> bool:
+        if not is_header_block_statement(next_statement):
+            return False
+
+        if is_pytest_raises_with(current_statement) and is_pytest_raises_with(next_statement):
+            return self._allow_pytest_raises_clusters()
+
+        if is_compact_guard_if(current_statement) and is_compact_guard_if(next_statement):
+            return self._allow_compact_guard_ladders()
+
+        return True
+
     def _is_pytest_raises_cluster(
         self,
         current_statement: cst.BaseStatement,
@@ -289,6 +305,16 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             self._allow_pytest_raises_clusters()
             and is_pytest_raises_with(current_statement)
             and is_pytest_raises_with(next_statement)
+        )
+
+    def _is_compact_guard_assignment(
+        self,
+        current_statement: cst.BaseStatement,
+        next_statement: cst.BaseStatement,
+    ) -> bool:
+        return (
+            is_compact_guard_if(current_statement)
+            and assignment_small_statement(next_statement) is not None
         )
 
     def _is_compact_guard_transition(
@@ -318,13 +344,14 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
     ) -> bool:
         if (
             is_compact_guard_if(current_statement)
+            or isinstance(current_statement, cst.With)
             or is_branch_statement(next_statement)
             or assignment_small_statement(next_statement) is not None
             or not isinstance(next_statement, cst.SimpleStatementLine)
         ):
             return False
 
-        assigned = flat_body_assigned_names(current_statement)
+        assigned = flat_control_block_assigned_names(current_statement)
         if not assigned:
             return False
 

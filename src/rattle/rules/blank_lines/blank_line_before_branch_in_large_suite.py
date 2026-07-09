@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import libcst as cst
+from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.blank_lines.base import BaseBlankLinesRule, validate_non_negative_int
@@ -256,7 +257,7 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
         self._check_suite_body(
             node.body,
             suite_can_have_docstring=self._suite_can_have_docstring(node),
-            suite_parent=self.get_metadata(cst.metadata.ParentNodeProvider, node),
+            suite_parent=self.get_metadata(ParentNodeProvider, node, None),
         )
 
     def _check_suite_body(
@@ -318,7 +319,13 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
         return (
             not is_branch_statement(statement)
             or has_separator(statement)
-            or is_control_block_statement(body[index - 1])
+            or (
+                is_control_block_statement(body[index - 1])
+                and (
+                    self._allow_guard_ladder_final_branch()
+                    or not is_compact_guard_ladder_tail(body, index)
+                )
+            )
             or self._follows_suite_docstring(body, index, suite_can_have_docstring)
             or is_terminal_exception_cleanup_run(body, index - 1, suite_parent)
             or is_compact_loop_exit_tail(body, index)
@@ -337,7 +344,8 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
         statement: cst.BaseStatement,
     ) -> bool:
         return (
-            is_branch_statement(statement)
+            self._allow_related_return_tails()
+            and is_branch_statement(statement)
             and has_blank_line_separator(statement)
             and self._is_immediate_annotated_return_binding(body, index, statement)
         )

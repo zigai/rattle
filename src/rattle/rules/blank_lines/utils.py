@@ -9,8 +9,16 @@ from rattle.rules.helpers import is_docstring_statement, target_names
 
 BRANCH_SMALL_STATEMENTS = (cst.Break, cst.Continue, cst.Raise, cst.Return)
 HEADER_BLOCK_STATEMENTS = (cst.For, cst.If, cst.Match, cst.While, cst.With)
-CONTROL_BLOCK_STATEMENTS = (cst.For, cst.If, cst.Match, cst.Try, cst.While, cst.With)
-EXCEPTION_CLEANUP_PARENTS = (cst.ExceptHandler, cst.Finally)
+CONTROL_BLOCK_STATEMENTS = (
+    cst.For,
+    cst.If,
+    cst.Match,
+    cst.Try,
+    cst.TryStar,
+    cst.While,
+    cst.With,
+)
+EXCEPTION_CLEANUP_PARENTS = (cst.ExceptHandler, cst.ExceptStarHandler, cst.Finally)
 
 
 class StatementWithLeadingLines(Protocol):
@@ -23,24 +31,26 @@ class NameCollector(cst.CSTVisitor):
     def __init__(self) -> None:
         self.names: set[str] = set()
 
-    def visit_ClassDef(self, _node: cst.ClassDef) -> bool:
+    def visit_ClassDef(self, node: cst.ClassDef) -> bool:
+        del node
         return False
 
-    def visit_FunctionDef(self, _node: cst.FunctionDef) -> bool:
+    def visit_FunctionDef(self, node: cst.FunctionDef) -> bool:
+        del node
         return False
 
     def visit_Name(self, node: cst.Name) -> None:
         self.names.add(node.value)
 
 
-class NestedNameCollector(cst.CSTVisitor):
-    """Collect all ``Name`` values below a node, including nested defs/classes."""
+class NestedNameNodeCollector(cst.CSTVisitor):
+    """Collect all ``Name`` nodes, including names below nested definitions."""
 
     def __init__(self) -> None:
-        self.names: set[str] = set()
+        self.nodes: list[cst.Name] = []
 
     def visit_Name(self, node: cst.Name) -> None:
-        self.names.add(node.value)
+        self.nodes.append(node)
 
 
 class AttributeReceiverCollector(cst.CSTVisitor):
@@ -79,10 +89,10 @@ def collect_names(node: cst.CSTNode) -> set[str]:
     return collector.names
 
 
-def collect_names_including_nested(node: cst.CSTNode) -> set[str]:
-    collector = NestedNameCollector()
+def collect_name_nodes_including_nested(node: cst.CSTNode) -> list[cst.Name]:
+    collector = NestedNameNodeCollector()
     node.visit(collector)
-    return collector.names
+    return collector.nodes
 
 
 def collect_attribute_receivers(node: cst.CSTNode) -> list[cst.BaseExpression]:
@@ -207,6 +217,10 @@ def assigned_names(statement: cst.BaseStatement) -> set[str]:
     return {name for target in assigned_targets(statement) for name in extract_target_names(target)}
 
 
+def assigned_name_nodes(statement: cst.BaseStatement) -> list[cst.Name]:
+    return [name for target in assigned_targets(statement) for name in target_names(target)]
+
+
 def ordered_assigned_names(statement: cst.BaseStatement) -> list[str]:
     names: list[str] = []
     for target in assigned_targets(statement):
@@ -325,7 +339,7 @@ def first_statement_in_suite(suite: cst.BaseSuite) -> cst.CSTNode | None:
 
 
 def first_statement_in_block(statement: cst.BaseStatement) -> cst.CSTNode | None:
-    if isinstance(statement, (cst.For, cst.If, cst.Try, cst.While, cst.With)):
+    if isinstance(statement, (cst.For, cst.If, cst.Try, cst.TryStar, cst.While, cst.With)):
         return first_statement_in_suite(statement.body)
 
     if isinstance(statement, cst.Match):
@@ -367,7 +381,7 @@ def is_terminal_exception_cleanup_run(
 def is_single_line_control_block(statement: cst.BaseStatement) -> bool:
     if isinstance(statement, cst.Match):
         return False
-    if isinstance(statement, (cst.For, cst.If, cst.Try, cst.While, cst.With)):
+    if isinstance(statement, (cst.For, cst.If, cst.Try, cst.TryStar, cst.While, cst.With)):
         return isinstance(statement.body, cst.SimpleStatementSuite)
 
     return False
@@ -552,7 +566,7 @@ def suite_statements(suite: cst.BaseSuite) -> list[cst.BaseStatement]:
 
 
 def primary_body_statements(statement: cst.BaseStatement) -> list[cst.BaseStatement]:
-    if isinstance(statement, (cst.For, cst.If, cst.Try, cst.While, cst.With)):
+    if isinstance(statement, (cst.For, cst.If, cst.Try, cst.TryStar, cst.While, cst.With)):
         return suite_statements(statement.body)
     if isinstance(statement, cst.Match) and statement.cases:
         return suite_statements(statement.cases[0].body)
@@ -571,21 +585,15 @@ def leading_block_body_statements(
     return primary_body_statements(statement)[:limit]
 
 
-def _leading_suite_statements(
-    suite: cst.BaseSuite,
-    *,
-    limit: int,
-) -> list[cst.BaseStatement]:
-    if limit <= 0:
-        return []
-
-    return suite_statements(suite)[:limit]
-
-
 def _if_branch_statement_groups(statement: cst.If) -> list[list[cst.BaseStatement]]:
-    groups = [suite_statements(statement.body)]
-    if statement.orelse is not None:
-        groups.append(suite_statements(statement.orelse.body))
+    groups: list[list[cst.BaseStatement]] = [suite_statements(statement.body)]
+    orelse = statement.orelse
+    while isinstance(orelse, cst.If):
+        groups.append(suite_statements(orelse.body))
+        orelse = orelse.orelse
+
+    if isinstance(orelse, cst.Else):
+        groups.append(suite_statements(orelse.body))
 
     return groups
 
@@ -599,33 +607,97 @@ def control_block_consumed_names_in_early_body(
         return set()
 
     names: set[str] = set()
-    if isinstance(statement, cst.If):
-        for branch in _if_branch_statement_groups(statement):
-            for branch_statement in branch[:limit]:
-                names.update(statement_consumed_names(branch_statement))
-
-        return names
-
-    if isinstance(statement, (cst.For, cst.Try, cst.While, cst.With)):
-        for body_statement in _leading_suite_statements(statement.body, limit=limit):
+    for group in control_block_statement_groups(statement):
+        for body_statement in group[:limit]:
             names.update(statement_consumed_names(body_statement))
 
-        return names
+    return names
+
+
+def control_block_statement_groups(
+    statement: cst.BaseStatement,
+) -> list[list[cst.BaseStatement]]:
+    if isinstance(statement, cst.If):
+        return _if_branch_statement_groups(statement)
 
     if isinstance(statement, cst.Match):
-        for case in statement.cases:
-            for body_statement in _leading_suite_statements(case.body, limit=limit):
-                names.update(statement_consumed_names(body_statement))
+        return [suite_statements(case.body) for case in statement.cases]
 
-        return names
+    if isinstance(statement, (cst.Try, cst.TryStar)):
+        groups = [suite_statements(statement.body)]
+        groups.extend(suite_statements(handler.body) for handler in statement.handlers)
+        if statement.orelse is not None:
+            groups.append(suite_statements(statement.orelse.body))
+        if statement.finalbody is not None:
+            groups.append(suite_statements(statement.finalbody.body))
 
-    return names
+        return groups
+
+    if isinstance(statement, (cst.For, cst.While)):
+        groups = [suite_statements(statement.body)]
+        if statement.orelse is not None:
+            groups.append(suite_statements(statement.orelse.body))
+
+        return groups
+
+    if isinstance(statement, cst.With):
+        return [suite_statements(statement.body)]
+
+    return []
+
+
+class MatchBindingCollector(cst.CSTVisitor):
+    """Collect names bound by a structural pattern."""
+
+    def __init__(self) -> None:
+        self.names: set[str] = set()
+
+    def visit_MatchAs(self, node: cst.MatchAs) -> None:
+        if node.name is not None:
+            self.names.add(node.name.value)
+
+    def visit_MatchMapping(self, node: cst.MatchMapping) -> None:
+        if node.rest is not None:
+            self.names.add(node.rest.value)
+
+    def visit_MatchStar(self, node: cst.MatchStar) -> None:
+        if node.name is not None:
+            self.names.add(node.name.value)
+
+
+def block_body_bound_names(statement: cst.BaseStatement) -> set[str]:
+    if isinstance(statement, cst.For):
+        return set(extract_target_names(statement.target))
+
+    if isinstance(statement, cst.With):
+        return {
+            name
+            for item in statement.items
+            if item.asname is not None
+            for name in extract_target_names(item.asname.name)
+        }
+
+    if isinstance(statement, cst.Match) and statement.cases:
+        collector = MatchBindingCollector()
+        statement.cases[0].pattern.visit(collector)
+        return collector.names
+
+    return set()
 
 
 def flat_body_assigned_names(statement: cst.BaseStatement) -> set[str]:
     names: set[str] = set()
     for body_statement in primary_body_statements(statement):
         names.update(assigned_names(body_statement))
+
+    return names
+
+
+def flat_control_block_assigned_names(statement: cst.BaseStatement) -> set[str]:
+    names: set[str] = set()
+    for group in control_block_statement_groups(statement):
+        for body_statement in group:
+            names.update(assigned_names(body_statement))
 
     return names
 
@@ -809,30 +881,11 @@ def previous_block_assigns_current_target(
     return bool(flat_body_assigned_names(previous_statement).intersection(current_names))
 
 
-def next_local_definition_uses_assignment(
-    body: Sequence[cst.BaseStatement],
-    assignment_index: int,
-) -> bool:
-    next_index = assignment_index + 1
-    if next_index >= len(body):
-        return False
-
-    assigned = assigned_names(body[assignment_index])
-    if not assigned:
-        return False
-
-    next_statement = body[next_index]
-    if not isinstance(next_statement, (cst.ClassDef, cst.FunctionDef)):
-        return False
-
-    return bool(collect_names_including_nested(next_statement).intersection(assigned))
-
-
 def control_block_ends_with_continue(statement: cst.BaseStatement) -> bool:
-    if not isinstance(statement, (cst.If, cst.Match, cst.Try)):
+    if not isinstance(statement, (cst.If, cst.Match, cst.Try, cst.TryStar)):
         return False
 
-    if isinstance(statement, cst.Try):
+    if isinstance(statement, (cst.Try, cst.TryStar)):
         body = suite_statements(statement.body)
     elif isinstance(statement, cst.Match):
         if not statement.cases:
@@ -901,7 +954,7 @@ def _suite_is_single_pass(suite: cst.BaseSuite) -> bool:
 
 def is_pass_only_try(statement: cst.BaseStatement) -> bool:
     return (
-        isinstance(statement, cst.Try)
+        isinstance(statement, (cst.Try, cst.TryStar))
         and bool(statement.handlers)
         and statement.orelse is None
         and statement.finalbody is None
@@ -932,25 +985,29 @@ __all__ = [
     "HEADER_BLOCK_STATEMENTS",
     "AttributeReceiverCollector",
     "NameCollector",
-    "NestedNameCollector",
+    "NestedNameNodeCollector",
+    "assigned_name_nodes",
     "assigned_names",
     "assigned_targets",
     "assignment_consumed_names",
     "assignment_reference_names",
     "assignment_small_statement",
+    "block_body_bound_names",
     "collect_attribute_receivers",
+    "collect_name_nodes_including_nested",
     "collect_names",
-    "collect_names_including_nested",
     "compact_tail_run_before",
     "contiguous_run_before",
     "control_block_consumed_names_in_early_body",
     "control_block_ends_with_continue",
+    "control_block_statement_groups",
     "count_non_empty_lines",
     "expression_statement_value",
     "extract_target_names",
     "first_statement_in_block",
     "first_statement_in_suite",
     "flat_body_assigned_names",
+    "flat_control_block_assigned_names",
     "has_blank_line_separator",
     "has_nontrivial_related_use",
     "has_separator",
@@ -970,7 +1027,6 @@ __all__ = [
     "last_assigned_name",
     "leading_block_body_statements",
     "next_control_block_consumes_assignment",
-    "next_local_definition_uses_assignment",
     "next_statement_inspects_with_assignment",
     "ordered_assigned_names",
     "prepend_blank_line",

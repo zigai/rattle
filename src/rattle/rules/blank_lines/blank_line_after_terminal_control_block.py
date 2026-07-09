@@ -7,6 +7,7 @@ import libcst as cst
 from rattle import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.blank_lines.base import BaseBlankLinesRule
 from rattle.rules.blank_lines.utils import (
+    control_block_statement_groups,
     has_separator,
     is_branch_statement,
     is_compact_guard_if,
@@ -14,7 +15,6 @@ from rattle.rules.blank_lines.utils import (
     is_header_block_statement,
     is_single_line_control_block,
     prepend_blank_line,
-    suite_statements,
 )
 
 
@@ -208,37 +208,8 @@ class BlankLineAfterTerminalControlBlock(BaseBlankLinesRule, LintRule):
 
         return any(
             statements and is_branch_statement(statements[-1])
-            for statements in self._control_block_statement_groups(statement)
+            for statements in control_block_statement_groups(statement)
         )
-
-    def _control_block_statement_groups(
-        self,
-        statement: cst.BaseStatement,
-    ) -> list[list[cst.BaseStatement]]:
-        if isinstance(statement, cst.If):
-            groups = [suite_statements(statement.body)]
-            if statement.orelse is not None:
-                groups.append(suite_statements(statement.orelse.body))
-
-            return groups
-
-        if isinstance(statement, cst.Match):
-            return [suite_statements(case.body) for case in statement.cases]
-
-        if isinstance(statement, cst.Try):
-            groups = [suite_statements(statement.body)]
-            groups.extend(suite_statements(handler.body) for handler in statement.handlers)
-            if statement.orelse is not None:
-                groups.append(suite_statements(statement.orelse.body))
-            if statement.finalbody is not None:
-                groups.append(suite_statements(statement.finalbody.body))
-
-            return groups
-
-        if isinstance(statement, (cst.For, cst.While, cst.With)):
-            return [suite_statements(statement.body)]
-
-        return []
 
     def _is_compact_guard_ladder_transition(
         self,
@@ -266,7 +237,7 @@ class BlankLineAfterTerminalControlBlock(BaseBlankLinesRule, LintRule):
         if index <= 0:
             return False
 
-        return any(is_compact_guard_if(statement) for statement in body[:index])
+        return not has_separator(body[index]) and is_compact_guard_if(body[index - 1])
 
     def _allow_compact_guard_ladders(self) -> bool:
         return bool(self.settings["allow_compact_guard_ladders"])
