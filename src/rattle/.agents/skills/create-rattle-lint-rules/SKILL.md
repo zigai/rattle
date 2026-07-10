@@ -61,11 +61,17 @@ from rattle import Invalid, LintRule, RuleSetting, Valid
 
 
 class MyRule(LintRule):
-    MESSAGE = "Describe the required change."
+    """Limit the number of items passed to configured calls."""
+
+    MESSAGE = "Reduce this call to at most the configured number of items."
     NAME = "my-rule"
     PYTHON_VERSION = ">=3.10"
     SETTINGS = {
-        "limit": RuleSetting(int, default=10, description="Maximum allowed value."),
+        "max_items": RuleSetting(
+            int,
+            default=10,
+            description="Maximum number of items allowed in one call.",
+        ),
     }
 
     VALID = [Valid("allowed()")]
@@ -89,6 +95,37 @@ Use these class attributes when the contract needs them:
 - `SETTINGS` with typed `RuleSetting` values and validators;
 - `REFERENCES` for relevant external documentation; and
 - `VALID` / `INVALID` for inline behavior tests, including option variants.
+
+### Write user-facing copy
+
+Treat the class docstring, `MESSAGE`, setting descriptions, and references as
+one public documentation surface:
+
+- Write a one-sentence class docstring that states the enforced behavior and
+  the context in which it applies. Do not merely restate the class name.
+- Make `MESSAGE` a direct, actionable sentence that is correct for every place
+  it is reported. Name the required change; omit greetings, hedging, jokes,
+  rhetorical questions, and speculative rationale.
+- Use public Python terms and concrete syntax. Avoid unexplained internal
+  shorthand such as “suite,” “cuddle,” or “guard ladder”; define unavoidable
+  domain terms at first use.
+- Format Python names, operators, calls, and snippets with backticks. Prefer
+  prose over slash-separated lists and dense parentheticals.
+- Keep descriptions short unless a compatibility or behavior-changing caveat
+  is necessary for a safe decision.
+- Give every `RuleSetting` a description. State units, threshold direction,
+  disabling values, and matching semantics precisely; a `max_*` setting must
+  describe the maximum allowed value, not the minimum that triggers a report.
+  For encoded string forms, show the grammar and one valid example.
+- Use message placeholders only for values filled at report time, and make the
+  expanded message read naturally. Add only references that directly support
+  the rule or diagnostic claim.
+- Refer to `MESSAGE` from `Invalid(..., expected_message=MESSAGE)` instead of
+  copying its text into tests.
+
+When editing built-in rules in the Rattle repository, update the source class
+rather than generated Markdown, run `just docs`, inspect the detail and index
+pages, and keep the documented built-in rule count current.
 
 Anchor `self.report(...)` to the smallest CST node that should own the
 diagnostic and local ignore comment.
