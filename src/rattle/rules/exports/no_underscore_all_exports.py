@@ -599,11 +599,11 @@ class NoUnderscoreAllExports(LintRule):
         )
 
     def _is_allowed_export(self, exported_name: str) -> bool:
-        if exported_name in self.settings["allowed_exports"]:
+        if exported_name in self.setting("allowed_exports", list[str]):
             return True
 
         return bool(
-            self.settings["allow_dunder_exports"]
+            self.setting("allow_dunder_exports", bool)
             and exported_name.startswith("__")
             and exported_name.endswith("__")
         )

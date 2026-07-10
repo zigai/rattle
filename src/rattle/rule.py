@@ -14,8 +14,10 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from types import FunctionType, MappingProxyType, UnionType
 from typing import (
-    Any,
     ClassVar,
+    Generic,
+    TypeGuard,
+    TypeVar,
     Union,
     get_args,
     get_origin,
@@ -45,14 +47,17 @@ from .ftypes import (
     Invalid,
     LintViolation,
     NodeReplacement,
+    RuleOptionValue,
     Valid,
     VisitHook,
     VisitorMethod,
+    is_rule_option_value,
     parse_lint_ignore_comment,
 )
 
 SourcePattern = str | bytes
 RuleReference = str | tuple[str, str]
+T = TypeVar("T")
 
 
 def rule_name_from_class_name(class_name: str) -> str:
@@ -284,20 +289,31 @@ def _validate_value_for_type(
     )
 
 
+def _has_expected_setting_type(value: object, expected_type: type[T]) -> TypeGuard[T]:
+    _validate_value_for_type(
+        value,
+        expected_type,
+        setting_name="configured setting",
+        rule_name="rattle",
+        path="configured setting",
+    )
+    return True
+
+
 @dataclass(frozen=True)
-class RuleSetting:
-    value_type: object
-    default: object = _RULE_SETTING_MISSING
-    validator: Callable[[object], object] | None = None
+class RuleSetting(Generic[T]):
+    value_type: type[T]
+    default: T | object = _RULE_SETTING_MISSING
+    validator: Callable[[T], object] | None = None
     description: str = ""
 
-    def _validate_type(
+    def _has_valid_type(
         self,
-        *,
         value: object,
+        *,
         setting_name: str,
         rule_name: str,
-    ) -> None:
+    ) -> TypeGuard[T]:
         _validate_value_for_type(
             value,
             self.value_type,
@@ -305,6 +321,7 @@ class RuleSetting:
             rule_name=rule_name,
             path=setting_name,
         )
+        return True
 
     def validate(
         self,
@@ -313,15 +330,20 @@ class RuleSetting:
         setting_name: str,
         rule_name: str,
     ) -> object:
-        self._validate_type(value=value, setting_name=setting_name, rule_name=rule_name)
+        if not self._has_valid_type(
+            value,
+            setting_name=setting_name,
+            rule_name=rule_name,
+        ):
+            raise AssertionError("validated setting type was not retained")
 
         if self.validator:
             try:
                 validator_result = self.validator(value)
-            except Exception as error:
+            except (TypeError, ValueError) as e:
                 raise RuleConfigurationError(
-                    f"{rule_name}: setting {setting_name!r} failed validation: {error}"
-                ) from error
+                    f"{rule_name}: setting {setting_name!r} failed validation ({type(e).__name__})"
+                ) from None
 
             if validator_result is False:
                 raise RuleConfigurationError(
@@ -343,28 +365,31 @@ class LintRule(BatchableCSTVisitor):
     When a lint rule violation should be reported, use the :meth:`report` method.
     """
 
+    MESSAGE: str = ""
+    "Human-readable diagnostic message or formatting template."
+
     METADATA_DEPENDENCIES: ClassVar[Collection[ProviderT]] = ()
     """
     Required LibCST metadata providers
     """
 
-    TAGS: set[str] = set()
+    TAGS: ClassVar[set[str]] = set()
     "Arbitrary classification tags for use in configuration/selection"
 
     NAME: ClassVar[str] = ""
     "Explicit public rule name. Defaults to kebab-case generated from the class name."
 
-    PYTHON_VERSION: str = ""
+    PYTHON_VERSION: ClassVar[str] = ""
     """
     Compatible target Python versions, in `PEP 440 version specifier`__ format.
 
     __ https://peps.python.org/pep-0440/#version-specifiers
     """
 
-    VALID: ClassVar[Sequence[str | Valid]]
+    VALID: ClassVar[Sequence[str | Valid]] = ()
     "Test cases that should produce no errors/reports"
 
-    INVALID: ClassVar[Sequence[str | Invalid]]
+    INVALID: ClassVar[Sequence[str | Invalid]] = ()
     "Test cases that are expected to produce errors, with optional replacements"
 
     SETTINGS: ClassVar[dict[str, RuleSetting]] = {}
@@ -375,7 +400,7 @@ class LintRule(BatchableCSTVisitor):
 
     SOURCE_PATTERNS: ClassVar[tuple[SourcePattern, ...]] = ()
 
-    AUTOFIX = False  # set by __subclass_init__
+    AUTOFIX: ClassVar[bool] = False  # set by __subclass_init__
     """
     Whether the lint rule contains an autofix.
 
@@ -391,12 +416,12 @@ class LintRule(BatchableCSTVisitor):
     def __init__(self) -> None:
         self._violations: list[LintViolation] = []
         self._lint_ignore_enabled = True
-        self.settings: Mapping[str, Any] = MappingProxyType({})
+        self.settings: Mapping[str, RuleOptionValue] = MappingProxyType({})
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
         cls.name = cls.__dict__.get("NAME") or rule_name_from_class_name(cls.__name__)
-        invalid: list[str | Invalid] = getattr(cls, "INVALID", [])
+        invalid = cls.INVALID
         cls.AUTOFIX = any(
             isinstance(case, Invalid) and bool(case.expected_replacement) for case in invalid
         )
@@ -413,6 +438,13 @@ class LintRule(BatchableCSTVisitor):
             _source_pattern_matches(source, pattern) for pattern in self.SOURCE_PATTERNS
         )
 
+    def setting(self, name: str, value_type: type[T]) -> T:
+        """Return a configured setting after retaining its runtime-validated type."""
+        value = self.settings[name]
+        if not _has_expected_setting_type(value, value_type):
+            raise AssertionError(f"configured setting {name!r} no longer matches its schema")
+        return value
+
     def configure(self, raw_settings: Mapping[str, object]) -> None:
         unknown_settings = sorted(set(raw_settings) - set(self.SETTINGS))
         if unknown_settings:
@@ -421,7 +453,7 @@ class LintRule(BatchableCSTVisitor):
                 f"{self.qualified_name()}: unknown setting(s) {unknown_settings!r}; available settings: {available!r}"
             )
 
-        resolved_settings: dict[str, object] = {}
+        resolved_settings: dict[str, RuleOptionValue] = {}
         for setting_name, setting in self.SETTINGS.items():
             if setting_name in raw_settings:
                 value = raw_settings[setting_name]
@@ -432,11 +464,17 @@ class LintRule(BatchableCSTVisitor):
             else:
                 value = deepcopy(setting.default)
 
-            resolved_settings[setting_name] = setting.validate(
+            validated_value = setting.validate(
                 value,
                 setting_name=setting_name,
                 rule_name=self.qualified_name(),
             )
+            if not is_rule_option_value(validated_value):
+                raise RuleConfigurationError(
+                    f"{self.qualified_name()}: setting {setting_name!r} validator returned "
+                    "an unsupported value"
+                )
+            resolved_settings[setting_name] = validated_value
 
         self.settings = MappingProxyType(resolved_settings)
 

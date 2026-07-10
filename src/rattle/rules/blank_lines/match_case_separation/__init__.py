@@ -111,7 +111,7 @@ class MatchCaseSeparation(BaseBlankLinesRule, LintRule):
         if len(node.cases) < 2:
             return
 
-        max_case_non_empty_lines = int(self.settings["max_case_non_empty_lines"])
+        max_case_non_empty_lines = self.setting("max_case_non_empty_lines", int)
         for current_case, next_case in pairwise(node.cases):
             if self._node_non_empty_line_count(current_case.body) <= max_case_non_empty_lines:
                 continue

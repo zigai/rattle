@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import re
-from typing import Any, Optional, Set, cast
 from unittest import TestCase
 
 from rattle import ftypes
@@ -59,7 +58,7 @@ class TypesTest(TestCase):
                 )
 
     def test_qualified_rule(self) -> None:
-        valid: Set[ftypes.QualifiedRule] = set()
+        valid: set[ftypes.QualifiedRule] = set()
 
         for value, expected in (
             ("", None),
@@ -80,8 +79,12 @@ class TypesTest(TestCase):
                         self.fail(f"{value!r} should match QualifiedRule")
                     assert expected == match.groupdict()
 
-                    kwargs = cast(ftypes.QualifiedRuleRegexResult, match.groupdict())
-                    rule = ftypes.QualifiedRule(**kwargs)
+                    groups = match.groupdict()
+                    rule = ftypes.QualifiedRule(
+                        module=groups["module"],
+                        name=groups["name"],
+                        local=groups["local"],
+                    )
                     assert expected["local"] == rule.local
                     assert expected["module"] == rule.module
                     assert expected["name"] == rule.name
@@ -126,8 +129,6 @@ class TypesTest(TestCase):
 
     def test_tags_bool(self) -> None:
         Tags = ftypes.Tags
-        tags: Optional[str]
-
         for tags in (
             "hello",
             "!hello",
@@ -145,7 +146,6 @@ class TypesTest(TestCase):
     def test_tags_contains(self) -> None:
         Tags = ftypes.Tags
 
-        value: Any
         for value, tags in (
             ("", ""),
             ("", "!hello"),

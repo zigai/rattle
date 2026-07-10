@@ -287,7 +287,10 @@ class NoStringTypeAnnotation(LintRule):
         ):
             self.has_future_annotations_import = True
 
-        if not m.matches(node.module, m.Name("typing") | m.Name("typing_extensions")):
+        if node.module is None or not m.matches(
+            node.module,
+            m.Name("typing") | m.Name("typing_extensions"),
+        ):
             return
         if isinstance(node.names, cst.ImportStar):
             self.literal_names.add("Literal")
@@ -360,7 +363,10 @@ class NoStringTypeAnnotation(LintRule):
 
     def _imported_name(self, alias: cst.ImportAlias) -> str:
         if alias.asname is not None:
-            return alias.asname.name.value
+            alias_name = alias.asname.name
+            if isinstance(alias_name, cst.Name):
+                return alias_name.value
+            return cst.Module([]).code_for_node(alias_name)
         if isinstance(alias.name, cst.Name):
             return alias.name.value
         return cst.Module([]).code_for_node(alias.name).split(".", 1)[0]

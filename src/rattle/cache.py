@@ -11,7 +11,9 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from typing import Literal
 
+import msgspec
 from libcst import Name
 from platformdirs import user_cache_path
 
@@ -34,10 +36,32 @@ CACHE_MAX_BYTES = 250 * 1024 * 1024
 CACHE_PRUNE_TARGET_BYTES = 200 * 1024 * 1024
 
 
-@dataclass(frozen=True)
-class SerializedViolationCacheEntry:
+class CachedCodePosition(msgspec.Struct, frozen=True):
+    line: int
+    column: int
+
+
+class CachedCodeRange(msgspec.Struct, frozen=True):
+    start: CachedCodePosition
+    end: CachedCodePosition
+
+    @classmethod
+    def from_code_range(cls, code_range: CodeRange) -> "CachedCodeRange":
+        return cls(
+            start=CachedCodePosition(code_range.start.line, code_range.start.column),
+            end=CachedCodePosition(code_range.end.line, code_range.end.column),
+        )
+
+    def to_code_range(self) -> CodeRange:
+        return CodeRange(
+            start=CodePosition(line=self.start.line, column=self.start.column),
+            end=CodePosition(line=self.end.line, column=self.end.column),
+        )
+
+
+class SerializedViolationCacheEntry(msgspec.Struct, frozen=True):
     rule_name: str
-    range: CodeRange
+    range: CachedCodeRange
     message: str
     autofixable: bool
     diff: str
@@ -47,34 +71,16 @@ class SerializedViolationCacheEntry:
         assert violation.range is not None
         return cls(
             rule_name=violation.rule_name,
-            range=violation.range,
+            range=CachedCodeRange.from_code_range(violation.range),
             message=violation.message,
             autofixable=violation.autofixable,
             diff=violation.diff,
         )
 
-    def to_json(self) -> dict[str, object]:
-        return {
-            "rule_name": self.rule_name,
-            "range": {
-                "start": {
-                    "line": self.range.start.line,
-                    "column": self.range.start.column,
-                },
-                "end": {
-                    "line": self.range.end.line,
-                    "column": self.range.end.column,
-                },
-            },
-            "message": self.message,
-            "autofixable": self.autofixable,
-            "diff": self.diff,
-        }
-
     def to_violation(self) -> LintViolation:
         return LintViolation(
             rule_name=self.rule_name,
-            range=self.range,
+            range=self.range.to_code_range(),
             message=self.message,
             node=Name("__rattle_cached_violation__"),
             replacement=Name("__rattle_cached_replacement__") if self.autofixable else None,
@@ -82,23 +88,28 @@ class SerializedViolationCacheEntry:
         )
 
 
-@dataclass(frozen=True)
-class ResultCacheEntry:
+class ResultCacheEntry(msgspec.Struct, frozen=True, kw_only=True, omit_defaults=True):
+    version: Literal["results-v1"]
     mtime_ns: int
     size: int
-    status: str
+    status: Literal["clean", "violations"]
     rule_fingerprints: list[object]
-    rule_fingerprint_hash: str | None
-    source: str | None
-    violations: list[SerializedViolationCacheEntry]
+    rule_fingerprint_hash: str | None = None
+    source: str | None = None
+    violations: list[SerializedViolationCacheEntry] = msgspec.field(default_factory=list)
 
 
-@dataclass(frozen=True)
-class CleanStatusCacheEntry:
+class CleanStatusCacheEntry(msgspec.Struct, frozen=True, kw_only=True, omit_defaults=True):
+    version: Literal["results-v1"]
+    status: Literal["clean"]
     mtime_ns: int
     size: int
     rule_fingerprints: list[object]
-    rule_fingerprint_hash: str | None
+    rule_fingerprint_hash: str | None = None
+
+
+RESULT_CACHE_DECODER = msgspec.json.Decoder(ResultCacheEntry, strict=True)
+CLEAN_STATUS_CACHE_DECODER = msgspec.json.Decoder(CleanStatusCacheEntry, strict=True)
 
 
 @dataclass(frozen=True)
@@ -181,23 +192,30 @@ class ResultCache:
         rules: Collection[LintRule] = (),
     ) -> None:
         entry_path = self._result_entry_path(cache_key)
-        data: dict[str, object] = {
-            "version": CACHE_VERSION,
-            "mtime_ns": stat.st_mtime_ns,
-            "size": stat.st_size,
-        }
         rule_fingerprints: list[object] = [rule_cache_fingerprint(rule) for rule in rules]
-        data["rule_fingerprints"] = rule_fingerprints
-        data["rule_fingerprint_hash"] = _rule_fingerprint_hash(rule_fingerprints)
         if violations:
             assert source is not None
-            data["status"] = "violations"
-            data["source"] = base64.b64encode(source).decode("ascii")
-            data["violations"] = [_serialize_violation(violation) for violation in violations]
+            entry = ResultCacheEntry(
+                version=CACHE_VERSION,
+                mtime_ns=stat.st_mtime_ns,
+                size=stat.st_size,
+                status="violations",
+                rule_fingerprints=rule_fingerprints,
+                rule_fingerprint_hash=_rule_fingerprint_hash(rule_fingerprints),
+                source=base64.b64encode(source).decode("ascii"),
+                violations=[_serialize_violation(violation) for violation in violations],
+            )
         else:
-            data["status"] = "clean"
+            entry = ResultCacheEntry(
+                version=CACHE_VERSION,
+                mtime_ns=stat.st_mtime_ns,
+                size=stat.st_size,
+                status="clean",
+                rule_fingerprints=rule_fingerprints,
+                rule_fingerprint_hash=_rule_fingerprint_hash(rule_fingerprints),
+            )
 
-        self._write_json(entry_path, data, error_message="Failed to write clean cache")
+        self._write_json(entry_path, entry, error_message="Failed to write clean cache")
 
     def write_clean_status(
         self,
@@ -219,16 +237,16 @@ class ResultCache:
             config_fingerprints=config_fingerprints,
         )
         entry_path = self._clean_status_entry_path(cache_key)
-        data: dict[str, object] = {
-            "version": CACHE_VERSION,
-            "status": "clean",
-            "mtime_ns": stat.st_mtime_ns,
-            "size": stat.st_size,
-        }
         rule_fingerprints: list[object] = [rule_cache_fingerprint(rule) for rule in rules]
-        data["rule_fingerprints"] = rule_fingerprints
-        data["rule_fingerprint_hash"] = _rule_fingerprint_hash(rule_fingerprints)
-        self._write_json(entry_path, data, error_message="Failed to write clean status cache")
+        entry = CleanStatusCacheEntry(
+            version=CACHE_VERSION,
+            status="clean",
+            mtime_ns=stat.st_mtime_ns,
+            size=stat.st_size,
+            rule_fingerprints=rule_fingerprints,
+            rule_fingerprint_hash=_rule_fingerprint_hash(rule_fingerprints),
+        )
+        self._write_json(entry_path, entry, error_message="Failed to write clean status cache")
 
     def collect_pending_paths(
         self,
@@ -272,13 +290,16 @@ class ResultCache:
         rules: Collection[LintRule],
     ) -> list[Result] | None:
         try:
-            raw = self._result_entry_path(cache_key).read_text()
-            raw_data: object = json.loads(raw)
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            raw = self._result_entry_path(cache_key).read_bytes()
+            entry = RESULT_CACHE_DECODER.decode(raw)
+        except (OSError, msgspec.DecodeError):
             return None
 
-        entry = _decode_result_cache_entry(raw_data, stat)
-        if entry is None or not _cached_result_entry_matches_current_rules(entry, rules):
+        if (
+            entry.mtime_ns != stat.st_mtime_ns
+            or entry.size != stat.st_size
+            or not _cached_result_entry_matches_current_rules(entry, rules)
+        ):
             return None
 
         if entry.status == "clean":
@@ -319,13 +340,12 @@ class ResultCache:
             config_fingerprints=config_fingerprints,
         )
         try:
-            raw = self._clean_status_entry_path(cache_key).read_text()
-            raw_data: object = json.loads(raw)
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            raw = self._clean_status_entry_path(cache_key).read_bytes()
+            entry = CLEAN_STATUS_CACHE_DECODER.decode(raw)
+        except (OSError, msgspec.DecodeError):
             return None
 
-        entry = _decode_clean_status_cache_entry(raw_data, stat)
-        if entry is None:
+        if entry.mtime_ns != stat.st_mtime_ns or entry.size != stat.st_size:
             return None
         if not _cached_rule_fingerprints_match(
             entry.rule_fingerprints,
@@ -338,14 +358,14 @@ class ResultCache:
     def _write_json(
         self,
         entry_path: Path,
-        data: dict[str, object],
+        entry: msgspec.Struct,
         *,
         error_message: str,
     ) -> None:
         try:
             entry_path.parent.mkdir(parents=True, exist_ok=True)
             tmp_path = entry_path.with_name(f"{entry_path.name}.{os.getpid()}.{uuid.uuid4()}.tmp")
-            tmp_path.write_text(json.dumps(data, sort_keys=True))
+            tmp_path.write_bytes(msgspec.json.encode(entry, order="sorted"))
             tmp_path.replace(entry_path)
             _prune_cache(self.root)
         except OSError:
@@ -636,145 +656,6 @@ def _cached_rule_set_matches_current(
     )
 
 
-def _decode_code_position(value: object) -> CodePosition | None:
-    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
-        return None
-
-    line = value.get("line")
-    column = value.get("column")
-    if type(line) is not int or type(column) is not int:
-        return None
-    return CodePosition(line=line, column=column)
-
-
-def _decode_code_range(value: object) -> CodeRange | None:
-    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
-        return None
-
-    start = _decode_code_position(value.get("start"))
-    end = _decode_code_position(value.get("end"))
-    if start is None or end is None:
-        return None
-    return CodeRange(start=start, end=end)
-
-
-def _decode_serialized_violation(value: object) -> SerializedViolationCacheEntry | None:
-    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
-        return None
-
-    rule_name = value.get("rule_name")
-    range_ = _decode_code_range(value.get("range"))
-    message = value.get("message")
-    autofixable = value.get("autofixable")
-    diff = value.get("diff", "")
-    if (
-        not isinstance(rule_name, str)
-        or range_ is None
-        or not isinstance(message, str)
-        or not isinstance(autofixable, bool)
-        or not isinstance(diff, str)
-    ):
-        return None
-
-    return SerializedViolationCacheEntry(
-        rule_name=rule_name,
-        range=range_,
-        message=message,
-        autofixable=autofixable,
-        diff=diff,
-    )
-
-
-def _decode_rule_fingerprints(value: object) -> list[object] | None:
-    if not isinstance(value, list):
-        return None
-    return value
-
-
-def _decode_cache_entry_header(
-    value: object,
-    stat: os.stat_result,
-    *,
-    required_status: str | None = None,
-) -> tuple[dict[str, object], list[object], str | None] | None:
-    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
-        return None
-    if value.get("version") != CACHE_VERSION:
-        return None
-    if value.get("mtime_ns") != stat.st_mtime_ns or value.get("size") != stat.st_size:
-        return None
-    if required_status is not None and value.get("status") != required_status:
-        return None
-
-    rule_fingerprints = _decode_rule_fingerprints(value.get("rule_fingerprints"))
-    if rule_fingerprints is None:
-        return None
-
-    raw_fingerprint_hash = value.get("rule_fingerprint_hash")
-    rule_fingerprint_hash = raw_fingerprint_hash if isinstance(raw_fingerprint_hash, str) else None
-    return value, rule_fingerprints, rule_fingerprint_hash
-
-
-def _decode_result_cache_entry(value: object, stat: os.stat_result) -> ResultCacheEntry | None:
-    decoded = _decode_cache_entry_header(value, stat)
-    if decoded is None:
-        return None
-
-    data, rule_fingerprints, rule_fingerprint_hash = decoded
-    status = data.get("status")
-    if status == "clean":
-        return ResultCacheEntry(
-            mtime_ns=stat.st_mtime_ns,
-            size=stat.st_size,
-            status="clean",
-            rule_fingerprints=rule_fingerprints,
-            rule_fingerprint_hash=rule_fingerprint_hash,
-            source=None,
-            violations=[],
-        )
-    if status != "violations":
-        return None
-
-    source = data.get("source")
-    raw_violations = data.get("violations")
-    if not isinstance(source, str) or not isinstance(raw_violations, list):
-        return None
-
-    violations: list[SerializedViolationCacheEntry] = []
-    for raw_violation in raw_violations:
-        violation = _decode_serialized_violation(raw_violation)
-        if violation is None:
-            return None
-        violations.append(violation)
-
-    return ResultCacheEntry(
-        mtime_ns=stat.st_mtime_ns,
-        size=stat.st_size,
-        status="violations",
-        rule_fingerprints=rule_fingerprints,
-        rule_fingerprint_hash=rule_fingerprint_hash,
-        source=source,
-        violations=violations,
-    )
-
-
-def _decode_clean_status_cache_entry(
-    value: object,
-    stat: os.stat_result,
-) -> CleanStatusCacheEntry | None:
-    decoded = _decode_cache_entry_header(value, stat, required_status="clean")
-    if decoded is None:
-        return None
-
-    _data, rule_fingerprints, rule_fingerprint_hash = decoded
-    return CleanStatusCacheEntry(
-        mtime_ns=stat.st_mtime_ns,
-        size=stat.st_size,
-        rule_fingerprints=rule_fingerprints,
-        rule_fingerprint_hash=rule_fingerprint_hash,
-    )
-
-
 def _decode_cached_source(entry: ResultCacheEntry) -> FileContent | None:
     if entry.source is None:
         return None
@@ -789,8 +670,8 @@ def _cached_clean_results(path: Path, config: Config) -> list[Result] | None:
     return [Result(path, violation=None, config=config)]
 
 
-def _serialize_violation(violation: LintViolation) -> dict[str, object]:
-    return SerializedViolationCacheEntry.from_violation(violation).to_json()
+def _serialize_violation(violation: LintViolation) -> SerializedViolationCacheEntry:
+    return SerializedViolationCacheEntry.from_violation(violation)
 
 
 __all__ = [

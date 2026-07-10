@@ -7,21 +7,21 @@ import logging
 import multiprocessing
 import os
 import sys
-from collections.abc import Collection, Generator, Iterable
+from collections.abc import Callable, Collection, Generator, Iterable
 from dataclasses import dataclass, field, replace
 from functools import partial
 from multiprocessing.context import BaseContext
 from pathlib import Path
-from typing import Any, cast
 
 import trailrunner
 from libcst import ParserSyntaxError
 
 from .ast import AstParseError
 from .cache import ResultCache
-from .config import collect_rules, generate_config
+from .config import CollectionError, ConfigError, collect_rules, generate_config
 from .console import echo, echo_color_precomputed_diff
 from .engine import LintRunner, diff_module
+from .errors import RattleError
 from .format import format_module, format_paths
 from .ftypes import (
     STDIN,
@@ -35,7 +35,7 @@ from .ftypes import (
     Result,
 )
 from .output import render_rattle_result
-from .rule import LintRule
+from .rule import LintRule, RuleConfigurationError
 
 LOG = logging.getLogger(__name__)
 ConfiguredPath = tuple[Path, Config, bool]
@@ -47,6 +47,15 @@ class ConfiguredPathBatchResult:
     results: list[Result]
     deferred_format_paths: list[Path]
     metrics: list[Metrics] = field(default_factory=list)
+
+
+def _run_configured_batches(
+    runner: trailrunner.Trailrunner,
+    batches: Iterable[ConfiguredPathBatch],
+    run_batch: Callable[[ConfiguredPathBatch], ConfiguredPathBatchResult],
+) -> Iterable[tuple[ConfiguredPathBatch, ConfiguredPathBatchResult]]:
+    # Trailrunner is runtime-generic, but its published annotations restrict items to Path.
+    return runner.run_iter(batches, run_batch)  # type: ignore[arg-type, return-value]
 
 
 @dataclass
@@ -132,6 +141,7 @@ class ConfiguredFileCacheSession:
     def write_result(
         self,
         content: FileContent,
+        *,
         clean: bool,
         cacheable: bool,
         cache_violations: list[LintViolation],
@@ -227,13 +237,22 @@ class ConfiguredFileRun:
                 runner,
                 cacheable=not self.autofix,
             )
-            self._store_result(updated, clean, cacheable, cache_violations)
+            self._store_result(
+                updated,
+                clean=clean,
+                cacheable=cacheable,
+                cache_violations=cache_violations,
+            )
 
-        except Exception as error:  # noqa: BLE001 - file boundary
-            LOG.debug("Exception while rattle_configured_file", exc_info=error)
+        except (CollectionError, ConfigError, OSError) as e:
+            LOG.debug(
+                "rattle_configured_file failed with %s",
+                type(e).__name__,
+            )
             yield Result.from_exception(
                 self.path,
-                error,
+                e,
+                operation="Linting file",
                 source=self.content,
                 config=self.config,
             )
@@ -249,6 +268,7 @@ class ConfiguredFileRun:
     def _store_result(
         self,
         updated: FileContent | None,
+        *,
         clean: bool,
         cacheable: bool,
         cache_violations: list[LintViolation],
@@ -352,19 +372,13 @@ class PathLintRun:
             _preload_rules_for_fork(self.included_paths)
         batches = _configured_path_batches(self.included_paths, concurrency=concurrency)
         runner = trailrunner.Trailrunner(concurrency=concurrency, context=context)
-        batch_results = cast(
-            Iterable[tuple[ConfiguredPathBatch, ConfiguredPathBatchResult | list[Result]]],
-            cast(Any, runner).run_iter(batches, fn),
-        )
+        batch_results = _run_configured_batches(runner, batches, fn)
         for _, batch_result in batch_results:
-            if isinstance(batch_result, ConfiguredPathBatchResult):
-                self.deferred_format_paths.extend(batch_result.deferred_format_paths)
-                if self.metrics_hook is not None:
-                    for metrics in batch_result.metrics:
-                        self.metrics_hook(metrics)
-                yield from batch_result.results
-            else:
-                yield from batch_result
+            self.deferred_format_paths.extend(batch_result.deferred_format_paths)
+            if self.metrics_hook is not None:
+                for metrics in batch_result.metrics:
+                    self.metrics_hook(metrics)
+            yield from batch_result.results
 
         if self.deferred_format_paths:
             format_paths(self.deferred_format_paths, Config(formatter="ruff"))
@@ -472,8 +486,8 @@ def _drive_rattle_bytes(
     while True:
         try:
             result = next(runner)
-        except StopIteration as stop:
-            return stop.value, clean, cacheable, cache_violations
+        except StopIteration as e:
+            return e.value, clean, cacheable, cache_violations
 
         while True:
             if result.violation or result.error:
@@ -485,8 +499,8 @@ def _drive_rattle_bytes(
             send_value = yield result
             try:
                 result = runner.send(bool(send_value))
-            except StopIteration as stop:
-                return stop.value, clean, cacheable, cache_violations
+            except StopIteration as e:
+                return e.value, clean, cacheable, cache_violations
 
 
 def _print_rattle_result(
@@ -570,7 +584,8 @@ def _print_error_result(
         raise NotImplementedError("missing rattle renderer for syntax error")
 
     echo(f"{path}: EXCEPTION: {error}", color="red", err=stderr)
-    echo(tb.strip(), err=stderr)
+    if tb:
+        echo(tb.strip(), err=stderr)
     return True
 
 
@@ -745,10 +760,22 @@ def rattle_bytes(
             updated = runner.apply_replacements(pending_fixes)
             return format_module(updated, path, config)
 
-    except Exception as error:  # noqa: BLE001 - result conversion boundary
+    except (
+        AstParseError,
+        ParserSyntaxError,
+        RattleError,
+        RuleConfigurationError,
+        UnicodeError,
+    ) as e:
         # TODO: this is not the right place to catch errors
-        LOG.debug("Exception while linting", exc_info=error)
-        yield Result.from_exception(path, error, source=content, config=config)
+        LOG.debug("Linting failed with %s", type(e).__name__)
+        yield Result.from_exception(
+            path,
+            e,
+            operation="Linting content",
+            source=content,
+            config=config,
+        )
 
     return None
 
@@ -792,9 +819,15 @@ def rattle_stdin(
         if autofix:
             sys.stdout.buffer.write(updated or stdin_content)
 
-    except Exception as error:  # noqa: BLE001 - stdin boundary
-        LOG.debug("Exception while rattle_stdin", exc_info=error)
-        yield Result.from_exception(path, error, source=content, config=config)
+    except (CollectionError, ConfigError, OSError, UnicodeError) as e:
+        LOG.debug("Linting stdin failed with %s", type(e).__name__)
+        yield Result.from_exception(
+            path,
+            e,
+            operation="Linting stdin",
+            source=content,
+            config=config,
+        )
 
 
 def rattle_file(
@@ -835,11 +868,12 @@ def rattle_file(
             metrics_hook=metrics_hook,
         )
 
-    except Exception as error:  # noqa: BLE001 - file boundary
-        LOG.debug("Exception while rattle_file", exc_info=error)
+    except (CollectionError, ConfigError, OSError, UnicodeError) as e:
+        LOG.debug("Linting file failed with %s", type(e).__name__)
         yield Result.from_exception(
             path,
-            error,
+            e,
+            operation="Linting file",
             config=config,
         )
 

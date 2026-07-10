@@ -18,14 +18,11 @@ from functools import cache
 from importlib.machinery import ModuleSpec
 from pathlib import Path, PurePosixPath
 from types import ModuleType
-from typing import (
-    Any,
-    cast,
-)
 
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
 
+from .config_models import ConfigModelError, parse_rattle_config, parse_ruff_config
 from .format import FORMAT_STYLES
 from .ftypes import (
     Config,
@@ -42,7 +39,7 @@ from .ftypes import (
     is_rule_option_value,
     is_sequence,
 )
-from .rule import LintRule
+from .rule import LintRule, RuleConfigurationError
 from .util import append_sys_path
 
 if sys.version_info >= (3, 11):
@@ -79,10 +76,11 @@ class ConfigError(ValueError):
 class CollectionError(RuntimeError):
     def __init__(self, msg: str, rule: RuleSelector) -> None:
         super().__init__(msg)
+        self.message = msg
         self.rule = rule
 
-    def __reduce__(self) -> tuple[type[RuntimeError], Any]:
-        return type(self), (*self.args, self.rule)
+    def __reduce__(self) -> tuple[type["CollectionError"], tuple[str, RuleSelector]]:
+        return type(self), (self.message, self.rule)
 
 
 @dataclass(frozen=True)
@@ -149,10 +147,10 @@ class RuleRegistry:
     ) -> RuleResolution | None:
         try:
             return self.resolve(selector)
-        except Exception as error:  # noqa: BLE001 - import boundary
+        except CollectionError as e:
             _log_rule_load_failure_once(
                 selector,
-                error,
+                e,
                 root=root,
                 enable_root_import=enable_root_import,
             )
@@ -373,17 +371,16 @@ def _log_rule_load_failure_once(
         import_root.resolve() if import_root is not None else None,
         str(selector),
         error.__class__.__name__,
-        str(error),
+        "",
     )
     if key in _logged_rule_load_failures:
         return
 
     _logged_rule_load_failures.add(key)
     log.warning(
-        "Failed to load rules '%s': %s: %s",
+        "Failed to load rules '%s': %s",
         selector,
         error.__class__.__name__,
-        error,
     )
 
 
@@ -412,14 +409,14 @@ def _build_rule_registry(
         for selector in import_selectors:
             try:
                 rules = tuple(find_rules(selector))
-            except Exception as error:
+            except CollectionError as e:
                 if strict:
                     raise
-                registry.import_errors[selector] = error
+                registry.import_errors[selector] = e
                 if log_failures:
                     _log_rule_load_failure_once(
                         selector,
-                        error,
+                        e,
                         root=root,
                         enable_root_import=enable_root_import,
                     )
@@ -702,8 +699,8 @@ def read_configs(paths: list[Path]) -> list[RawConfig]:
             )
         try:
             stat = path.stat()
-        except OSError as error:
-            raise ConfigError(f"Failed to stat configuration file {path}") from error
+        except OSError as e:
+            raise ConfigError(f"Failed to stat configuration file {path}") from e
         data = _read_pyproject_data(path, stat.st_mtime_ns, stat.st_size)
         tool_data = data.get("tool", {})
         if not isinstance(tool_data, Mapping):
@@ -711,9 +708,11 @@ def read_configs(paths: list[Path]) -> list[RawConfig]:
         rattle_data = tool_data.get("rattle", {})
 
         if rattle_data:
-            if not isinstance(rattle_data, dict):
-                raise ConfigError("'tool.rattle' must be mapping of values")
-            config = RawConfig(path=path, data=deepcopy(rattle_data))
+            try:
+                parsed_rattle_data = parse_rattle_config(rattle_data)
+            except ConfigModelError as e:
+                raise ConfigError(f"Invalid 'tool.rattle' configuration: {e}") from None
+            config = RawConfig(path=path, data=deepcopy(parsed_rattle_data))
             configs.append(config)
 
             if config.data.get("root", False):
@@ -723,7 +722,7 @@ def read_configs(paths: list[Path]) -> list[RawConfig]:
 
 
 @cache
-def _read_pyproject_data(path: Path, mtime_ns: int, size: int) -> dict[str, Any]:
+def _read_pyproject_data(path: Path, mtime_ns: int, size: int) -> dict[str, object]:
     del mtime_ns, size
     content = path.read_text()
     data = tomllib.loads(content)
@@ -733,7 +732,7 @@ def _read_pyproject_data(path: Path, mtime_ns: int, size: int) -> dict[str, Any]
 
 
 def get_rule_pattern_table(
-    config: RawConfig, key: str, *, data: dict[str, Any] | None = None
+    config: RawConfig, key: str, *, data: dict[str, object] | None = None
 ) -> dict[str, list[str]]:
     mapping = data.pop(key, {}) if data else config.data.pop(key, {})
 
@@ -778,7 +777,7 @@ def _get_string_sequence_from_mapping(
         raise ConfigError(f"{key!r} must be array of values, got {type(value)}", config=config)
 
     result: list[str] = []
-    for item in cast(Sequence[object], value):
+    for item in value:
         if not isinstance(item, str):
             raise ConfigError(f"{key!r} values must be strings, got {type(item)}", config=config)
         result.append(item)
@@ -797,24 +796,21 @@ def _read_ruff_file_selection(config: RawConfig) -> tuple[list[str], list[str], 
 
     content = pyproject_path.read_text()
     data = tomllib.loads(content)
-    ruff_data = data.get("tool", {}).get("ruff", {})
+    tool_data = data.get("tool", {})
+    if not isinstance(tool_data, Mapping):
+        return [], [], False
+    ruff_data = tool_data.get("ruff", {})
 
     if not ruff_data:
         return [], [], False
-    if not isinstance(ruff_data, Mapping):
-        raise ConfigError("'tool.ruff' must be mapping of values", config=config)
+    try:
+        parsed_ruff = parse_ruff_config(ruff_data)
+    except ConfigModelError as e:
+        raise ConfigError(f"Invalid 'tool.ruff' configuration: {e}", config=config) from None
 
-    includes = _get_string_sequence_from_mapping(config, ruff_data, "include")
-    includes.extend(_get_string_sequence_from_mapping(config, ruff_data, "extend-include"))
-
-    excludes = _get_string_sequence_from_mapping(config, ruff_data, "exclude")
-    excludes.extend(_get_string_sequence_from_mapping(config, ruff_data, "extend-exclude"))
-
-    force_exclude = ruff_data.get("force-exclude", False)
-    if not isinstance(force_exclude, bool):
-        raise ConfigError("'force-exclude' must be a boolean", config=config)
-
-    return includes, excludes, force_exclude
+    includes = [*parsed_ruff.include, *parsed_ruff.extend_include]
+    excludes = [*parsed_ruff.exclude, *parsed_ruff.extend_exclude]
+    return includes, excludes, parsed_ruff.force_exclude
 
 
 def _relative_path_str(path: Path, base: Path) -> str | None:
@@ -847,7 +843,12 @@ def _path_matches_current_dir_glob(path: Path, pattern: str) -> bool:
     return _path_matches_glob(relative_path, pattern)
 
 
-def _excluded_by_options_without_configs(path: Path, options: Options, explicit_path: bool) -> bool:
+def _excluded_by_options_without_configs(
+    path: Path,
+    options: Options,
+    *,
+    explicit_path: bool,
+) -> bool:
     patterns = options.exclude or options.extend_exclude
     return bool(
         patterns
@@ -857,19 +858,23 @@ def _excluded_by_options_without_configs(path: Path, options: Options, explicit_
 
 
 def get_sequence(
-    config: RawConfig, key: str, *, data: dict[str, Any] | None = None
+    config: RawConfig, key: str, *, data: dict[str, object] | None = None
 ) -> Sequence[str]:
-    value: Sequence[str]
     value = data.pop(key, ()) if data else config.data.pop(key, ())
 
     if not is_sequence(value):
         raise ConfigError(f"{key!r} must be array of values, got {type(value)}", config=config)
 
-    return value
+    values: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ConfigError(f"{key!r} values must be strings, got {type(item)}", config=config)
+        values.append(item)
+    return values
 
 
 def get_options(  # noqa: C901 - option parsing and normalization
-    config: RawConfig, key: str, *, data: dict[str, Any] | None = None
+    config: RawConfig, key: str, *, data: dict[str, object] | None = None
 ) -> RuleOptionsTable:
     mapping = data.pop(key, {}) if data else config.data.pop(key, {})
 
@@ -897,8 +902,8 @@ def get_options(  # noqa: C901 - option parsing and normalization
 
         try:
             rule_target = parse_exact_rule_target(raw_rule_name, config.path.parent, config)
-        except ConfigError as error:
-            raise ConfigError(f"{key!r} {error}", config=config) from error
+        except ConfigError as e:
+            raise ConfigError(f"{key!r} {e}", config=config) from e
 
         if not isinstance(rule_config, Mapping):
             raise ConfigError(
@@ -921,7 +926,7 @@ def get_options(  # noqa: C901 - option parsing and normalization
                     config=config,
                 )
 
-            rule_configs[rule_name][option_name] = list(value) if is_sequence(value) else value
+            rule_configs[rule_name][option_name] = value
 
     return rule_configs
 
@@ -996,7 +1001,7 @@ def _apply_runtime_options(
     if not raw_configs and _excluded_by_options_without_configs(
         config.path,
         options,
-        explicit_path,
+        explicit_path=explicit_path,
     ):
         config.excluded = True
 
@@ -1075,13 +1080,20 @@ class ConfigMerger:
         excludes = _get_string_sequence_from_mapping(self.config, data, "exclude")
         data.pop("exclude", None)
 
+        python_version = self.config.data.pop("python-version", None)
+        if python_version is not None and not isinstance(python_version, str):
+            raise ConfigError("'python-version' must be a string", config=self.config)
+        formatter = self.config.data.pop("formatter", None)
+        if formatter is not None and not isinstance(formatter, str):
+            raise ConfigError("'formatter' must be a string", config=self.config)
+
         self._process_subpath(
             self.config.path.parent,
             enable=get_sequence(self.config, "enable"),
             disable=get_sequence(self.config, "disable"),
             options=get_options(self.config, "options"),
-            python_version=self.config.data.pop("python-version", None),
-            formatter=self.config.data.pop("formatter", None),
+            python_version=python_version,
+            formatter=formatter,
         )
         self._process_overrides()
         self._process_rule_patterns(
@@ -1095,7 +1107,7 @@ class ConfigMerger:
         for key in data:
             log.warning("unknown configuration option %r", key)
 
-    def _apply_root_import(self, data: dict[str, Any]) -> None:
+    def _apply_root_import(self, data: dict[str, object]) -> None:
         if not (value := data.pop("enable-root-import", False)):
             return
 
@@ -1117,8 +1129,10 @@ class ConfigMerger:
         else:
             self.enable_root_import = True
 
-    def _apply_output_options(self, data: dict[str, Any]) -> None:
+    def _apply_output_options(self, data: dict[str, object]) -> None:
         if value := data.pop("output-format", ""):
+            if not isinstance(value, str):
+                raise ConfigError("'output-format' must be a string", config=self.config)
             try:
                 self.output_format = OutputFormat(value)
             except ValueError as e:
@@ -1127,6 +1141,8 @@ class ConfigMerger:
                 ) from e
 
         if value := data.pop("output-template", ""):
+            if not isinstance(value, str):
+                raise ConfigError("'output-template' must be a string", config=self.config)
             self.output_template = value
 
     def _update_target_python_version(self, python_version: str | None) -> None:
@@ -1137,11 +1153,11 @@ class ConfigMerger:
         if python_version:
             try:
                 self.target_python_version = Version(python_version)
-            except InvalidVersion as error:
+            except InvalidVersion as e:
                 raise ConfigError(
                     f"'python-version' {python_version!r} is not valid",
                     config=self.config,
-                ) from error
+                ) from e
             return
 
         # disable versioning, aka python-version = ""
@@ -1200,21 +1216,32 @@ class ConfigMerger:
             self.target_formatter = formatter
 
     def _process_overrides(self) -> None:
-        for override in get_sequence(self.config, "overrides"):
+        overrides = self.config.data.pop("overrides", [])
+        if not isinstance(overrides, list):
+            raise ConfigError("'overrides' requires array of tables", config=self.config)
+
+        for override in overrides:
             if not isinstance(override, dict):
                 raise ConfigError("'overrides' requires array of tables", config=self.config)
 
             subpath = override.get("path", None)
-            if not subpath:
+            if not isinstance(subpath, str) or not subpath:
                 raise ConfigError("'overrides' table requires 'path' value", config=self.config)
+
+            python_version = override.pop("python-version", None)
+            if python_version is not None and not isinstance(python_version, str):
+                raise ConfigError("'python-version' must be a string", config=self.config)
+            formatter = override.pop("formatter", None)
+            if formatter is not None and not isinstance(formatter, str):
+                raise ConfigError("'formatter' must be a string", config=self.config)
 
             self._process_subpath(
                 self.config.path.parent / subpath,
                 enable=get_sequence(self.config, "enable", data=override),
                 disable=get_sequence(self.config, "disable", data=override),
                 options=get_options(self.config, "options", data=override),
-                python_version=override.pop("python-version", None),
-                formatter=override.pop("formatter", None),
+                python_version=python_version,
+                formatter=formatter,
             )
 
     def _process_rule_patterns(
@@ -1332,13 +1359,16 @@ class ConfigValidator:
     )
     root: Path = field(init=False)
     config: RawConfig = field(init=False)
-    data: dict[str, Any] = field(init=False)
+    data: dict[str, object] = field(init=False)
     enable_root_import: bool | Path = field(init=False)
 
     def validate(self) -> list[str]:
         try:
             self.root = self.path.parent
-            self.config = read_configs([self.path])[0]
+            configs = read_configs([self.path])
+            if not configs:
+                return self.exceptions
+            self.config = configs[0]
             self.data = self.config.data
             self.enable_root_import = self._enable_root_import()
 
@@ -1349,8 +1379,8 @@ class ConfigValidator:
             self._validate_inherited_ruff_files()
             self._collect_overrides()
             self._resolve_collected_rules()
-        except Exception as error:  # noqa: BLE001 - validation boundary
-            self.exceptions.append(f"Invalid config: {error.__class__.__name__}: {error}")
+        except (CollectionError, ConfigError, OSError, tomllib.TOMLDecodeError) as e:
+            self.exceptions.append(f"Invalid config: {type(e).__name__}: {e}")
 
         return self.exceptions
 
@@ -1361,15 +1391,21 @@ class ConfigValidator:
         return Path(raw_enable_root_import) if isinstance(raw_enable_root_import, str) else True
 
     def _collect_global_rules(self) -> None:
-        self._collect_rule_selectors(self.data.get("enable", []), "global enable")
-        self._collect_rule_selectors(self.data.get("disable", []), "global disable")
+        self._collect_rule_selectors(
+            _get_string_sequence_from_mapping(self.config, self.data, "enable"),
+            "global enable",
+        )
+        self._collect_rule_selectors(
+            _get_string_sequence_from_mapping(self.config, self.data, "disable"),
+            "global disable",
+        )
 
     def _collect_global_options(self) -> None:
         try:
             global_options = get_options(self.config, "options")
-        except Exception as error:  # noqa: BLE001 - validation boundary
+        except ConfigError as e:
             self.exceptions.append(
-                f"Failed to parse options for global options: {error.__class__.__name__}: {error}"
+                f"Failed to parse options for global options: {type(e).__name__}: {e}"
             )
         else:
             self._collect_rule_option_targets(global_options, "global options")
@@ -1377,27 +1413,23 @@ class ConfigValidator:
     def _collect_per_file_rules(self) -> None:
         try:
             per_file_enable = get_rule_pattern_table(self.config, "per-file-enable")
-        except Exception as error:  # noqa: BLE001 - validation boundary
-            self.exceptions.append(
-                f"Failed to parse per-file-enable: {error.__class__.__name__}: {error}"
-            )
+        except ConfigError as e:
+            self.exceptions.append(f"Failed to parse per-file-enable: {type(e).__name__}: {e}")
         else:
             self._collect_rule_patterns(per_file_enable, "per-file-enable")
 
         try:
             per_file_disable = get_rule_pattern_table(self.config, "per-file-disable")
-        except Exception as error:  # noqa: BLE001 - validation boundary
-            self.exceptions.append(
-                f"Failed to parse per-file-disable: {error.__class__.__name__}: {error}"
-            )
+        except ConfigError as e:
+            self.exceptions.append(f"Failed to parse per-file-disable: {type(e).__name__}: {e}")
         else:
             self._collect_rule_patterns(per_file_disable, "per-file-disable")
 
     def _validate_file_selection(self) -> None:
         try:
             _get_string_sequence_from_mapping(self.config, self.data, "exclude")
-        except Exception as error:  # noqa: BLE001 - validation boundary
-            self.exceptions.append(f"Failed to parse exclude: {error.__class__.__name__}: {error}")
+        except ConfigError as e:
+            self.exceptions.append(f"Failed to parse exclude: {type(e).__name__}: {e}")
 
     def _validate_inherited_ruff_files(self) -> None:
         inherit_ruff_files = self.data.get("inherit-ruff-files", False)
@@ -1408,34 +1440,48 @@ class ConfigValidator:
         elif inherit_ruff_files:
             try:
                 _read_ruff_file_selection(self.config)
-            except Exception as error:  # noqa: BLE001 - validation boundary
+            except (ConfigError, OSError, tomllib.TOMLDecodeError) as e:
                 self.exceptions.append(
-                    f"Failed to parse inherited Ruff file settings: {error.__class__.__name__}: {error}"
+                    f"Failed to parse inherited Ruff file settings: {type(e).__name__}: {e}"
                 )
 
     def _collect_overrides(self) -> None:
-        for override in self.data.get("overrides", []):
+        overrides = self.data.get("overrides", [])
+        if not isinstance(overrides, list):
+            self.exceptions.append(
+                "Failed to parse overrides: ConfigError: 'overrides' requires array of tables"
+            )
+            return
+
+        for override in overrides:
             if not isinstance(override, dict):
                 self.exceptions.append(
                     "Failed to parse overrides: ConfigError: 'overrides' requires array of tables"
                 )
                 continue
 
-            override_path = Path(override.get("path", self.path))
+            raw_override_path = override.get("path", self.path.as_posix())
+            if not isinstance(raw_override_path, str):
+                self.exceptions.append(
+                    "Failed to parse overrides: ConfigError: override path must be a string"
+                )
+                continue
+            override_path = Path(raw_override_path)
             self._collect_rule_selectors(
-                override.get("enable", []),
+                _get_string_sequence_from_mapping(self.config, override, "enable"),
                 f"override enable: `{override_path}`",
             )
             self._collect_rule_selectors(
-                override.get("disable", []),
+                _get_string_sequence_from_mapping(self.config, override, "disable"),
                 f"override disable: `{override_path}`",
             )
 
             try:
                 override_options = get_options(self.config, "options", data=override)
-            except Exception as error:  # noqa: BLE001 - validation boundary
+            except ConfigError as e:
                 self.exceptions.append(
-                    f"Failed to parse options for override options: `{override_path}`: {error.__class__.__name__}: {error}"
+                    f"Failed to parse options for override options: `{override_path}`: "
+                    f"{type(e).__name__}: {e}"
                 )
             else:
                 self._collect_rule_option_targets(
@@ -1446,9 +1492,9 @@ class ConfigValidator:
         for rule in rules:
             try:
                 selector = parse_rule(rule, self.root, self.config)
-            except Exception as error:  # noqa: BLE001 - validation boundary
+            except ConfigError as e:
                 self.exceptions.append(
-                    f"Failed to parse rule `{rule}` for {context}: {error.__class__.__name__}: {error}"
+                    f"Failed to parse rule `{rule}` for {context}: {type(e).__name__}: {e}"
                 )
                 continue
             self.selectors_to_validate.append((rule, selector, context))
@@ -1461,9 +1507,10 @@ class ConfigValidator:
         for option_key, settings in rule_options.items():
             try:
                 selector = parse_exact_rule_target(option_key, self.root, self.config)
-            except Exception as error:  # noqa: BLE001 - validation boundary
+            except ConfigError as e:
                 self.exceptions.append(
-                    f"Failed to validate options for `{option_key}` in {context}: {error.__class__.__name__}: {error}"
+                    f"Failed to validate options for `{option_key}` in {context}: "
+                    f"{type(e).__name__}: {e}"
                 )
                 continue
             self.option_targets_to_validate.append((option_key, selector, settings, context))
@@ -1507,11 +1554,8 @@ class ConfigValidator:
     ) -> str | None:
         try:
             registry.resolve(selector)
-        except Exception as error:  # noqa: BLE001 - validation boundary
-            return (
-                f"Failed to import rule `{raw_rule}` for {context}: "
-                f"{error.__class__.__name__}: {error}"
-            )
+        except CollectionError as e:
+            return f"Failed to import rule `{raw_rule}` for {context}: {type(e).__name__}: {e}"
         return None
 
     def _validate_rule_options(
@@ -1524,9 +1568,10 @@ class ConfigValidator:
     ) -> None:
         try:
             resolution = registry.resolve(selector)
-        except Exception as error:  # noqa: BLE001 - validation boundary
+        except CollectionError as e:
             self.exceptions.append(
-                f"Failed to validate options for `{raw_rule_name}` in {context}: {error.__class__.__name__}: {error}"
+                f"Failed to validate options for `{raw_rule_name}` in {context}: "
+                f"{type(e).__name__}: {e}"
             )
             return
 
@@ -1539,9 +1584,10 @@ class ConfigValidator:
         try:
             rule = resolution.rules[0]()
             rule.configure(settings)
-        except Exception as error:  # noqa: BLE001 - validation boundary
+        except RuleConfigurationError as e:
             self.exceptions.append(
-                f"Failed to validate options for `{raw_rule_name}` in {context}: {error.__class__.__name__}: {error}"
+                f"Failed to validate options for `{raw_rule_name}` in {context}: "
+                f"{type(e).__name__}: {e}"
             )
 
 

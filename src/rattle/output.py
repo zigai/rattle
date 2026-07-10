@@ -152,7 +152,8 @@ def _render_console_error(
             raise NotImplementedError("missing rattle renderer for syntax error")
         return rendered + ("\n" if not brief else "")
 
-    return f"{colored(f'{path}: EXCEPTION: {error}', color='red')}\n{tb.strip()}"
+    rendered = colored(f"{path}: EXCEPTION: {error}", color="red")
+    return f"{rendered}\n{tb.strip()}" if tb else rendered
 
 
 def _render_violation(

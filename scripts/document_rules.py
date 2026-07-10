@@ -548,11 +548,11 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
     name = rule.name
     slug = name
     description = markdown_text(redent(rule_doc(rule)))
-    message = markdown_text(redent(str(getattr(rule, "MESSAGE", ""))))
+    message = markdown_text(redent(rule.MESSAGE))
     message_is_template = bool(re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", message))
     references = tuple(reference_doc(reference) for reference in rule.REFERENCES)
     message_short = markdown_table_cell(message or "—")
-    python_version = getattr(rule, "PYTHON_VERSION", "") or "Any"
+    python_version = rule.PYTHON_VERSION or "Any"
     settings = []
     for setting_name, setting in sorted(rule.SETTINGS.items()):
         default = setting_default(setting)
@@ -570,7 +570,7 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
             code=example_code(case),
             options=example_options(case),
         )
-        for case in getattr(rule, "VALID", ())
+        for case in rule.VALID
     ]
     invalid_examples = [
         InvalidExampleDoc(
@@ -578,7 +578,7 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
             options=example_options(case),
             replacement=expected_replacement(case),
         )
-        for case in getattr(rule, "INVALID", ())
+        for case in rule.INVALID
     ]
     valid_examples_visible, valid_examples_hidden = split_examples_by_line_budget(
         valid_examples,
@@ -605,7 +605,7 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
         autofix="Yes" if rule.AUTOFIX else "No",
         autofix_icon="Yes" if rule.AUTOFIX else "No",
         python_version=f"`{python_version}`" if python_version != "Any" else "Any",
-        tags=", ".join(f"`{tag}`" for tag in sorted(getattr(rule, "TAGS", ()))),
+        tags=", ".join(f"`{tag}`" for tag in sorted(rule.TAGS)),
         settings=settings,
         valid_examples_visible=valid_examples_visible,
         valid_examples_hidden=valid_examples_hidden,

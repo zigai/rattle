@@ -15,10 +15,11 @@ import sys
 from collections.abc import Collection, Mapping
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from libcst import Module
 
+from .errors import RattleFormatterError
 from .ftypes import Config, FileContent
 
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ FORMAT_STYLES: dict[str | None, type["Formatter"]] = {}
 def _resolve_required_executable(name: str) -> str:
     executable = shutil.which(name)
     if executable is None:
-        raise RuntimeError(f"{name} formatter is not installed")
+        raise RattleFormatterError(f"{name} formatter is not installed")
     return executable
 
 
@@ -49,9 +50,7 @@ def _run_ruff_format(args: list[str], *, input_bytes: bytes | None = None) -> by
     )
 
     if proc.returncode != 0:
-        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
-        message = stderr or "ruff format failed"
-        raise RuntimeError(message)
+        raise RattleFormatterError("ruff formatter failed")
 
     return proc.stdout
 
@@ -79,7 +78,7 @@ class BlackFormatter(Formatter):
     def format(self, module: Module, path: Path) -> FileContent:
         import black
 
-        mode = cast("black.Mode", _black_config(path.resolve()))
+        mode = _black_config(path.resolve())
         content = black.format_file_contents(module.bytes.decode("utf-8"), fast=False, mode=mode)
         return content.encode("utf-8")
 
@@ -91,8 +90,8 @@ class UfmtFormatter(Formatter):
         import ufmt
 
         resolved_path = path.resolve()
-        black_config = cast("black.Mode", _black_config(resolved_path))
-        usort_config = cast("ufmt.UsortConfig", _usort_config(resolved_path))
+        black_config = _black_config(resolved_path)
+        usort_config = _usort_config(resolved_path)
 
         return ufmt.ufmt_bytes(
             path, module.bytes, black_config=black_config, usort_config=usort_config
@@ -189,14 +188,14 @@ FORMAT_STYLES["none"] = Formatter
 
 
 @cache
-def _black_config(path: Path) -> object:
+def _black_config(path: Path) -> "black.Mode":
     import ufmt.util
 
     return ufmt.util.make_black_config(path)
 
 
 @cache
-def _usort_config(path: Path) -> object:
+def _usort_config(path: Path) -> "ufmt.UsortConfig":
     import ufmt
 
     return ufmt.UsortConfig.find(path)

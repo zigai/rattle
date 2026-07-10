@@ -18,7 +18,7 @@ def _ast_context(source: str) -> AstContext:
     return wrapper.resolve(AstProvider)[wrapper.module]
 
 
-class _CaptureAstRule(LintRule):
+class CaptureAstRule(LintRule):
     METADATA_DEPENDENCIES = (AstProvider,)
 
     def __init__(self) -> None:
@@ -32,7 +32,7 @@ class _CaptureAstRule(LintRule):
 
 
 def test_ast_provider_parses_type_comments() -> None:
-    rule = _CaptureAstRule()
+    rule = CaptureAstRule()
     runner = LintRunner(Path("typed.py"), b"value = 0x10  # type: int\n")
 
     assert list(runner.collect_violations([rule], Config(path=Path("typed.py")))) == []
@@ -45,8 +45,8 @@ def test_ast_provider_parses_type_comments() -> None:
 
 
 def test_ast_provider_shares_one_context_between_rules() -> None:
-    first_rule = _CaptureAstRule()
-    second_rule = _CaptureAstRule()
+    first_rule = CaptureAstRule()
+    second_rule = CaptureAstRule()
     runner = LintRunner(Path("shared.py"), b"value = 1\n")
 
     assert (
@@ -86,7 +86,7 @@ def test_ast_provider_translates_parse_errors() -> None:
     with pytest.raises(AstParseError) as caught:
         list(
             runner.collect_violations(
-                [_CaptureAstRule()],
+                [CaptureAstRule()],
                 Config(path=Path("invalid_type_comment.py")),
             )
         )
@@ -131,7 +131,7 @@ def test_ast_context_rejects_positionless_nodes() -> None:
         context.code_range(context.tree)
 
 
-class _AstNameRule(LintRule):
+class AstNameRule(LintRule):
     METADATA_DEPENDENCIES = (AstProvider, PositionProvider)
 
     def __init__(self) -> None:
@@ -167,7 +167,7 @@ def test_ast_rule_uses_cst_anchor_for_local_suppressions(
 
     violations = list(
         runner.collect_violations(
-            [_AstNameRule()],
+            [AstNameRule()],
             Config(path=Path("names.py")),
         )
     )

@@ -5,7 +5,6 @@
 
 import re
 from collections.abc import Callable
-from typing import cast
 
 import libcst as cst
 import libcst.matchers as m
@@ -44,6 +43,12 @@ def _gen_match_simple_expression(
         )
 
     return _match_simple_expression
+
+
+def _require_base_expression(value: object) -> cst.BaseExpression:
+    if not isinstance(value, cst.BaseExpression):
+        raise TypeError(f"expected a LibCST expression, got {type(value).__name__}")
+    return value
 
 
 class EscapeStringQuote(cst.CSTTransformer):
@@ -167,8 +172,7 @@ class UseFstring(LintRule):
         codegen = self._codegen
         if not codegen:
             raise ValueError("No codegen found. Have we visited a Module?")
-        simple_expression_max_length = self.settings["simple_expression_max_length"]
-        assert isinstance(simple_expression_max_length, int)
+        simple_expression_max_length = self.setting("simple_expression_max_length", int)
 
         expr_key = "expr"
         extracts = m.extract(
@@ -186,7 +190,7 @@ class UseFstring(LintRule):
         )
 
         if extracts:
-            expr = cast(cst.BaseExpression, extracts[expr_key])
+            expr = _require_base_expression(extracts[expr_key])
             parts: list[cst.BaseFormattedStringContent] = []
             simple_string = cst.ensure_type(node.left, cst.SimpleString)
             innards = simple_string.raw_value.replace("{", "{{").replace("}", "}}")
@@ -210,9 +214,9 @@ class UseFstring(LintRule):
                 try:
                     parts.append(
                         cst.FormattedStringExpression(
-                            expression=cast(
-                                cst.BaseExpression,
+                            expression=cst.ensure_type(
                                 expressions[i - 1].visit(escape_transformer),
+                                cst.BaseExpression,
                             ),
                             conversion="s",
                         )

@@ -5,18 +5,19 @@
 
 import platform
 import re
-import traceback
 from collections.abc import Callable, Collection, Container, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, TypedDict, TypeVar
+from typing import TypedDict, TypeGuard, TypeVar
 
-from libcst import CSTNode, CSTNodeT, FlattenSentinel, RemovalSentinel
+from libcst import CSTNode, CSTNodeT, FlattenSentinel, ParserSyntaxError, RemovalSentinel
 from libcst._add_slots import add_slots
 from libcst.metadata import CodePosition, CodeRange
 from packaging.version import Version
+
+from .errors import RattleError, RattleExecutionError
 
 __all__ = ["CodePosition", "CodeRange", "Version"]
 
@@ -26,14 +27,14 @@ STDIN = Path("-")
 
 FileContent = bytes
 RuleOptionScalar = str | int | float | bool
-RuleOptionValue = RuleOptionScalar | list[Any] | dict[str, Any]
+RuleOptionValue = RuleOptionScalar | list["RuleOptionValue"] | dict[str, "RuleOptionValue"]
 RuleOptionTypes = (str, int, float, bool)
 RuleOptions = dict[str, RuleOptionValue]
 RuleOptionsTable = dict[str, RuleOptions]
 
 NodeReplacement = CSTNodeT | FlattenSentinel[CSTNodeT] | RemovalSentinel
 
-Metrics = dict[str, Any]
+Metrics = dict[str, int]
 MetricsHook = Callable[[Metrics], None]
 
 VisitorMethod = Callable[[CSTNode], None]
@@ -116,16 +117,15 @@ class QualifiedRuleRegexResult(TypedDict):
     local: str | None
 
 
-def is_sequence(value: object) -> bool:
+def is_sequence(value: object) -> TypeGuard[Sequence[object]]:
     return isinstance(value, Sequence) and not isinstance(value, (str, bytes))
 
 
-def is_rule_option_value(value: object) -> bool:
+def is_rule_option_value(value: object) -> TypeGuard[RuleOptionValue]:
     if isinstance(value, RuleOptionTypes):
         return True
 
-    if is_sequence(value):
-        assert isinstance(value, Sequence)
+    if isinstance(value, list):
         return all(is_rule_option_value(item) for item in value)
 
     if isinstance(value, Mapping):
@@ -136,7 +136,7 @@ def is_rule_option_value(value: object) -> bool:
     return False
 
 
-def is_collection(value: object) -> bool:
+def is_collection(value: object) -> TypeGuard[Iterable[object]]:
     return isinstance(value, Iterable) and not isinstance(value, (str, bytes))
 
 
@@ -280,7 +280,7 @@ class Config:
 @dataclass
 class RawConfig:
     path: Path
-    data: dict[str, Any]
+    data: dict[str, object]
 
     def __post_init__(self) -> None:
         self.path = self.path.resolve()
@@ -321,13 +321,21 @@ class Result:
         path: Path,
         error: Exception,
         *,
+        operation: str = "Rattle operation",
         source: FileContent | None = None,
         config: Config | None = None,
     ) -> "Result":
+        from .ast import AstParseError
+
+        safe_error = (
+            error
+            if isinstance(error, (AstParseError, ParserSyntaxError, RattleError))
+            else RattleExecutionError(operation, type(error).__name__)
+        )
         return cls(
             path,
             violation=None,
-            error=(error, traceback.format_exc()),
+            error=(safe_error, ""),
             source=source,
             config=config,
         )

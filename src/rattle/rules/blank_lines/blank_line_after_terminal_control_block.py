@@ -240,7 +240,7 @@ class BlankLineAfterTerminalControlBlock(BaseBlankLinesRule, LintRule):
         return not has_separator(body[index]) and is_compact_guard_if(body[index - 1])
 
     def _allow_compact_guard_ladders(self) -> bool:
-        return bool(self.settings["allow_compact_guard_ladders"])
+        return self.setting("allow_compact_guard_ladders", bool)
 
 
 __all__ = ["BlankLineAfterTerminalControlBlock"]

@@ -5,7 +5,11 @@ import io
 import sys
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any
+from typing import Protocol, TextIO
+
+
+class Cli(Protocol):
+    def __call__(self, args: list[str], *, sys_exit_enabled: bool) -> object: ...
 
 
 @dataclass(frozen=True)
@@ -13,7 +17,7 @@ class CliResult:
     exit_code: int
     stdout: str
     stderr: str
-    exception: BaseException | None = None
+    exception: Exception | SystemExit | None = None
 
     @property
     def output(self) -> str:
@@ -65,7 +69,7 @@ class OutputStream:
 class Stdin(contextlib.AbstractContextManager[None]):
     def __init__(self, value: str | None) -> None:
         self._value = value
-        self._previous: Any = None
+        self._previous: TextIO = sys.stdin
 
     def __enter__(self) -> None:
         self._previous = sys.stdin
@@ -83,15 +87,16 @@ class Stdin(contextlib.AbstractContextManager[None]):
 class CliRunner:
     def invoke(
         self,
-        cli: Any,
+        cli: Cli,
         args: list[str] | tuple[str, ...] | None = None,
         input: str | None = None,
+        *,
         catch_exceptions: bool = True,
     ) -> CliResult:
         stdout = OutputStream()
         stderr = OutputStream()
         exit_code = 0
-        exception: BaseException | None = None
+        exception: Exception | SystemExit | None = None
         with (
             Stdin(input),
             contextlib.redirect_stdout(stdout),
@@ -109,16 +114,16 @@ class CliRunner:
                         exit_code = 0
                     else:
                         exit_code = 1
-            except SystemExit as exc:
-                exception = exc
-                if isinstance(exc.code, int):
-                    exit_code = exc.code
-                elif exc.code is None:
+            except SystemExit as e:
+                exception = e
+                if isinstance(e.code, int):
+                    exit_code = e.code
+                elif e.code is None:
                     exit_code = 0
                 else:
                     exit_code = 1
-            except BaseException as exc:
-                exception = exc
+            except Exception as e:
+                exception = e
                 exit_code = 1
                 if not catch_exceptions:
                     raise

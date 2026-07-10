@@ -112,7 +112,7 @@ class ForbiddenCall(LintRule):
 
         self._forbidden_calls_by_symbol = {
             entry.symbol: entry
-            for entry in _parse_forbidden_calls_setting(self.settings["forbidden_calls"])
+            for entry in _parse_forbidden_calls_setting(self.setting("forbidden_calls", list[str]))
         }
         self._aliases_by_assignment_node = {}
         self._star_import_modules = set()

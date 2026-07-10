@@ -30,7 +30,7 @@ class AstParseError(SyntaxError):
 
 
 @runtime_checkable
-class _PositionedAstNode(Protocol):
+class PositionedAstNode(Protocol):
     lineno: int
     col_offset: int
     end_lineno: int | None
@@ -47,7 +47,7 @@ class AstContext:
     def code_range(self, node: ast.AST) -> CodeRange:
         """Return the Rattle source range for a positioned AST node."""
         if (
-            not isinstance(node, _PositionedAstNode)
+            not isinstance(node, PositionedAstNode)
             or node.end_lineno is None
             or node.end_col_offset is None
         ):

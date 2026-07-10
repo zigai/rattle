@@ -8,13 +8,18 @@ import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Generic, TypeVar, cast
+from typing import Generic, TypeVar
 
 Yield = TypeVar("Yield")
 Send = TypeVar("Send")
 Return = TypeVar("Return")
 
-Sentinel = object()
+
+class MissingGeneratorValue:
+    pass
+
+
+MISSING_GENERATOR_VALUE = MissingGeneratorValue()
 
 
 class Capture(Generic[Yield, Send, Return]):
@@ -37,20 +42,24 @@ class Capture(Generic[Yield, Send, Return]):
 
     def __init__(self, generator: Generator[Yield, Send, Return]) -> None:
         self.generator = generator
-        self._send: Send | None = None
-        self._result: Return | object = Sentinel
+        self._response: Send | MissingGeneratorValue = MISSING_GENERATOR_VALUE
+        self._result: Return | MissingGeneratorValue = MISSING_GENERATOR_VALUE
 
-    def __iter__(self) -> Generator[Yield, Send, Return | object]:
+    def __iter__(self) -> Generator[Yield, Send, Return]:
         try:
             while True:
-                value = self.generator.send(cast(Send, self._send))
-                self._send = None
+                if isinstance(self._response, MissingGeneratorValue):
+                    value = next(self.generator)
+                else:
+                    response = self._response
+                    self._response = MISSING_GENERATOR_VALUE
+                    value = self.generator.send(response)
                 answer = yield value
                 if answer is not None:
-                    self._send = answer
-        except StopIteration as stop:
-            self._result = cast(Return, stop.value)
-        return self._result
+                    self._response = answer
+        except StopIteration as e:
+            self._result = e.value
+            return e.value
 
     def respond(self, answer: Send) -> None:
         """
@@ -58,14 +67,14 @@ class Capture(Generic[Yield, Send, Return]):
 
         Can be called while iterating on the wrapped generator object.
         """
-        self._send = answer
+        self._response = answer
 
     @property
     def result(self) -> Return:
         """Contains the final return value from the wrapped generator, if any."""
-        if self._result is Sentinel:
-            raise ValueError("Generator hasn't completed")
-        return cast(Return, self._result)
+        if isinstance(self._result, MissingGeneratorValue):
+            raise TypeError("Generator hasn't completed")
+        return self._result
 
 
 capture = Capture

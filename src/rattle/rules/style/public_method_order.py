@@ -425,8 +425,8 @@ class PublicMethodOrder(LintRule):
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         if not self._should_check_class(
             node,
-            self.settings["class_name_patterns"],
-            self.settings["excluded_class_name_patterns"],
+            self.setting("class_name_patterns", list[str]),
+            self.setting("excluded_class_name_patterns", list[str]),
         ):
             return
 

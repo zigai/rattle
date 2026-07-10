@@ -164,6 +164,7 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
         self,
         body: Sequence[cst.BaseStatement],
         index: int,
+        *,
         suite_can_have_docstring: bool,
     ) -> bool:
         return (
@@ -195,6 +196,7 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
     def _check_suite_body(
         self,
         body: Sequence[cst.BaseStatement],
+        *,
         suite_can_have_docstring: bool,
     ) -> None:
         if len(body) < 2:
@@ -204,7 +206,11 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             if index == 0:
                 continue
 
-            if self._follows_suite_docstring(body, index, suite_can_have_docstring):
+            if self._follows_suite_docstring(
+                body,
+                index,
+                suite_can_have_docstring=suite_can_have_docstring,
+            ):
                 continue
 
             if not is_header_block_statement(statement):

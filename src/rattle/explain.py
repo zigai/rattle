@@ -119,30 +119,29 @@ class RuleInfo:
             SettingInfo.from_setting(setting_name, setting)
             for setting_name, setting in sorted(rule_type.SETTINGS.items())
         )
-        message = getattr(rule_type, "MESSAGE", "")
+        message = rule_type.MESSAGE
         return cls(
             name=rule_type.name,
             status="Enabled" if enabled else "Disabled",
             selector=rule_type.qualified_name(),
             module=rule_type.__module__,
             description=_rule_documentation(rule_type),
-            message=_normalize_block_text(message) if isinstance(message, str) else "",
+            message=_normalize_block_text(message),
             autofix=rule_type.AUTOFIX,
-            python_version=getattr(rule_type, "PYTHON_VERSION", "") or "any",
+            python_version=rule_type.PYTHON_VERSION or "any",
             source_patterns=tuple(
                 pattern.decode("utf-8", errors="backslashreplace")
                 if isinstance(pattern, bytes)
                 else pattern
-                for pattern in getattr(rule_type, "SOURCE_PATTERNS", ())
+                for pattern in rule_type.SOURCE_PATTERNS
             ),
             settings=settings,
             valid_examples=tuple(
                 _normalize_block_text(case.code if isinstance(case, Valid) else case)
-                for case in getattr(rule_type, "VALID", ())[:example_limit]
+                for case in rule_type.VALID[:example_limit]
             ),
             invalid_examples=tuple(
-                InvalidExampleInfo.from_case(case)
-                for case in getattr(rule_type, "INVALID", ())[:example_limit]
+                InvalidExampleInfo.from_case(case) for case in rule_type.INVALID[:example_limit]
             ),
             references=tuple(
                 ReferenceInfo.from_reference(reference) for reference in rule_type.REFERENCES

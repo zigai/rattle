@@ -378,16 +378,16 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
         )
 
     def _related_use_lookahead(self) -> int:
-        return int(self.settings["related_use_lookahead"])
+        return self.setting("related_use_lookahead", int)
 
     def _allow_compact_guard_ladders(self) -> bool:
-        return bool(self.settings["allow_compact_guard_ladders"])
+        return self.setting("allow_compact_guard_ladders", bool)
 
     def _allow_pytest_raises_clusters(self) -> bool:
-        return bool(self.settings["allow_pytest_raises_clusters"])
+        return self.setting("allow_pytest_raises_clusters", bool)
 
     def _allow_with_immediate_inspection(self) -> bool:
-        return bool(self.settings["allow_with_immediate_inspection"])
+        return self.setting("allow_with_immediate_inspection", bool)
 
 
 __all__ = ["BlankLineAfterControlBlock"]

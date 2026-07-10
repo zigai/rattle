@@ -22,6 +22,7 @@ requires-python = ">=3.10"
 dependencies = [
     "interfacy>=0.6.6",
     "libcst >= 0.3.18",
+    "msgspec >= 0.19",
     "moreorless >= 0.4.0",
     "packaging >= 21",
     "platformdirs >= 4, < 5",

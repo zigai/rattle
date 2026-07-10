@@ -208,14 +208,14 @@ class LineCountLimit(LintRule):
 
     def _limits_for_current_file(self) -> LineCountLimits:
         limits = LineCountLimits(
-            max_file_lines=self.settings["max_file_lines"],
-            max_function_lines=self.settings["max_function_lines"],
-            max_method_lines=self.settings["max_method_lines"],
+            max_file_lines=self.setting("max_file_lines", int),
+            max_function_lines=self.setting("max_function_lines", int),
+            max_method_lines=self.setting("max_method_lines", int),
         )
         if self._current_file_path is None:
             return limits
 
-        glob_limits = self.settings["glob_limits"]
+        glob_limits = self.setting("glob_limits", dict[str, dict[str, int]])
         for path_pattern, configured_limits in sorted(
             glob_limits.items(), key=lambda item: len(item[0])
         ):
@@ -224,7 +224,7 @@ class LineCountLimit(LintRule):
 
             limits = _apply_limits(limits, configured_limits)
 
-        per_file_limits = self.settings["per_file_limits"]
+        per_file_limits = self.setting("per_file_limits", dict[str, dict[str, int]])
         for path_pattern, configured_limits in per_file_limits.items():
             if not self._matches_per_file_path(path_pattern, self._current_file_path):
                 continue

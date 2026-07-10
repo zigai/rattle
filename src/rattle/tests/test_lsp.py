@@ -3,13 +3,16 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import time
+import os
+import threading
 from pathlib import Path
 
+import pytest
 from lsprotocol.types import PublishDiagnosticsParams
 
+from rattle.errors import RattleExecutionError
 from rattle.ftypes import LSPOptions, Options, QualifiedRule
-from rattle.lsp import LSP
+from rattle.lsp import LSP, Debouncer
 
 
 def test_lsp_config_cache_invalidation(tmp_path: Path) -> None:
@@ -30,12 +33,16 @@ disable = ["fixit"]
     first = lsp.load_config(target_path)
     assert QualifiedRule("rattle.rules.fixit") in first.disable
 
-    time.sleep(0.01)
+    first_stat = config_path.stat()
     config_path.write_text(
         """
 [tool.rattle]
 root = true
 """
+    )
+    os.utime(
+        config_path,
+        ns=(first_stat.st_atime_ns, first_stat.st_mtime_ns + 1_000_000_000),
     )
 
     second = lsp.load_config(target_path)
@@ -65,17 +72,40 @@ exclude = ["ignored.py"]
 
 
 def test_lsp_validate_clears_diagnostics_when_file_is_excluded() -> None:
-    lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
+    class ExcludedLSP(LSP):
+        def diagnostic_generator(self, uri: str, *, autofix: bool = False) -> None:
+            del autofix, uri
+            return None
+
+    lsp = ExcludedLSP(
+        Options(),
+        LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0),
+    )
     published: list[PublishDiagnosticsParams] = []
-    lsp.diagnostic_generator = lambda _uri: None  # type: ignore[method-assign]
 
     def publish(params: PublishDiagnosticsParams) -> None:
         published.append(params)
 
     lsp.lsp.text_document_publish_diagnostics = publish
 
-    lsp._validate("file:///tmp/example.py", 7)
+    lsp.validate("file:///tmp/example.py", 7)
+    lsp.close()
 
     assert len(published) == 1
     assert published[0].diagnostics == []
     assert published[0].version == 7
+
+
+def test_debouncer_surfaces_sanitized_background_failures() -> None:
+    callback_started = threading.Event()
+
+    def fail() -> None:
+        callback_started.set()
+        raise ValueError("api_token=TOP-SECRET")
+
+    debouncer = Debouncer(fail, interval=0.001)
+    debouncer()
+    assert callback_started.wait(timeout=1)
+
+    with pytest.raises(RattleExecutionError, match=r"Debounced callback failed \(ValueError\)"):
+        debouncer.close()

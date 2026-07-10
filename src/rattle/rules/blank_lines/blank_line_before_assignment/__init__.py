@@ -360,7 +360,10 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
 
     def visit_IndentedBlock(self, node: cst.IndentedBlock) -> None:
         parent = self.get_metadata(ParentNodeProvider, node, None)
-        short_control_flow_max_statements = int(self.settings["short_control_flow_max_statements"])
+        short_control_flow_max_statements = self.setting(
+            "short_control_flow_max_statements",
+            int,
+        )
         self._check_suite_body(
             node.body,
             suite_can_have_docstring=self._suite_can_have_docstring(node),
@@ -386,6 +389,7 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
     def _check_suite_body(
         self,
         body: Sequence[cst.BaseStatement],
+        *,
         suite_can_have_docstring: bool,
         skip_short_control_flow_suite: bool,
         suite_parent: cst.CSTNode | None = None,
@@ -465,7 +469,11 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
 
         return (
             assignment_small_statement(previous_statement) is not None
-            or self._follows_suite_docstring(body, index, suite_can_have_docstring)
+            or self._follows_suite_docstring(
+                body,
+                index,
+                suite_can_have_docstring=suite_can_have_docstring,
+            )
             or is_terminal_exception_cleanup_run(body, index, suite_parent)
             or self._continues_same_receiver_setup(body, index)
             or self._is_terminal_simple_return_tail(body, index, suite_parent=suite_parent)
@@ -630,13 +638,13 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
         )
 
     def _related_use_lookahead(self) -> int:
-        return int(self.settings["related_use_lookahead"])
+        return self.setting("related_use_lookahead", int)
 
     def _allow_local_helper_capture(self) -> bool:
-        return bool(self.settings["allow_local_helper_capture"])
+        return self.setting("allow_local_helper_capture", bool)
 
     def _allow_post_guard_continuation(self) -> bool:
-        return bool(self.settings["allow_post_guard_continuation"])
+        return self.setting("allow_post_guard_continuation", bool)
 
     def _has_direct_following_branch_use(
         self,

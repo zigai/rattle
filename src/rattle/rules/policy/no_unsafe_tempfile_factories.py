@@ -414,5 +414,5 @@ class NoUnsafeTempfileFactories(LintRule):
 
         return is_excluded_path(
             self._current_file_path,
-            self.settings["excluded_path_parts"],
+            self.setting("excluded_path_parts", list[str]),
         )

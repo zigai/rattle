@@ -118,7 +118,9 @@ class ForbiddenImport(LintRule):
 
         self._messages_by_boundary = {
             entry.boundary: entry.message
-            for entry in _parse_forbidden_imports_setting(self.settings["forbidden_imports"])
+            for entry in _parse_forbidden_imports_setting(
+                self.setting("forbidden_imports", list[str])
+            )
         }
 
     def leave_Module(self, original_node: cst.Module) -> None:

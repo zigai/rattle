@@ -1,7 +1,6 @@
 import os
 from collections.abc import Callable, Collection, Generator
 from pathlib import Path
-from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -36,6 +35,7 @@ from rattle.ftypes import (
     QualifiedRule,
     Result,
 )
+from rattle.output import render_console_result
 from rattle.rule import LintRule
 from rattle.util import capture
 
@@ -57,7 +57,36 @@ class RecordingTrailrunner:
             yield batch, func(batch)
 
 
+def clean_batch_result(batch: ConfiguredPathBatch) -> ConfiguredPathBatchResult:
+    return ConfiguredPathBatchResult(
+        results=[Result(path, violation=None) for path, _config, _explicit in batch],
+        deferred_format_paths=[],
+    )
+
+
 class TestApi:
+    def test_rattle_bytes_redacts_unexpected_exception_details(self) -> None:
+        class ExplodingRule(LintRule):
+            def visit_Module(self, node: object) -> None:
+                del node
+                raise ValueError("api_token=TOP-SECRET")
+
+        path = Path("secret.py")
+        results = list(
+            rattle_bytes(
+                path,
+                b"value = 1\n",
+                config=Config(path=path),
+                rules=[ExplodingRule()],
+            )
+        )
+
+        assert len(results) == 1
+        rendered = render_console_result(results[0], path=path)
+        assert rendered is not None
+        assert "TOP-SECRET" not in rendered
+        assert "ValueError" in rendered
+
     def test_default_worker_count_preserves_headroom(self) -> None:
         for cpu_count, expected in (
             (1, 1),
@@ -94,7 +123,7 @@ class TestApi:
             ),
             patch(
                 "rattle.api._rattle_configured_file_batch_wrapper",
-                side_effect=lambda batch, **kwargs: [item[0].name for item in batch],
+                side_effect=lambda batch, **_kwargs: clean_batch_result(batch),
             ),
             patch("rattle.api._default_worker_count", return_value=4),
             patch("rattle.api._preload_rules_for_fork"),
@@ -102,7 +131,7 @@ class TestApi:
         ):
             results = list(rattle_paths([Path("target")]))
 
-        assert results == [path.name for path in paths]
+        assert [result.path.name for result in results] == [path.name for path in paths]
         expected_group = [(path.resolve(), Config(path=path), True) for path in paths]
         assert RecordingTrailrunner.calls == [(4, [[item] for item in expected_group])]
 
@@ -121,7 +150,7 @@ class TestApi:
             ),
             patch(
                 "rattle.api._rattle_configured_file_batch_wrapper",
-                side_effect=lambda batch, **kwargs: [item[0].name for item in batch],
+                side_effect=lambda batch, **_kwargs: clean_batch_result(batch),
             ),
             patch("rattle.api._default_worker_count") as default_worker_count,
             patch("rattle.api._preload_rules_for_fork"),
@@ -129,7 +158,7 @@ class TestApi:
         ):
             results = list(rattle_paths([Path("target")], options=Options(jobs=2)))
 
-        assert results == [path.name for path in paths]
+        assert [result.path.name for result in results] == [path.name for path in paths]
         assert [call[0] for call in RecordingTrailrunner.calls] == [2]
         default_worker_count.assert_not_called()
 
@@ -271,7 +300,7 @@ class TestApi:
             patch("rattle.cache.ResultCache._read_result", return_value=cached_results),
             patch(
                 "rattle.api.collect_rules",
-                return_value=cast(Collection[LintRule], [DirtyRule()]),
+                return_value=(DirtyRule(),),
             ),
             patch("rattle.api.rattle_bytes") as rattle_bytes_stub,
         ):
@@ -308,19 +337,24 @@ class TestApi:
             Result(path, violation(), source=b"x\n", config=config),
         ]
 
+        def clean_results(
+            *_args: object,
+            **_kwargs: object,
+        ) -> Generator[Result, bool, FileContent | None]:
+            yield Result(path, violation=None, source=b"x\n", config=config)
+            return None
+
         with (
             patch.dict(os.environ, {"RATTLE_CACHE_DIR": cache_dir.as_posix()}),
             patch("rattle.api.generate_config", return_value=config),
             patch("rattle.cache.ResultCache._read_result", return_value=cached_results),
             patch(
                 "rattle.api.collect_rules",
-                return_value=cast(Collection[LintRule], [AutoFixRule()]),
+                return_value=(AutoFixRule(),),
             ),
             patch(
                 "rattle.api.rattle_bytes",
-                side_effect=lambda *args, **kwargs: iter(
-                    [Result(path, violation=None, source=b"x\n", config=config)]
-                ),
+                side_effect=clean_results,
             ) as rattle_bytes_stub,
         ):
             list(rattle_paths([path], parallel=False))
@@ -452,6 +486,7 @@ class TestApi:
 
     def test_invalid_base64_cached_source_is_rejected(self) -> None:
         entry = ResultCacheEntry(
+            version="results-v1",
             mtime_ns=0,
             size=0,
             status="violations",
@@ -578,7 +613,7 @@ class TestApi:
             patch("rattle.cache.ResultCache._read_result", return_value=cached_results),
             patch(
                 "rattle.api.collect_rules",
-                return_value=cast(Collection[LintRule], [AutoFixRule(), OtherRule()]),
+                return_value=(AutoFixRule(), OtherRule()),
             ),
             patch("rattle.api.rattle_bytes", side_effect=rattle_bytes_stub),
             patch("rattle.cache.ResultCache.write_result") as write_result,
@@ -643,7 +678,7 @@ class TestApi:
             patch("rattle.cache.ResultCache._read_result", return_value=cached_results),
             patch(
                 "rattle.api.collect_rules",
-                return_value=cast(Collection[LintRule], [AutoFixRule()]),
+                return_value=(AutoFixRule(),),
             ),
             patch("rattle.api.rattle_bytes", side_effect=rattle_bytes_stub),
         ):
@@ -714,7 +749,7 @@ class TestApi:
             patch("rattle.api.generate_config", return_value=config),
             patch(
                 "rattle.api.collect_rules",
-                return_value=cast(Collection[LintRule], [FixRule()]),
+                return_value=(FixRule(),),
             ),
             patch("rattle.api.rattle_bytes", side_effect=rattle_bytes_stub),
             patch("rattle.api.format_paths") as format_paths,

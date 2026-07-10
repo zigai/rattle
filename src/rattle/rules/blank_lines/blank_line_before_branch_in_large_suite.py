@@ -272,13 +272,14 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
     def _check_suite_body(
         self,
         body: Sequence[cst.BaseStatement],
+        *,
         suite_can_have_docstring: bool,
         suite_parent: cst.CSTNode | None = None,
     ) -> None:
         if len(body) < 2:
             return
 
-        max_suite_non_empty_lines = int(self.settings["max_suite_non_empty_lines"])
+        max_suite_non_empty_lines = self.setting("max_suite_non_empty_lines", int)
         if self._suite_non_empty_line_count(body) <= max_suite_non_empty_lines:
             return
 
@@ -335,7 +336,11 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
                     or not is_compact_guard_ladder_tail(body, index)
                 )
             )
-            or self._follows_suite_docstring(body, index, suite_can_have_docstring)
+            or self._follows_suite_docstring(
+                body,
+                index,
+                suite_can_have_docstring=suite_can_have_docstring,
+            )
             or is_terminal_exception_cleanup_run(body, index - 1, suite_parent)
             or is_compact_loop_exit_tail(body, index)
             or self._is_immediate_assignment_branch_tail(body, index, statement)
@@ -374,7 +379,7 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
         _run_start, run = compact_tail_run_before(body, branch_index)
         run_is_compact = (
             bool(run)
-            and len(run) <= int(self.settings["compact_tail_max_statements"])
+            and len(run) <= self.setting("compact_tail_max_statements", int)
             and all(isinstance(statement, cst.SimpleStatementLine) for statement in run)
         )
         if not run_is_compact:
@@ -457,10 +462,10 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
         return previous.target.value == branch.value.value
 
     def _allow_related_return_tails(self) -> bool:
-        return bool(self.settings["allow_related_return_tails"])
+        return self.setting("allow_related_return_tails", bool)
 
     def _allow_guard_ladder_final_branch(self) -> bool:
-        return bool(self.settings["allow_guard_ladder_final_branch"])
+        return self.setting("allow_guard_ladder_final_branch", bool)
 
 
 __all__ = ["BlankLineBeforeBranchInLargeSuite"]

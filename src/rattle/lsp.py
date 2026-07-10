@@ -7,7 +7,7 @@ import threading
 from collections.abc import Callable, Generator
 from functools import partial
 from pathlib import Path
-from typing import Any, TypeVar, cast
+from typing import Generic, ParamSpec
 
 from lsprotocol.types import (
     TEXT_DOCUMENT_DID_CHANGE,
@@ -30,6 +30,7 @@ from pygls.workspace.text_document import TextDocument
 from .__version__ import __version__
 from .api import rattle_bytes
 from .config import generate_config, locate_configs
+from .errors import RattleExecutionError
 from .ftypes import Config, FileContent, LSPOptions, Options, Result
 from .util import capture
 
@@ -49,7 +50,7 @@ class LSP:
 
         # separate debounce timer per URI so that linting one URI
         # doesn't cancel linting another
-        self._validate_uri: dict[str, Callable[[int], None]] = {}
+        self._validate_uri: dict[str, Debouncer[[int]]] = {}
 
         self.lsp = LanguageServer("rattle-lsp", __version__)
         # `partial` since `pygls` can register functions but not methods
@@ -86,7 +87,10 @@ class LSP:
         return tuple(fingerprint)
 
     def diagnostic_generator(
-        self, uri: str, autofix: bool = False
+        self,
+        uri: str,
+        *,
+        autofix: bool = False,
     ) -> Generator[Result, bool, FileContent | None] | None:
         """LSP wrapper (provides document state from `pygls`) for `rattle_bytes`."""
         path_uri = uris.to_fs_path(uri)
@@ -171,43 +175,86 @@ class LSP:
 
     def start(self) -> None:
         """Effect: occupies the specified I/O channels."""
-        if self.lsp_options.ws:
-            self.lsp.start_ws("localhost", self.lsp_options.ws)
-        if self.lsp_options.tcp:
-            self.lsp.start_tcp("localhost", self.lsp_options.tcp)
-        if self.lsp_options.stdio:
-            self.lsp.start_io()
+        try:
+            if self.lsp_options.ws:
+                self.lsp.start_ws("localhost", self.lsp_options.ws)
+            if self.lsp_options.tcp:
+                self.lsp.start_tcp("localhost", self.lsp_options.tcp)
+            if self.lsp_options.stdio:
+                self.lsp.start_io()
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        """Cancel and join all pending diagnostic callbacks."""
+        debouncers = tuple(self._validate_uri.values())
+        self._validate_uri.clear()
+        for debouncer in debouncers:
+            debouncer.close()
 
 
-VoidFunction = TypeVar("VoidFunction", bound=Callable[..., None])
+P = ParamSpec("P")
 
 
-class Debouncer:
-    def __init__(self, f: Callable[..., Any], interval: float) -> None:
+class Debouncer(Generic[P]):
+    def __init__(self, f: Callable[P, None], interval: float) -> None:
         self.f = f
         self.interval = interval
         self._timer: threading.Timer | None = None
         self._lock = threading.Lock()
+        self._error: RattleExecutionError | None = None
 
-    def __call__(self, *args: object, **kwargs: object) -> None:
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> None:
+        self._raise_if_failed()
+        if self.interval <= 0:
+            self.f(*args, **kwargs)
+            return
+
+        callback = partial(self.f, *args, **kwargs)
         with self._lock:
             if self._timer is not None:
                 self._timer.cancel()
-            self._timer = threading.Timer(self.interval, self.f, args, kwargs)
+                if self._timer is not threading.current_thread():
+                    self._timer.join()
+            self._timer = threading.Timer(
+                self.interval,
+                self._run,
+                args=(callback,),
+            )
+            self._timer.daemon = True
             self._timer.start()
 
+    def close(self) -> None:
+        """Cancel and join the pending callback, then surface callback failures."""
+        with self._lock:
+            timer = self._timer
+            self._timer = None
+        if timer is not None:
+            timer.cancel()
+            if timer is not threading.current_thread():
+                timer.join()
+        self._raise_if_failed()
 
-def debounce(interval: float) -> Callable[[VoidFunction], VoidFunction]:
+    def _run(self, callback: Callable[[], None]) -> None:
+        try:
+            callback()
+        except Exception as e:  # noqa: BLE001 - background callback boundary
+            self._error = RattleExecutionError("Debounced callback", type(e).__name__)
+
+    def _raise_if_failed(self) -> None:
+        if self._error is not None:
+            raise self._error
+
+
+def debounce(interval: float) -> Callable[[Callable[P, None]], Debouncer[P]]:
     """
     Wait `interval` seconds before calling `f`, and cancel if called again.
     The decorated function will return None immediately,
     ignoring the delayed return value of `f`.
     """
 
-    def decorator(f: VoidFunction) -> VoidFunction:
-        if interval <= 0:
-            return f
-        return cast(VoidFunction, Debouncer(f, interval))
+    def decorator(f: Callable[P, None]) -> Debouncer[P]:
+        return Debouncer(f, interval)
 
     return decorator
 

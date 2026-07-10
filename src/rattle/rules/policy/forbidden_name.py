@@ -125,7 +125,7 @@ class ForbiddenName(LintRule):
 
         self._messages_by_rule = {
             entry.rule: entry.message
-            for entry in _parse_forbidden_names_setting(self.settings["forbidden_names"])
+            for entry in _parse_forbidden_names_setting(self.setting("forbidden_names", list[str]))
         }
 
     def leave_Module(self, original_node: cst.Module) -> None:

@@ -5,16 +5,14 @@
 
 import json
 import os
-from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
-from typing import cast
 from unittest import TestCase
 from unittest.mock import patch
 
 from rattle.cli import _find_uv_project_root, _rule_line, _should_reexec_with_uv, main
-from rattle.ftypes import Metrics, Options
+from rattle.ftypes import Options
 from rattle.rule import LintRule
 from rattle.rules.fixit_extra.use_fstring import UseFstring
 
@@ -685,7 +683,9 @@ class CliTest(TestCase):
         seen_jobs: list[int | None] = []
 
         def rattle_paths_stub(*_args: object, **kwargs: object) -> object:
-            seen_jobs.append(cast(Options, kwargs["options"]).jobs)
+            options = kwargs["options"]
+            assert isinstance(options, Options)
+            seen_jobs.append(options.jobs)
             return iter(())
 
         with (
@@ -705,7 +705,8 @@ class CliTest(TestCase):
 
     def test_lint_metrics_env_uses_cli_output_path(self) -> None:
         def rattle_paths_stub(*_args: object, **kwargs: object) -> object:
-            metrics_hook = cast(Callable[[Metrics], None], kwargs["metrics_hook"])
+            metrics_hook = kwargs["metrics_hook"]
+            assert callable(metrics_hook)
             metrics_hook({"Count.Total": 1})
             return iter(())
 

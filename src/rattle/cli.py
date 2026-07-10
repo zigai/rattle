@@ -25,6 +25,7 @@ from rattle.__version__ import __version__
 from .api import rattle_bytes, rattle_paths
 from .config import (
     CollectionError,
+    ConfigError,
     collect_rule_types,
     collect_rules,
     generate_config,
@@ -185,7 +186,11 @@ def _submit_result(
     return True
 
 
-def _metrics_hook(console: AsyncConsole, enabled: bool) -> Callable[[Metrics], None] | None:
+def _metrics_hook(
+    console: AsyncConsole,
+    *,
+    enabled: bool,
+) -> Callable[[Metrics], None] | None:
     if not enabled:
         return None
     return lambda metrics: console.submit(str(metrics))
@@ -457,7 +462,7 @@ def _find_uv_project_root(path: Path) -> Path | None:
 
         try:
             data = tomllib.loads(pyproject.read_text())
-        except Exception:  # noqa: BLE001, S112 - bootstrap should not block normal CLI handling
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
             continue
 
         tool = data.get("tool", {})
@@ -608,7 +613,7 @@ def lint(
             include_diff=diff,
             allow_cached_dirty_results=True,
             options=runtime_options,
-            metrics_hook=_metrics_hook(console, runtime_options.print_metrics),
+            metrics_hook=_metrics_hook(console, enabled=runtime_options.print_metrics),
         ):
             report.record(result)
 
@@ -699,7 +704,7 @@ def _run_automatic_fix_path_pass(
             include_diff=diff,
             options=report.options,
             parallel=True,
-            metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+            metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
         )
     )
     changed_paths = _changed_result_paths(results)
@@ -718,7 +723,7 @@ def _verify_fix_paths(paths: tuple[Path, ...], report: FixReport) -> None:
         include_diff=False,
         allow_cached_dirty_results=False,
         options=report.options,
-        metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+        metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
     ):
         report.record_verified(result)
 
@@ -744,7 +749,7 @@ def _run_interactive_fix_paths(paths: tuple[Path, ...], report: FixReport) -> No
             include_diff=True,
             options=report.options,
             parallel=False,
-            metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+            metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
         )
     )
     for result in generator:
@@ -788,7 +793,7 @@ def _run_automatic_fix_stdin(
             config=config,
             autofix=True,
             include_diff=diff,
-            metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+            metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
         )
         if updated is None or updated == content:
             break
@@ -807,7 +812,7 @@ def _run_automatic_fix_stdin(
         config=config,
         autofix=False,
         include_diff=False,
-        metrics_hook=_metrics_hook(report.console, report.options.print_metrics),
+        metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
     )
     for result in results:
         report.record_verified(result)
@@ -949,11 +954,7 @@ def _rule_line(rule: LintRule) -> str:
 
 
 def _rule_description(rule: LintRule) -> str:
-    message = getattr(rule, "MESSAGE", "")
-    if not isinstance(message, str):
-        return ""
-
-    description = " ".join(message.split())
+    description = " ".join(rule.MESSAGE.split())
     description = description.split(" Learn more:", maxsplit=1)[0]
     description = description.split(" See ", maxsplit=1)[0]
     return description
@@ -962,9 +963,9 @@ def _rule_description(rule: LintRule) -> str:
 def _parse_explain_selector(selector: str, config_path: Path) -> RuleSelector:
     try:
         return parse_rule(selector, config_path)
-    except Exception as error:
-        usage_error(str(error))
-        raise AssertionError("unreachable") from error
+    except ConfigError as e:
+        usage_error(str(e))
+        raise AssertionError("unreachable") from e
 
 
 def explain_command(
@@ -990,12 +991,9 @@ def explain_command(
     try:
         rule_type = resolve_rule_type(materialized_config, parsed_selector)
         enabled_rule_types = set(collect_rule_types(materialized_config))
-    except CollectionError as error:
-        echo(str(error), err=True)
-        raise SystemExit(2) from error
-    except Exception as error:
-        echo(str(error), err=True)
-        raise SystemExit(2) from error
+    except CollectionError as e:
+        echo(str(e), err=True)
+        raise SystemExit(2) from e
 
     info = RuleInfo.from_rule(rule_type, enabled=rule_type in enabled_rule_types)
     if json:

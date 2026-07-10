@@ -22,6 +22,8 @@ from libcst.metadata import (
 )
 from moreorless import unified_diff
 
+from .ast import AstParseError
+from .errors import RattleRuleExecutionError
 from .ftypes import (
     CodeRange,
     Config,
@@ -250,10 +252,15 @@ class LintRunner:
             metadata_cache.update(repo_manager.get_cache_for_path(config.path.as_posix()))
 
         wrapper = MetadataWrapper(self.module, unsafe_skip_copy=True, cache=metadata_cache)
-        if metadata_rules:
-            wrapper.visit_batched(active_rules)
-        elif plain_rules:
-            visit_batched(self.module, plain_rules)
+        try:
+            if metadata_rules:
+                wrapper.visit_batched(active_rules)
+            elif plain_rules:
+                visit_batched(self.module, plain_rules)
+        except AstParseError:
+            raise
+        except Exception as e:  # noqa: BLE001 - custom rule execution boundary
+            raise RattleRuleExecutionError(type(e).__name__) from None
         count = 0
         position_metadata: Mapping[CSTNode, CodeRange] | None = None
         for rule in rules:
@@ -290,11 +297,15 @@ class LintRunner:
                 # don't visit children if we're going to replace the parent anyways
                 return node not in replacements
 
-            def on_leave(self, node: CSTNode, updated: CSTNode) -> NodeReplacement:  # type: ignore[type-arg]
-                if node in replacements:
-                    new = replacements[node]
+            def on_leave(
+                self,
+                original_node: CSTNode,
+                updated_node: CSTNode,
+            ) -> NodeReplacement[CSTNode]:
+                if original_node in replacements:
+                    new = replacements[original_node]
                     return new
-                return updated
+                return updated_node
 
         updated: Module = self.module.visit(ReplacementTransformer())
         return updated

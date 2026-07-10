@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from collections.abc import Sequence
-from typing import cast
 
 import libcst as cst
 import libcst.matchers as m
@@ -141,14 +140,17 @@ class UseAssertIsNotNone(LintRule):
         )
 
         if result:
-            assertion_name = cast(
-                cst.Name,
+            assertion_name = ensure_type(
                 self._first_extracted_node(result["assertion_name"]),
+                cst.Name,
             )
             if self._class_defines_assertion_method(assertion_name.value):
                 return
 
-            argument = cast(cst.BaseExpression, self._first_extracted_node(result["argument"]))
+            argument = ensure_type(
+                self._first_extracted_node(result["argument"]),
+                cst.BaseExpression,
+            )
             comparison_type = self._first_extracted_node(result["comparison_type"])
 
             if m.matches(argument, m.Comparison()):

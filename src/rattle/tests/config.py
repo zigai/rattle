@@ -4,11 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import re
+from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
-from typing import List, Sequence, Tuple, Type
 from unittest import TestCase
 
 import pytest
@@ -261,7 +261,7 @@ class ConfigTest(TestCase):
         root = self.tdp
         target = root / "a" / "b" / "c" / "foo.py"
 
-        params: Sequence[Tuple[str, List[RawConfig], Config]] = (
+        params: Sequence[tuple[str, list[RawConfig], Config]] = (
             (
                 "empty",
                 [],
@@ -781,7 +781,7 @@ class ConfigTest(TestCase):
         UseTypesFromTyping.TAGS = {"typing"}
         NoNamedTuple.TAGS = {"typing", "tuples"}
 
-        def collect_types(cfg: Config) -> List[Type[LintRule]]:
+        def collect_types(cfg: Config) -> list[type[LintRule]]:
             return sorted([type(rule) for rule in config.collect_rules(cfg)], key=str)
 
         with self.subTest("empty config enables no rules"):
@@ -1328,7 +1328,8 @@ class ConfigTest(TestCase):
             results = config.validate_config(path)
 
             assert results == [
-                "Failed to parse per-file-enable: ConfigError: 'per-file-enable' value for 'tests/**/*.py' must be array of values, got <class 'str'>"
+                "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                "Expected `array`, got `str` - at `$.per-file-enable[...]`"
             ]
 
         with self.subTest("validate-config invalid inherit-ruff-files"), TemporaryDirectory() as td:
@@ -1345,7 +1346,8 @@ class ConfigTest(TestCase):
             results = config.validate_config(path)
 
             assert results == [
-                "Failed to parse inherit-ruff-files: ConfigError: 'inherit-ruff-files' must be a boolean"
+                "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                "Expected `bool`, got `str` - at `$.inherit-ruff-files`"
             ]
 
         with self.subTest("validate-config invalid exclude"), TemporaryDirectory() as td:
@@ -1362,7 +1364,26 @@ class ConfigTest(TestCase):
             results = config.validate_config(path)
 
             assert results == [
-                "Failed to parse exclude: ConfigError: 'exclude' must be array of values, got <class 'str'>"
+                "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                "Expected `array`, got `str` - at `$.exclude`"
+            ]
+
+        with self.subTest("validate-config invalid output template"), TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            path = tdp / "pyproject.toml"
+            path.write_text(
+                """
+                [tool.rattle]
+                root = true
+                output-template = 42
+                """
+            )
+
+            results = config.validate_config(path)
+
+            assert results == [
+                "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                "Expected `str | null`, got `int` - at `$.output-template`"
             ]
 
     def test_validate_config_with_override(self) -> None:

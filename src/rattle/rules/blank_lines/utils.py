@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Protocol, cast
+from typing import Protocol, runtime_checkable
 
 import libcst as cst
 
@@ -21,6 +21,7 @@ CONTROL_BLOCK_STATEMENTS = (
 EXCEPTION_CLEANUP_PARENTS = (cst.ExceptHandler, cst.ExceptStarHandler, cst.Finally)
 
 
+@runtime_checkable
 class StatementWithLeadingLines(Protocol):
     leading_lines: Sequence[cst.EmptyLine]
 
@@ -112,7 +113,9 @@ def is_blank_line(line: cst.EmptyLine) -> bool:
 
 
 def statement_leading_lines(statement: cst.BaseStatement) -> Sequence[cst.EmptyLine]:
-    return cast("StatementWithLeadingLines", statement).leading_lines
+    if not isinstance(statement, StatementWithLeadingLines):
+        raise TypeError(f"{type(statement).__name__} does not expose leading lines")
+    return statement.leading_lines
 
 
 def has_separator(statement: cst.BaseStatement) -> bool:

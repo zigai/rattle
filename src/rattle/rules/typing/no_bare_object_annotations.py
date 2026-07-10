@@ -484,4 +484,7 @@ class NoBareObjectAnnotations(LintRule):
         if self._current_file_path is None:
             return False
 
-        return is_excluded_path(self._current_file_path, self.settings["excluded_path_parts"])
+        return is_excluded_path(
+            self._current_file_path,
+            self.setting("excluded_path_parts", list[str]),
+        )

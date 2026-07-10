@@ -70,7 +70,7 @@ class AsyncConsole:
         self._stdout = stdout or sys.stdout
         self._stderr = stderr or sys.stderr
         self._queue: queue.Queue[ConsoleMessage | None] = queue.Queue(maxsize=maxsize)
-        self._error: BaseException | None = None
+        self._error: Exception | None = None
         self._closed = False
         self._thread: threading.Thread | None = None
 
@@ -115,8 +115,8 @@ class AsyncConsole:
                 if message.nl:
                     stream.write("\n")
                 stream.flush()
-            except BaseException as error:  # noqa: BLE001 - cross-thread error capture
-                self._error = error
+            except (OSError, UnicodeError) as e:
+                self._error = e
             finally:
                 self._queue.task_done()
 
