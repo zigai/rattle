@@ -39,13 +39,9 @@ from .ftypes import (
     is_rule_option_value,
     is_sequence,
 )
+from .pyproject import TOMLDecodeError, load_pyproject
 from .rule import LintRule, RuleConfigurationError
 from .util import append_sys_path
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 RATTLE_CONFIG_FILENAMES = ("pyproject.toml",)
 RATTLE_LOCAL_MODULE = "rattle.local"
@@ -701,7 +697,7 @@ def read_configs(paths: list[Path]) -> list[RawConfig]:
             stat = path.stat()
         except OSError as e:
             raise ConfigError(f"Failed to stat configuration file {path}") from e
-        data = _read_pyproject_data(path, stat.st_mtime_ns, stat.st_size)
+        data = load_pyproject(path, stat=stat)
         tool_data = data.get("tool", {})
         if not isinstance(tool_data, Mapping):
             continue
@@ -719,16 +715,6 @@ def read_configs(paths: list[Path]) -> list[RawConfig]:
                 break
 
     return configs
-
-
-@cache
-def _read_pyproject_data(path: Path, mtime_ns: int, size: int) -> dict[str, object]:
-    del mtime_ns, size
-    content = path.read_text()
-    data = tomllib.loads(content)
-    if not isinstance(data, dict):
-        return {}
-    return data
 
 
 def get_rule_pattern_table(
@@ -794,8 +780,7 @@ def _read_ruff_file_selection(config: RawConfig) -> tuple[list[str], list[str], 
     if not pyproject_path.is_file():
         return [], [], False
 
-    content = pyproject_path.read_text()
-    data = tomllib.loads(content)
+    data = load_pyproject(pyproject_path)
     tool_data = data.get("tool", {})
     if not isinstance(tool_data, Mapping):
         return [], [], False
@@ -1379,7 +1364,7 @@ class ConfigValidator:
             self._validate_inherited_ruff_files()
             self._collect_overrides()
             self._resolve_collected_rules()
-        except (CollectionError, ConfigError, OSError, tomllib.TOMLDecodeError) as e:
+        except (CollectionError, ConfigError, OSError, TOMLDecodeError) as e:
             self.exceptions.append(f"Invalid config: {type(e).__name__}: {e}")
 
         return self.exceptions
@@ -1440,7 +1425,7 @@ class ConfigValidator:
         elif inherit_ruff_files:
             try:
                 _read_ruff_file_selection(self.config)
-            except (ConfigError, OSError, tomllib.TOMLDecodeError) as e:
+            except (ConfigError, OSError, TOMLDecodeError) as e:
                 self.exceptions.append(
                     f"Failed to parse inherited Ruff file settings: {type(e).__name__}: {e}"
                 )

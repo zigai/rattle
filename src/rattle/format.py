@@ -11,7 +11,6 @@ NOTE: be sure to update docs/guide/configuration.rst to include any new formatte
 
 import shutil
 import subprocess
-import sys
 from collections.abc import Collection, Mapping
 from functools import cache
 from pathlib import Path
@@ -21,15 +20,11 @@ from libcst import Module
 
 from .errors import RattleFormatterError
 from .ftypes import Config, FileContent
+from .pyproject import TOMLDecodeError, load_pyproject
 
 if TYPE_CHECKING:
     import black
     import ufmt
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 FORMAT_STYLES: dict[str | None, type["Formatter"]] = {}
 
@@ -127,8 +122,8 @@ class AutoFormatter(Formatter):
 def _detect_formatter_style(path: Path) -> str | None:
     for pyproject_path in _iter_pyproject_paths(path):
         try:
-            data = tomllib.loads(pyproject_path.read_text())
-        except tomllib.TOMLDecodeError:
+            data = load_pyproject(pyproject_path)
+        except TOMLDecodeError:
             data = {}
 
         tool_data = data.get("tool", {})

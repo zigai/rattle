@@ -47,15 +47,10 @@ from .ftypes import (
     RuleSelector,
 )
 from .output import render_console_result
+from .pyproject import TOMLDecodeError, load_pyproject
 from .rule import LintRule
 from .testing import generate_lint_rule_test_cases
 from .util import capture
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
-
 
 UV_REEXEC_ENV = "RATTLE_UV_RUN_REEXEC"
 UV_REEXEC_DISABLE_ENV = "RATTLE_NO_UV_RUN_REEXEC"
@@ -461,8 +456,8 @@ def _find_uv_project_root(path: Path) -> Path | None:
             continue
 
         try:
-            data = tomllib.loads(pyproject.read_text())
-        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+            data = load_pyproject(pyproject)
+        except (OSError, UnicodeDecodeError, TOMLDecodeError):
             continue
 
         tool = data.get("tool", {})
