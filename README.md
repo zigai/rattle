@@ -58,53 +58,57 @@ uvx library-skills
 
 ## Basic Usage
 
-Rattle runs with no enabled rules until a project enables them in
-`pyproject.toml`:
+Rattle enables no rules by default. A practical baseline for a typical typed
+Python project is:
 
 ```toml
 [tool.rattle]
-enable = ["fixit"]
+root = true
+enable = [
+    "blank-line-after-control-block",
+    "blank-line-after-terminal-control-block",
+    "blank-line-before-branch",
+    "blank-line-before-unrelated-block",
+    "no-suite-leading-trailing-blank-lines",
+    "module-all-at-bottom",
+    "no-underscore-all-exports",
+    "forbidden-call",
+    "no-relative-imports",
+    "no-underscore-import-aliases",
+    "no-unsafe-tempfile-factories",
+    "no-annotated-self",
+    "no-exception-message-variables",
+    "no-str-exception-translation",
+    "no-underscore-class",
+    "public-method-order",
+    "no-bare-object-annotations",
+    "no-named-tuple",
+    "no-static-if-condition",
+    "sorted-attributes",
+    "use-callable-ellipsis",
+]
+
+[tool.rattle.options."forbidden-call"]
+forbidden_calls = ["typing.cast"]
 ```
 
+Adjust the list to match the project, then lint the repository:
+
 ```bash
-rattle lint
+rattle lint .
 ```
 
 Apply available autofixes:
 
 ```bash
-rattle fix
+rattle fix .
 ```
 
 Explain rule metadata, examples, and settings:
 
 ```bash
-rattle explain use-f-string
-rattle explain --json use-f-string
-```
-
-## Example Configuration
-
-
-```toml
-[tool.rattle]
-root = true
-enable = ["fixit"]
-python-version = "3.10"
-disable = [
-    "no-static-if-condition",
-    "use-rattle-ignore-comment",
-]
-per-file-disable = {"tests/generated.py" = ["no-named-tuple"]}
-
-# Apply extra rules only under the src/ directory.
-[[tool.rattle.overrides]]
-path = "src"
-enable = ["fixit-extra"]
-
-[[tool.rattle.overrides]]
-path = "tests"
-enable = ["no-named-tuple"]
+rattle explain no-bare-object-annotations
+rattle explain --json no-bare-object-annotations
 ```
 
 ## License
