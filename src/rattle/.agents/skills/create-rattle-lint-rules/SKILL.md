@@ -1,278 +1,125 @@
 ---
 name: create-rattle-lint-rules
-description: Use when adding Rattle to a Python project or creating/refining custom in-repo Rattle lint rules and autofixes.
+description: Author and configure custom Rattle lint rules and autofixes. Use when adding Rattle to a Python project or creating, testing, or refining in-repo Rattle rules.
 ---
 
-# Create Custom Rattle Lint Rules
+# Author Custom Rattle Rules
 
-Use this skill when a repository uses Rattle, or when the user wants to add Rattle and create custom in-repo rules.
+Rattle is a LibCST-based linter and autofixer. Use Rattle commands, selectors,
+configuration, and terminology rather than Fixit equivalents.
 
-Rattle is a LibCST-based linter and autofixer. It is a fork of Fixit, but its commands, selectors, config tables, and rule APIs are Rattle-specific. Use Rattle terminology throughout.
+Do not invent a rule unless the user explicitly asks for suggestions. Work
+spec-first: settle what must and must not report before implementing it.
 
-## Before Writing Code
+## 1. Lock the rule contract
 
-Do not invent lint rules unless the user explicitly asks for suggestions.
+Inspect repository instructions, existing Rattle configuration, local rule
+layout, task runners, CI, and the dirty tree. Preserve unrelated work.
 
-Before implementing a rule, make sure the user has provided an explicit rule spec. If not, collect:
+Require an explicit contract covering:
 
-1. Intent
+- intent and rationale;
+- repository and path scope, including exceptions;
+- exact syntax and semantic conditions that report;
+- aliases, import shapes, rebinding, and other equivalent forms;
+- two to five valid and invalid examples; and
+- whether an autofix is requested and mechanically safe.
 
-- What syntax or pattern is forbidden or required?
-- Why: readability, correctness, architecture, performance, security?
+If essential contract details are missing, obtain them before writing the rule.
+Express path-only policy in Rattle configuration rather than hard-coding paths
+inside a visitor.
 
-2. Scope
+Complete this step when every intended report and exemption is represented by
+an example and the autofix decision is explicit.
 
-- Entire repo, one package, tests excluded, only selected paths?
-- Any explicit exceptions?
+## 2. Choose the analysis seam
 
-3. Match criteria
+Choose the smallest LibCST node that uniquely represents the violation. Prefer
+structural matching over source text. Use visitor state only when syntax context
+requires it.
 
-- What exact syntax should report?
-- Are there aliases, multiple call shapes, or import styles?
+When names can be imported, aliased, shadowed, or rebound, use LibCST metadata
+such as `ScopeProvider` and `QualifiedNameProvider`; do not infer identity from
+spelling alone. Account for the binding that reaches each access.
 
-4. Autofix
+If the rule needs Python's compiler-normalized representation, read
+[`references/ast-analysis.md`](references/ast-analysis.md) before implementing
+it. Use `AstProvider` only for semantics the CST model does not provide, not as
+a substitute for learning LibCST.
 
-- Determine whether a safe autofix is possible for the requested rule.
-- If the rewrite is local, syntactically valid, and mechanically safe, implement the autofix logic.
-- If no safe autofix is possible, implement a diagnostic-only rule and explain that decision in the response.
+Complete this step when the report node, required metadata, state, and any
+AST-to-CST mapping are identified for every contract example.
 
-5. Examples
+## 3. Implement diagnostics and tests together
 
-- 2-5 valid examples that must not report
-- 2-5 invalid examples that must report
-- If autofix is enabled, expected replacement code for invalid examples
-
-If requested scope is path-based, prefer Rattle config in `pyproject.toml` over hard-coded path checks inside the rule.
-
-## Quick Basics
-
-Install:
-
-```bash
-pip install "rattle-lint>=2.1.0"
-```
-
-Common commands:
-
-```bash
-rattle lint <path>
-rattle lint --compact <path>
-rattle lint --diff <path>
-rattle fix <path>
-rattle fix --diff <path>
-rattle fix --interactive <path>
-rattle rules
-rattle rules --test --config pyproject.toml <path>
-rattle validate pyproject.toml
-```
-
-`rattle fix` applies available fixes automatically by default. Use `--interactive` to prompt for each fix.
-
-Silencing comments:
-
-- `# rattle: ignore[rule-name]`
-- `# rattle: ignore`
-
-If the rule name is omitted, the directive silences all rules attached to that statement. Multiple kebab-case names may be comma-separated.
-
-## Local Rule Layout
-
-Recommended layout:
-
-```text
-repo/
-  pyproject.toml
-  rules/
-    __init__.py
-    <rule_module>.py
-```
-
-Enable local rules with selectors relative to the config file:
-
-- `.rules`
-- `.rules.my_module`
-- `.rules:my-rule`
-
-Without `enable-root-import`, local rules should use relative imports that stay inside the tree rooted at the config file.
-
-If local rules need absolute imports from the repo, configure `enable-root-import` in the root config. It may be `true` or a single path relative to the root config:
-
-```toml
-[tool.rattle]
-root = true
-enable-root-import = "src"
-enable = ["myproject.rules"]
-```
-
-## Configuration
-
-Minimal config:
-
-```toml
-[tool.rattle]
-root = true
-
-# Rattle enables no rules by default. Enable explicit collections or local rules.
-enable = [
-  "blank-lines",
-  ".rules",
-]
-
-disable = [
-  # "use-f-string",
-  # ".rules:my-rule",
-]
-
-python-version = "3.11"
-```
-
-Per-rule options must target one concrete rule class. Prefer table form, and quote keys that contain `:` or start with `.`:
-
-```toml
-[tool.rattle.options.".rules:my-rule"]
-max_length = 42
-```
-
-Inline mappings are also valid:
-
-```toml
-[tool.rattle.options]
-".rules:my-rule" = { max_length = 42 }
-```
-
-Path-based scoping can use overrides or per-file tables:
-
-```toml
-[[tool.rattle.overrides]]
-path = "tests"
-enable = [".rules:tests-only-rule"]
-options = { ".rules:tests-only-rule" = { max_length = 80 } }
-
-[tool.rattle.per-file-disable]
-"tests/generated.py" = [".rules:my-rule"]
-
-[tool.rattle.per-file-enable]
-"scripts/**/*.py" = [".rules:scripts-only-rule"]
-```
-
-`per-file-disable` is the final suppression layer after base config and matching overrides.
-
-## Rule Authoring
-
-Implement rules as subclasses of `rattle.LintRule` and import test helpers from `rattle`:
+Subclass `rattle.LintRule` and keep executable examples on the rule:
 
 ```python
 import libcst as cst
-from rattle import Invalid, LintRule, RuleSetting, Valid
-```
 
-Important class attributes:
-
-- `MESSAGE`: conventional default message to pass to `self.report(...)`
-- `NAME`: optional explicit kebab-case public rule name; defaults to kebab-case generated from the class name
-- `TAGS`: optional tags for configuration filtering
-- `PYTHON_VERSION`: optional PEP 440 version specifier
-- `SETTINGS`: optional typed config settings using `RuleSetting`
-- `REFERENCES`: optional documentation references as URLs or `(label, URL)` pairs
-- `VALID` / `INVALID`: inline rule tests
-
-Selector guidance:
-
-- Rule selectors and displayed rule names are canonical kebab-case only.
-- Do not use PascalCase class names as selectors.
-- For local and third-party rules, use import selectors such as `.rules.my_module` or concrete selectors such as `.rules:my-rule`.
-- If the generated class-name conversion is not the desired public name, set `NAME = "my-rule"`.
-- Options must target one concrete rule, not a package or module selector.
-
-Settings guidance:
-
-- Use `RuleSetting(type, default=..., description="...")` for configurable behavior.
-- Supported setting value types are TOML scalar types and `list[...]` of scalar types.
-- If a setting has no default, config must provide it.
-- `RuleSetting(..., validator=...)` can enforce extra constraints.
-- Use `Valid(..., options={...})` and `Invalid(..., options={...})` to test alternate settings.
-
-## Implementation Workflow
-
-### 1. Map the rule spec to LibCST nodes
-
-Pick the smallest CST node that uniquely represents the violation. Prefer structural matching over string matching.
-
-Use visitor state only when needed, for example:
-
-- tracking whether you are inside an annotation
-- tracking imports or aliases
-- distinguishing syntactic context such as decorators, type annotations, or class bodies
-
-If the rule specifically needs Python's compiler-normalized representation,
-request `rattle.AstProvider` through `METADATA_DEPENDENCIES`. Retrieve its
-`AstContext` from the CST `Module`, analyze `context.tree`, and use
-`context.code_range(ast_node)` to compare AST findings with CST positions. Keep
-`self.report(...)` anchored to the corresponding CST node so local
-`# rattle: ignore` comments and autofixes continue to work. Do not attempt AST
-analysis merely to avoid learning the LibCST node model.
-
-AST parsing is opt-in, uses the interpreter running Rattle, and parses legacy
-type comments. It can therefore fail on target syntax newer than the host
-interpreter or on misplaced `# type:` comments. AST analysis does not support
-AST replacements; autofixes must still use LibCST nodes.
-
-### 2. Implement the rule
-
-Skeleton:
-
-```python
-import libcst as cst
 from rattle import Invalid, LintRule, RuleSetting, Valid
 
 
 class MyRule(LintRule):
-    MESSAGE = "..."
+    MESSAGE = "Describe the required change."
     NAME = "my-rule"
-    TAGS = {"style"}
     PYTHON_VERSION = ">=3.10"
     SETTINGS = {
         "limit": RuleSetting(int, default=10, description="Maximum allowed value."),
     }
 
-    VALID = [
-        Valid("..."),
-    ]
+    VALID = [Valid("allowed()")]
     INVALID = [
         Invalid(
-            "...",
-            expected_replacement="...",
-            expected_message="...",
+            "forbidden()",
+            expected_message=MESSAGE,
         ),
     ]
 
-    def visit_<NodeType>(self, node: cst.<NodeType>) -> None:
-        ...
-        self.report(node, self.MESSAGE, replacement=<cst node>)
+    def visit_Call(self, node: cst.Call) -> None:
+        if matches_contract(node):
+            self.report(node, self.MESSAGE)
 ```
 
-Use `self.report(node, message, replacement=...)` to report a violation and optionally attach an autofix.
+Use these class attributes when the contract needs them:
 
-Rattle sets a rule's autofix capability automatically when any `INVALID` case includes `expected_replacement`.
+- `NAME` for an explicit kebab-case public name;
+- `TAGS` for configuration filtering;
+- `PYTHON_VERSION` for a PEP 440 compatibility range;
+- `SETTINGS` with typed `RuleSetting` values and validators;
+- `REFERENCES` for relevant external documentation; and
+- `VALID` / `INVALID` for inline behavior tests, including option variants.
 
-For every custom rule, evaluate autofix safety as part of implementation. When safe, add `replacement=...` logic and include `Invalid(..., expected_replacement=...)` tests. When unsafe or ambiguous, omit `replacement` and state why the rule is diagnostic-only.
+Anchor `self.report(...)` to the smallest CST node that should own the
+diagnostic and local ignore comment.
 
-### 3. Wire the rule into config
+Add an autofix only when the replacement is local, syntactically valid in
+place, and mechanically safe. Avoid fixes that require semantic guesses, alter
+control flow or exception behavior, or coordinate multiple files. Do not add or
+remove imports unless the user explicitly accepts that risk. A safe fix must
+include `replacement=...` and an `Invalid(..., expected_replacement=...)` case;
+Rattle derives autofix capability from those cases. Otherwise keep the rule
+diagnostic-only and record the reason.
 
-Enable the rule with an import selector:
+Complete this step when every contract example is an executable `VALID` or
+`INVALID` case and every replacement converges without another report.
 
-```toml
-[tool.rattle]
-enable = [
-  ".rules.my_rule",
-]
-```
+## 4. Configure discovery and scope
 
-Use kebab-case selectors in config and CLI. If the generated class-name selector is not what the user wants, set `NAME` on the rule class.
+When adding Rattle, changing selectors, defining rule options, or applying path
+scope, read [`references/configuration.md`](references/configuration.md) before
+editing configuration.
 
-### 4. Validate config and tests
+Enable local rules with import selectors and use canonical kebab-case names in
+configuration and CLI commands. Target options at one concrete rule, never a
+package or module selector.
 
-Use this sequence:
+Complete this step when `rattle rules <path>` resolves the intended rule,
+settings, and path scope without enabling unrelated rules.
+
+## 5. Prove the rule
+
+Use the repository's command runner and configuration context. At minimum run:
 
 ```bash
 rattle validate pyproject.toml
@@ -280,102 +127,26 @@ rattle rules --test --config pyproject.toml .
 rattle lint --diff .
 ```
 
-If the user wants autofixes applied across the repo:
+Run focused project tests for affected code. Apply `rattle fix` across the
+repository only when the user requests it.
 
-```bash
-rattle fix .
-```
+If the rule is noisy, add valid cases before changing the implementation. Test
+aliases, alternate imports, rebinding, nested scopes, syntax-version boundaries,
+comments, and formatting variants whenever they can change the result. Narrow
+the structural match rather than weakening the diagnostic. Prefer configuration
+for path exceptions; suggest inline `rattle: ignore[...]` only when matching and
+configuration cannot express a legitimate exception.
 
-Use `rattle rules <path>` when config inheritance, enabled rules, disabled rules, or resolved settings are unclear.
-
-### 5. Tighten false positives
-
-When a rule is noisy:
-
-- add more `VALID` cases first
-- narrow the CST match rather than weakening the message
-- use config scoping for path-based exceptions
-- only add inline `rattle: ignore[...]` guidance when config and matching are not enough
-
-## Autofix Safety
-
-Evaluate whether each requested rule can have a safe autofix. Provide an autofix when the rewrite is local, syntactically valid in place, and mechanically safe.
-
-Avoid autofixes when:
-
-- the change needs semantic analysis beyond the matched node
-- imports must be added or removed, unless the user explicitly accepts that risk
-- the rewrite changes control flow or exception behavior
-- multiple files must change together
-
-If there is ambiguity, report without a replacement and mention the reason in the final response.
+Complete this step when configuration validates, every inline case passes, the
+lint output matches the contract, safe fixes converge, and affected project
+tests pass.
 
 ## Deliverables
 
-When implementing a Rattle custom rule, produce:
+Provide:
 
-1. `rules/<module>.py` with one or more `LintRule` subclasses
-2. `rules/__init__.py` if needed
-3. `pyproject.toml` updates under `[tool.rattle]`, `[tool.rattle.options]`, per-file tables, or overrides as needed
-4. Autofix outcome: implemented with `expected_replacement` tests, or diagnostic-only with a reason
-5. The commands used to validate: `rattle validate`, `rattle rules --test`, `rattle lint --diff`, and optionally `rattle fix`
-
-## Example Rule
-
-Example only. Do not apply it unless the user asks for this behavior.
-
-```python
-import libcst as cst
-from rattle import Invalid, LintRule, Valid
-
-
-class UseBuiltinGenerics(LintRule):
-    MESSAGE = "Use built-in generic types instead of typing.List/Dict/Set/Tuple."
-    PYTHON_VERSION = ">=3.9"
-
-    VALID = [
-        Valid("def f(x: list[int]) -> dict[str, int]: ..."),
-    ]
-
-    INVALID = [
-        Invalid(
-            "import typing\n\ndef f(x: typing.List[int]): ...",
-            expected_replacement="import typing\n\ndef f(x: list[int]): ...",
-        ),
-        Invalid(
-            "from typing import Dict\n\ndef f() -> Dict[str, int]: ...",
-            expected_replacement="from typing import Dict\n\ndef f() -> dict[str, int]: ...",
-        ),
-    ]
-
-    _IN_ANNOTATION = 0
-    _MAP = {"List": "list", "Dict": "dict", "Set": "set", "Tuple": "tuple"}
-
-    def visit_Annotation(self, node: cst.Annotation) -> None:
-        self._IN_ANNOTATION += 1
-
-    def leave_Annotation(self, original_node: cst.Annotation) -> None:
-        self._IN_ANNOTATION -= 1
-
-    def visit_Attribute(self, node: cst.Attribute) -> None:
-        if not self._IN_ANNOTATION:
-            return
-        if isinstance(node.value, cst.Name) and node.value.value == "typing":
-            replacement = self._MAP.get(node.attr.value)
-            if replacement:
-                self.report(node, self.MESSAGE, replacement=cst.Name(replacement))
-
-    def visit_Name(self, node: cst.Name) -> None:
-        if not self._IN_ANNOTATION:
-            return
-        replacement = self._MAP.get(node.value)
-        if replacement:
-            self.report(node, self.MESSAGE, replacement=cst.Name(replacement))
-```
-
-Enable it:
-
-```toml
-[tool.rattle]
-enable = [".rules.typing_generics"]
-```
+1. the rule module and package wiring;
+2. configuration changes for discovery, settings, and scope;
+3. executable valid, invalid, and replacement cases;
+4. the autofix or the diagnostic-only safety reason; and
+5. the exact validation commands and outcomes.
