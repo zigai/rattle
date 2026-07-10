@@ -1,6 +1,8 @@
 ---
 name: create-rattle-lint-rules
 description: Author and configure custom Rattle lint rules and autofixes. Use when adding Rattle to a Python project or creating, testing, or refining in-repo Rattle rules.
+disable-model-invocation: true
+user-invocable: true
 ---
 
 # Author Custom Rattle Rules
