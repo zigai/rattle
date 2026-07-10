@@ -11,16 +11,12 @@ from rattle import Invalid, LintRule, Valid
 
 
 class UseAssertIn(LintRule):
-    """Prefer assertIn and assertNotIn for unittest membership checks."""
+    """Prefer ``assertIn`` and ``assertNotIn`` for unittest membership checks."""
 
     SOURCE_PATTERNS = ("assertTrue", "assertFalse")
 
-    MESSAGE: str = "Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check."
+    MESSAGE: str = "Use `assertIn()` or `assertNotIn()` for membership checks."
     REFERENCES = (
-        (
-            "unittest deprecated aliases",
-            "https://docs.python.org/3.8/library/unittest.html#deprecated-aliases",
-        ),
         (
             "unittest assertIn",
             "https://docs.python.org/3/library/unittest.html#unittest.TestCase.assertIn",

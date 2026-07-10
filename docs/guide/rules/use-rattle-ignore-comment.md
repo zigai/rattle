@@ -17,16 +17,13 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-To silence a lint warning, use ``rattle: ignore[rule-name]`` comments.
-The comment may be a trailing inline comment or a standalone comment line above the code.
-Rule names are optional, but explicitly listing one or more comma-separated rule names avoids
-accidentally silencing unrelated warnings.
-``noqa`` is deprecated and not supported because it is shared by other Python linters and can
-accidentally silence warnings unexpectedly.
+Use an inline or preceding ``rattle: ignore[...]`` comment to suppress warnings.
+Listing rule names prevents unrelated warnings from being suppressed. Rattle does
+not recognize ``noqa`` because it may also affect other linters.
 
 ## Message
 
-noqa is deprecated. Use `rattle: ignore[rule-name]` instead.
+Use `rattle: ignore[rule-name]`; Rattle does not support `noqa`.
 
 
 ## Valid examples

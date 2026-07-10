@@ -9,7 +9,7 @@ from rattle.rules.blank_lines.base import BaseBlockHeaderCuddleRule, validate_no
 
 
 class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
-    """Require a blank line before block headers unless preceding setup feeds the block."""
+    """Require a blank line before a block unrelated to the preceding statements."""
 
     NAME = "blank-line-before-unrelated-block"
     SOURCE_PATTERNS = (b":",)
@@ -21,23 +21,23 @@ class BlockHeaderCuddleRelaxed(BaseBlockHeaderCuddleRule, LintRule):
             int,
             default=4,
             validator=validate_non_negative_int,
-            description="Number of following statements inspected for setup-value usage.",
+            description="Number of block statements checked for uses of preceding values.",
         ),
         "setup_run_lookback": RuleSetting(
             int,
             default=3,
             validator=validate_non_negative_int,
-            description="Number of preceding setup statements that may stay attached to a block.",
+            description="Number of preceding setup statements that may remain next to a block.",
         ),
         "allow_setup_before_compact_guard_ladder": RuleSetting(
             bool,
             default=True,
-            description="Allow setup statements before compact guard-ladder branches.",
+            description="Allow setup statements before consecutive early-exit branches.",
         ),
     }
     MESSAGE = (
-        "Illegal cuddle before block header. "
-        "The preceding setup must directly feed the upcoming block."
+        "Add a blank line before this block; the preceding statements do not prepare "
+        "values used by it."
     )
 
     VALID = [

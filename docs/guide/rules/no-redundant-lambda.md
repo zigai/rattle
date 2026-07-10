@@ -20,9 +20,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 Replace simple lambdas that only forward their arguments to another callable.
 The replacement can change callback signature, arity, or introspection behavior.
 
-## Message
+## Message template
 
 The lambda that wraps {function} is redundant and can be replaced by the callable.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Valid examples

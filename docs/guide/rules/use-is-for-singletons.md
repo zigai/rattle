@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Require identity operators when comparing singleton primitives.
+Require identity operators when comparing ``None``, ``True``, and ``False``.
 
 ## Message
 
-Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity. Use `is` or `is not` instead.
+Compare `None`, `True`, and `False` with `is` or `is not`.
 
 ## References
 

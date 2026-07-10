@@ -27,31 +27,34 @@ from rattle.rules.blank_lines.utils import (
 
 
 class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
-    """Require separation after multiline control-flow block statements."""
+    """Require a blank line after multiline control-flow blocks."""
 
     SOURCE_PATTERNS = (b":",)
-    MESSAGE = "Missing blank line after multiline control-flow block statement."
+    MESSAGE = "Add a blank line after this multiline control-flow block."
     SETTINGS = {
         "related_use_lookahead": RuleSetting(
             int,
             default=2,
             validator=validate_non_negative_int,
-            description="Number of following statements inspected for related value usage.",
+            description="Number of following statements checked for uses of values from the block.",
         ),
         "allow_compact_guard_ladders": RuleSetting(
             bool,
             default=True,
-            description="Allow compact guard-ladder control-flow blocks without an extra blank line.",
+            description="Allow consecutive early-exit branches without extra blank lines.",
         ),
         "allow_pytest_raises_clusters": RuleSetting(
             bool,
             default=True,
-            description="Allow adjacent pytest.raises blocks that form one test cluster.",
+            description="Allow consecutive pytest.raises blocks within one test scenario.",
         ),
         "allow_with_immediate_inspection": RuleSetting(
             bool,
             default=True,
-            description="Allow a with block followed immediately by inspection of its bound value.",
+            description=(
+                "Allow a with block to remain attached to the next statement when that "
+                "statement inspects its bound value."
+            ),
         ),
     }
 

@@ -17,15 +17,14 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Prefer assertIn and assertNotIn for unittest membership checks.
+Prefer ``assertIn`` and ``assertNotIn`` for unittest membership checks.
 
 ## Message
 
-Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check.
+Use `assertIn()` or `assertNotIn()` for membership checks.
 
 ## References
 
-- [unittest deprecated aliases](https://docs.python.org/3.8/library/unittest.html#deprecated-aliases)
 - [unittest assertIn](https://docs.python.org/3/library/unittest.html#unittest.TestCase.assertIn)
 
 ## Valid examples

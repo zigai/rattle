@@ -81,8 +81,9 @@ class ForbiddenCall(LintRule):
             list[str],
             default=[],
             description=(
-                "Callable symbols to forbid. Entries may be symbol, symbol|message, "
-                "or symbol|message|use_instead."
+                "Callable symbols to forbid. Each entry has the form "
+                "symbol[|message[|recommended_callable]], for example "
+                "'os.system|Use subprocess.run|subprocess.run'."
             ),
             validator=_validate_forbidden_calls,
         ),

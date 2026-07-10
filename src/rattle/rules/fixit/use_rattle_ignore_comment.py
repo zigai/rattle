@@ -14,15 +14,12 @@ NOQA_COMMENT_PATTERN = re.compile(r"(?:^|#)\s*(?:flake8:\s*)?noqa(?=$|[\s:,\[])"
 
 class UseRattleIgnoreComment(LintRule):
     """
-    To silence a lint warning, use ``rattle: ignore[rule-name]`` comments.
-    The comment may be a trailing inline comment or a standalone comment line above the code.
-    Rule names are optional, but explicitly listing one or more comma-separated rule names avoids
-    accidentally silencing unrelated warnings.
-    ``noqa`` is deprecated and not supported because it is shared by other Python linters and can
-    accidentally silence warnings unexpectedly.
+    Use an inline or preceding ``rattle: ignore[...]`` comment to suppress warnings.
+    Listing rule names prevents unrelated warnings from being suppressed. Rattle does
+    not recognize ``noqa`` because it may also affect other linters.
     """
 
-    MESSAGE: str = "noqa is deprecated. Use `rattle: ignore[rule-name]` instead."
+    MESSAGE: str = "Use `rattle: ignore[rule-name]`; Rattle does not support `noqa`."
 
     VALID = [
         Valid(

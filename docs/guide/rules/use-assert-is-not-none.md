@@ -17,15 +17,12 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Prefer assertIsNotNone and assertIsNone for unittest None checks.
+Prefer ``assertIsNotNone`` and ``assertIsNone`` for unittest ``None`` checks.
 
 ## Message
 
-"assertTrue" and "assertFalse" are deprecated. Use "assertIsNotNone" and "assertIsNone" instead.
+Use `assertIsNone()` or `assertIsNotNone()` for `None` checks.
 
-## References
-
-- [unittest deprecated aliases](https://docs.python.org/3.8/library/unittest.html#deprecated-aliases)
 
 ## Valid examples
 

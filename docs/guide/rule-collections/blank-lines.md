@@ -21,8 +21,8 @@ enable = ["blank-lines"]
 
 | Rule | Message | Python | Autofix |
 | --- | --- | --- | :---: |
-| [blank-line-after-control-block](../rules/blank-line-after-control-block.md) | Missing blank line after multiline control-flow block statement. | Any | Yes |
-| [blank-line-after-terminal-control-block](../rules/blank-line-after-terminal-control-block.md) | Missing blank line after terminal control-flow block. | Any | Yes |
-| [blank-line-before-branch](../rules/blank-line-before-branch.md) | Missing blank line before return/raise/break/continue in a large suite. | Any | Yes |
-| [blank-line-before-unrelated-block](../rules/blank-line-before-unrelated-block.md) | Illegal cuddle before block header. The preceding setup must directly feed the upcoming block. | Any | Yes |
-| [no-suite-leading-trailing-blank-lines](../rules/no-suite-leading-trailing-blank-lines.md) | Leading or trailing blank lines in a suite are not allowed. | Any | Yes |
+| [blank-line-after-control-block](../rules/blank-line-after-control-block.md) | Add a blank line after this multiline control-flow block. | Any | Yes |
+| [blank-line-after-terminal-control-block](../rules/blank-line-after-terminal-control-block.md) | Add a blank line after this early-exit control-flow block. | Any | Yes |
+| [blank-line-before-branch](../rules/blank-line-before-branch.md) | Add a blank line before this branch statement in a larger code block. | Any | Yes |
+| [blank-line-before-unrelated-block](../rules/blank-line-before-unrelated-block.md) | Add a blank line before this block; the preceding statements do not prepare values used by it. | Any | Yes |
+| [no-suite-leading-trailing-blank-lines](../rules/no-suite-leading-trailing-blank-lines.md) | Remove blank lines at the beginning or end of a code block. | Any | Yes |

@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Require separation after multiline control-flow block statements.
+Require a blank line after multiline control-flow blocks.
 
 ## Message
 
-Missing blank line after multiline control-flow block statement.
+Add a blank line after this multiline control-flow block.
 
 
 ## Settings
@@ -34,25 +34,25 @@ Missing blank line after multiline control-flow block statement.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_compact_guard_ladders</span></td>
-      <td>Allow compact guard-ladder control-flow blocks without an extra blank line.</td>
+      <td>Allow consecutive early-exit branches without extra blank lines.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_pytest_raises_clusters</span></td>
-      <td>Allow adjacent pytest.raises blocks that form one test cluster.</td>
+      <td>Allow consecutive pytest.raises blocks within one test scenario.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">allow_with_immediate_inspection</span></td>
-      <td>Allow a with block followed immediately by inspection of its bound value.</td>
+      <td>Allow a with block to remain attached to the next statement when that statement inspects its bound value.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">related_use_lookahead</span></td>
-      <td>Number of following statements inspected for related value usage.</td>
+      <td>Number of following statements checked for uses of values from the block.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
     </tr>

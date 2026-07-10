@@ -88,9 +88,9 @@ def _is_object_none_pair(left: cst.BaseExpression, right: cst.BaseExpression) ->
 
 
 class NoBareObjectAnnotations(LintRule):
-    """Require annotations to use a more precise boundary type than bare object."""
+    """Disallow ``object`` as an entire annotation when a narrower type can be used."""
 
-    MESSAGE = "Use a narrower type than bare object in annotations."
+    MESSAGE = "Replace this bare `object` annotation with a type that describes the value."
     METADATA_DEPENDENCIES = (
         *LintRule.METADATA_DEPENDENCIES,
         FilePathProvider,
@@ -101,7 +101,10 @@ class NoBareObjectAnnotations(LintRule):
         "excluded_path_parts": RuleSetting(
             list[str],
             default=["tests"],
-            description="Path parts that should be excluded in addition to test_*.py files.",
+            description=(
+                "Skip files whose path contains any of these components, in addition to "
+                "files named test_*.py."
+            ),
         ),
     }
 
@@ -143,32 +146,32 @@ class NoBareObjectAnnotations(LintRule):
             def fn(value: object) -> None:
                 return None
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
             def fn() -> object:
                 return None
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
             value: object = payload
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
             value: object | None = None
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
             value: None | object = None
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
@@ -176,7 +179,7 @@ class NoBareObjectAnnotations(LintRule):
 
             value: Optional[object] = None
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
@@ -184,19 +187,19 @@ class NoBareObjectAnnotations(LintRule):
 
             value: Union[object, None] = None
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
             value: "object" = payload
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
             value: "object" "" = payload
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
@@ -204,7 +207,7 @@ class NoBareObjectAnnotations(LintRule):
 
             value: builtins.object = payload
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
@@ -212,7 +215,7 @@ class NoBareObjectAnnotations(LintRule):
 
             value: builtin_types.object = payload
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
@@ -221,7 +224,7 @@ class NoBareObjectAnnotations(LintRule):
 
             value: Optional[builtins.object] = None
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
@@ -229,7 +232,7 @@ class NoBareObjectAnnotations(LintRule):
 
             value: Annotated[object, "metadata"] = payload
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
         Invalid(
             """
@@ -238,7 +241,7 @@ class NoBareObjectAnnotations(LintRule):
             Object: TypeAlias = object
             value: Object = payload
             """,
-            expected_message="Use a narrower type than bare object in annotations.",
+            expected_message="Replace this bare `object` annotation with a type that describes the value.",
         ),
     ]
 

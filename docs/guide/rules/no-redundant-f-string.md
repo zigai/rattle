@@ -21,7 +21,7 @@ Remove f-string prefixes from strings without placeholders.
 
 ## Message
 
-f-string doesn't have placeholders, remove redundant f-string.
+Remove the `f` prefix; this f-string has no replacement fields.
 
 
 ## Valid examples

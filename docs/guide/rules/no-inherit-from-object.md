@@ -17,12 +17,12 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-In Python 3, a class is inherited from ``object`` by default.
-Explicitly inheriting from ``object`` is redundant, so removing it keeps the code simpler.
+Python 3 classes inherit from ``object`` implicitly, so an explicit
+``object`` base class is redundant.
 
 ## Message
 
-Inheriting from object is a no-op.  'class Foo:' is just fine =)
+Remove the redundant `object` base class.
 
 
 ## Valid examples

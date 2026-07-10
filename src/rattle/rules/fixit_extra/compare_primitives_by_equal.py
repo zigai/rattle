@@ -13,7 +13,7 @@ class ComparePrimitivesByEqual(LintRule):
 
     NAME = "use-eq-for-primitives"
 
-    MESSAGE = "Don't use `is` or `is not` to compare primitives, as they compare references. Use == or != instead."
+    MESSAGE = "Use `==` or `!=` for numeric and string values; `is` tests object identity."
     REFERENCES = (
         ("object.__eq__", "https://docs.python.org/3/reference/datamodel.html#object.__eq__"),
         ("is operator", "https://docs.python.org/3/reference/expressions.html#is"),

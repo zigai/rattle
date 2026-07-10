@@ -19,15 +19,15 @@ from rattle.rules.blank_lines.utils import (
 
 
 class BlankLineAfterTerminalControlBlock(BaseBlankLinesRule, LintRule):
-    """Require separation after control blocks whose body exits early."""
+    """Require a blank line after control-flow blocks whose body always exits."""
 
     SOURCE_PATTERNS = (b"return", b"raise", b"break", b"continue")
-    MESSAGE = "Missing blank line after terminal control-flow block."
+    MESSAGE = "Add a blank line after this early-exit control-flow block."
     SETTINGS = {
         "allow_compact_guard_ladders": RuleSetting(
             bool,
             default=True,
-            description="Allow compact guard-ladder terminal branches without an extra blank line.",
+            description="Allow consecutive early-exit branches without extra blank lines.",
         ),
     }
 

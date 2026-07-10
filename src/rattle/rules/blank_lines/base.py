@@ -175,12 +175,12 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
 
 
 class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
-    """Shared implementation for block-header cuddling constraints."""
+    """Shared implementation for separating unrelated block headers."""
 
     STRICT = False
     ALLOW_FIRST_BODY_USAGE = True
     BODY_USAGE_LOOKAHEAD = 0
-    MESSAGE = "Illegal cuddle before block header."
+    MESSAGE = "Add a blank line before this unrelated block."
 
     def visit_Module(self, node: cst.Module) -> None:
         self._set_source_lines(node)

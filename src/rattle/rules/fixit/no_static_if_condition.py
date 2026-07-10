@@ -13,11 +13,11 @@ from rattle import Invalid, LintRule, Valid
 
 
 class NoStaticIfCondition(LintRule):
-    """Discourages ``if`` conditions which evaluate to a static value (e.g. ``or True``, ``and False``, etc)."""
+    """Detect ``if`` conditions that appear to evaluate to a constant value."""
 
     MESSAGE: str = (
-        "Your if condition appears to evaluate to a static value (e.g. `or True`, `and False`). "
-        "Please double check this logic and if it is actually temporary debug code."
+        "This `if` condition appears constant; verify the logic and remove any temporary "
+        "debug clause."
     )
     VALID = [
         Valid(

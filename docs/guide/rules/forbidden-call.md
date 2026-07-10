@@ -19,9 +19,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Ban calls to configured functions, constructors, and helper APIs.
 
-## Message
+## Message template
 
 Do not call forbidden callable '{symbol}'.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Settings
@@ -34,7 +36,7 @@ Do not call forbidden callable '{symbol}'.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">forbidden_calls</span></td>
-      <td>Callable symbols to forbid. Entries may be symbol, symbol|message, or symbol|message|use_instead.</td>
+      <td>Callable symbols to forbid. Each entry has the form symbol[|message[|recommended_callable]], for example &#x27;os.system|Use subprocess.run|subprocess.run&#x27;.</td>
       <td><span class="rule-setting-type">list</span></td>
       <td><span class="rule-setting-default rule-setting-default-plain">[]</span></td>
     </tr>

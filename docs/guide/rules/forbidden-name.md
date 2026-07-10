@@ -19,9 +19,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Ban configured names by identifier kind and pattern.
 
-## Message
+## Message template
 
 Do not use forbidden {kind} name '{name}'.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Settings
@@ -34,7 +36,7 @@ Do not use forbidden {kind} name '{name}'.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">forbidden_names</span></td>
-      <td>Name patterns to forbid as kind:pattern entries. Entries may be kind:pattern or kind:pattern|message.</td>
+      <td>Names to forbid. Each entry has the form kind:pattern[|message], where kind is any, variable, parameter, function, class, attribute, import, or alias. Patterns support shell-style wildcards; for example, &#x27;class:*Manager|Use a specific role name&#x27;.</td>
       <td><span class="rule-setting-type">list</span></td>
       <td><span class="rule-setting-default rule-setting-default-plain">[]</span></td>
     </tr>

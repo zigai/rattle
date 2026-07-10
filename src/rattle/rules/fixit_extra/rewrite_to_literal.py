@@ -11,15 +11,8 @@ from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameS
 
 from rattle import Invalid, LintRule, Valid
 
-UNNECESSARY_LITERAL: str = (
-    "It's unnecessary to use a list or tuple within a call to {func} since"
-    " there is literal syntax for this type"
-)
-UNNCESSARY_CALL: str = (
-    "It's slower to call {func}() than using the empty literal, because"
-    " the name {func} must be looked up in the global scope in case it has"
-    " been rebound."
-)
+UNNECESSARY_LITERAL: str = "Replace this {func}() call with the equivalent collection literal."
+UNNCESSARY_CALL: str = "Replace {func}() with the equivalent empty collection literal."
 
 
 class RewriteToLiteral(LintRule):

@@ -17,11 +17,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-The built-in ``isinstance`` function, instead of a single type,
-can take a tuple of types and check whether given target suits
-any of them. Rather than chaining multiple ``isinstance`` calls
-with a boolean-or operation, a single ``isinstance`` call where
-the second argument is a tuple of all types can be used.
+Combine repeated ``isinstance`` checks by passing a tuple of types.
 
 ## Message
 

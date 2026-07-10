@@ -34,7 +34,7 @@ Use tempfile context managers instead of mkstemp or mkdtemp.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">excluded_path_parts</span></td>
-      <td>—</td>
+      <td>Path components in which this rule is disabled.</td>
       <td><span class="rule-setting-type">list</span></td>
       <td><span class="rule-setting-default rule-setting-default-plain">[&#x27;tests&#x27;, &#x27;benchmarks&#x27;]</span></td>
     </tr>

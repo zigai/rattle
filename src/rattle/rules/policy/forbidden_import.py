@@ -80,7 +80,10 @@ class ForbiddenImport(LintRule):
         "forbidden_imports": RuleSetting(
             list[str],
             default=[],
-            description="Import boundaries to forbid. Entries may be boundary or boundary|message.",
+            description=(
+                "Import boundaries to forbid. Each entry has the form boundary[|message], "
+                "for example 'legacy.api|Import from app.api'."
+            ),
             validator=_validate_forbidden_imports,
         ),
     }

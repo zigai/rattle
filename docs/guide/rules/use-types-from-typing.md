@@ -21,9 +21,11 @@ For Python ``< 3.9`` only, require ``typing.Dict``, ``typing.List``,
 ``typing.Set``, and ``typing.Tuple`` annotations instead of builtin generic
 aliases such as ``dict[str, str]``.
 
-## Message
+## Message template
 
-For Python < 3.9, builtins.{builtin_type} is used as a type annotation but the type system doesn't recognize it as a valid type. Use typing.{correct_type} instead.
+Python 3.8 does not support `{builtin_type}[...]` annotations; use `typing.{correct_type}` instead.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Valid examples

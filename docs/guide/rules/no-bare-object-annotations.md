@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Require annotations to use a more precise boundary type than bare object.
+Disallow ``object`` as an entire annotation when a narrower type can be used.
 
 ## Message
 
-Use a narrower type than bare object in annotations.
+Replace this bare `object` annotation with a type that describes the value.
 
 
 ## Settings
@@ -34,7 +34,7 @@ Use a narrower type than bare object in annotations.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">excluded_path_parts</span></td>
-      <td>Path parts that should be excluded in addition to test_*.py files.</td>
+      <td>Skip files whose path contains any of these components, in addition to files named test_*.py.</td>
       <td><span class="rule-setting-type">list</span></td>
       <td><span class="rule-setting-default rule-setting-default-plain">[&#x27;tests&#x27;]</span></td>
     </tr>

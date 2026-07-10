@@ -30,7 +30,11 @@ class NoUnsafeTempfileFactories(LintRule):
         ScopeProvider,
     )
     SETTINGS = {
-        "excluded_path_parts": RuleSetting(list[str], default=["tests", "benchmarks"]),
+        "excluded_path_parts": RuleSetting(
+            list[str],
+            default=["tests", "benchmarks"],
+            description="Path components in which this rule is disabled.",
+        ),
     }
 
     VALID = [

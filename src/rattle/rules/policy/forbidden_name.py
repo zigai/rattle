@@ -91,8 +91,10 @@ class ForbiddenName(LintRule):
             list[str],
             default=[],
             description=(
-                "Name patterns to forbid as kind:pattern entries. Entries may be "
-                "kind:pattern or kind:pattern|message."
+                "Names to forbid. Each entry has the form kind:pattern[|message], where "
+                "kind is any, variable, parameter, function, class, attribute, import, "
+                "or alias. Patterns support shell-style wildcards; for example, "
+                "'class:*Manager|Use a specific role name'."
             ),
             validator=_validate_forbidden_names,
         ),

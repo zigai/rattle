@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Discourages ``if`` conditions which evaluate to a static value (e.g. ``or True``, ``and False``, etc).
+Detect ``if`` conditions that appear to evaluate to a constant value.
 
 ## Message
 
-Your if condition appears to evaluate to a static value (e.g. `or True`, `and False`). Please double check this logic and if it is actually temporary debug code.
+This `if` condition appears constant; verify the logic and remove any temporary debug clause.
 
 
 ## Valid examples

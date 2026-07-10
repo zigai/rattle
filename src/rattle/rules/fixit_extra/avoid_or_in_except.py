@@ -22,9 +22,8 @@ class AvoidOrInExcept(LintRule):
     )
 
     MESSAGE: str = (
-        "Avoid using 'or' in an except block. For example:"
-        "'except ValueError or TypeError' only catches 'ValueError'. Instead, use "
-        "parentheses, 'except (ValueError, TypeError)'"
+        "Use `except (ValueError, TypeError):`; `except ValueError or TypeError:` "
+        "catches only `ValueError`."
     )
     VALID = [
         Valid(

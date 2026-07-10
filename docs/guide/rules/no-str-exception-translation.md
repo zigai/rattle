@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Forbid translating exceptions with str(exc) messages that discard typed context.
+Forbid translated exceptions from reusing a caught exception's rendered message.
 
 ## Message
 
-Do not translate exceptions by passing str(exc); use a stable message and chain the cause.
+Use a fixed message when translating an exception, and preserve the cause with `raise ... from exc`.
 
 
 ## Valid examples

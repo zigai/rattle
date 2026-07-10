@@ -12,11 +12,11 @@ from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
 class NoInheritFromObject(LintRule):
     """
-    In Python 3, a class is inherited from ``object`` by default.
-    Explicitly inheriting from ``object`` is redundant, so removing it keeps the code simpler.
+    Python 3 classes inherit from ``object`` implicitly, so an explicit
+    ``object`` base class is redundant.
     """
 
-    MESSAGE = "Inheriting from object is a no-op.  'class Foo:' is just fine =)"
+    MESSAGE = "Remove the redundant `object` base class."
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
     VALID = [
         Valid("class A(something):    pass"),

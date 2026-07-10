@@ -27,7 +27,7 @@ class NoRedundantFString(LintRule):
         'FR"',
     )
 
-    MESSAGE: str = "f-string doesn't have placeholders, remove redundant f-string."
+    MESSAGE: str = "Remove the `f` prefix; this f-string has no replacement fields."
 
     VALID = [
         Valid('good: str = "good"'),

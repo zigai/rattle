@@ -10,14 +10,14 @@ from rattle import Invalid, LintRule, Valid
 
 
 class NoAssertTrueForComparisons(LintRule):
-    """Prefer specific unittest comparison assertions over assertTrue comparisons."""
+    """Prefer specific unittest assertions over comparisons passed to ``assertTrue``."""
 
     NAME = "use-assert-equal"
     SOURCE_PATTERNS = ("assertTrue",)
 
     MESSAGE: str = (
-        '"assertTrue" does not compare its arguments, use "assertEqual" or other '
-        "appropriate functions."
+        "Use `assertEqual()` or `assertNotEqual()` instead of wrapping an equality "
+        "comparison in `assertTrue()`."
     )
 
     VALID = [

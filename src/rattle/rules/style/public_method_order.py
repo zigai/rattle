@@ -171,9 +171,9 @@ def _first_order_violation(
 
 
 class PublicMethodOrder(LintRule):
-    """Require behavior classes to define public methods before private helpers."""
+    """Require public methods before helpers when method order has no special meaning."""
 
-    MESSAGE = "Define public methods before private helpers in behavior classes."
+    MESSAGE = "Define public methods before underscore-prefixed helper methods."
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
     SETTINGS = {
         "class_name_patterns": RuleSetting(
@@ -185,7 +185,8 @@ class PublicMethodOrder(LintRule):
             list[str],
             default=_DEFAULT_EXCLUDED_CLASS_NAME_PATTERNS,
             description=(
-                "Class name glob patterns to skip before structural safety checks are applied."
+                "Class name glob patterns to skip. The rule also skips order-sensitive "
+                "classes such as dataclasses, enums, protocols, and Pydantic models."
             ),
         ),
     }
@@ -366,7 +367,7 @@ class PublicMethodOrder(LintRule):
                     return []
             """,
             expected_message=(
-                "Define public methods before private helpers in behavior classes. "
+                "Define public methods before underscore-prefixed helper methods. "
                 "Public method 'list_models' appears after private helper '_normalize'."
             ),
         ),
@@ -380,7 +381,7 @@ class PublicMethodOrder(LintRule):
                     return []
             """,
             expected_message=(
-                "Define public methods before private helpers in behavior classes. "
+                "Define public methods before underscore-prefixed helper methods. "
                 "Public method 'list_models' appears after private helper '_normalize'."
             ),
             options={"class_name_patterns": ["*Service"]},
@@ -398,7 +399,7 @@ class PublicMethodOrder(LintRule):
                     return value
             """,
             expected_message=(
-                "Define public methods before private helpers in behavior classes. "
+                "Define public methods before underscore-prefixed helper methods. "
                 "Public method 'build' appears after private helper '_normalize'."
             ),
         ),

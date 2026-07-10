@@ -19,9 +19,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Prefer collection literals over unnecessary constructor calls.
 
-## Message
+## Message template
 
-It's unnecessary to use a list or tuple within a call to {func} since there is literal syntax for this type
+Replace this {func}() call with the equivalent collection literal.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Valid examples

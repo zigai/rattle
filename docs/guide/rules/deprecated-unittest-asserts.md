@@ -19,9 +19,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Discourage deprecated unittest assertion aliases.
 
-## Message
+## Message template
 
-{deprecated} is deprecated, use {replacement} instead
+`{deprecated}` is deprecated; use `{replacement}` instead.
+
+Placeholder values are filled in when the violation is reported.
 
 ## References
 

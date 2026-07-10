@@ -22,7 +22,7 @@ class DeprecatedUnittestAsserts(LintRule):
         "assertRaisesRegexp",
     )
 
-    MESSAGE: str = "{deprecated} is deprecated, use {replacement} instead"
+    MESSAGE: str = "`{deprecated}` is deprecated; use `{replacement}` instead."
     REFERENCES = (
         (
             "unittest deprecated aliases",
@@ -45,52 +45,52 @@ class DeprecatedUnittestAsserts(LintRule):
     INVALID = [
         Invalid(
             "self.assertEquals(a, b)",
-            expected_message="assertEquals is deprecated, use assertEqual instead",
+            expected_message="`assertEquals` is deprecated; use `assertEqual` instead.",
             expected_replacement="self.assertEqual(a, b)",
         ),
         Invalid(
             "self.assertNotEquals(a, b)",
-            expected_message="assertNotEquals is deprecated, use assertNotEqual instead",
+            expected_message="`assertNotEquals` is deprecated; use `assertNotEqual` instead.",
             expected_replacement="self.assertNotEqual(a, b)",
         ),
         Invalid(
             "self.assertAlmostEquals(a, b)",
-            expected_message="assertAlmostEquals is deprecated, use assertAlmostEqual instead",
+            expected_message="`assertAlmostEquals` is deprecated; use `assertAlmostEqual` instead.",
             expected_replacement="self.assertAlmostEqual(a, b)",
         ),
         Invalid(
             "self.assertNotAlmostEquals(a, b)",
-            expected_message="assertNotAlmostEquals is deprecated, use assertNotAlmostEqual instead",
+            expected_message="`assertNotAlmostEquals` is deprecated; use `assertNotAlmostEqual` instead.",
             expected_replacement="self.assertNotAlmostEqual(a, b)",
         ),
         Invalid(
             "self.assertRegexpMatches(text, regex)",
-            expected_message="assertRegexpMatches is deprecated, use assertRegex instead",
+            expected_message="`assertRegexpMatches` is deprecated; use `assertRegex` instead.",
             expected_replacement="self.assertRegex(text, regex)",
         ),
         Invalid(
             "self.assertNotRegexpMatches(text, regex)",
-            expected_message="assertNotRegexpMatches is deprecated, use assertNotRegex instead",
+            expected_message="`assertNotRegexpMatches` is deprecated; use `assertNotRegex` instead.",
             expected_replacement="self.assertNotRegex(text, regex)",
         ),
         Invalid(
             "self.assertRaisesRegexp(exception, regex)",
-            expected_message="assertRaisesRegexp is deprecated, use assertRaisesRegex instead",
+            expected_message="`assertRaisesRegexp` is deprecated; use `assertRaisesRegex` instead.",
             expected_replacement="self.assertRaisesRegex(exception, regex)",
         ),
         Invalid(
             "case.assertEquals(a, b)",
-            expected_message="assertEquals is deprecated, use assertEqual instead",
+            expected_message="`assertEquals` is deprecated; use `assertEqual` instead.",
             expected_replacement="case.assertEqual(a, b)",
         ),
         Invalid(
             "cls.assertEquals(a, b)",
-            expected_message="assertEquals is deprecated, use assertEqual instead",
+            expected_message="`assertEquals` is deprecated; use `assertEqual` instead.",
             expected_replacement="cls.assertEqual(a, b)",
         ),
         Invalid(
             "super().assertEquals(a, b)",
-            expected_message="assertEquals is deprecated, use assertEqual instead",
+            expected_message="`assertEquals` is deprecated; use `assertEqual` instead.",
             expected_replacement="super().assertEqual(a, b)",
         ),
     ]

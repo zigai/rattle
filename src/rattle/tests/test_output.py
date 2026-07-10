@@ -100,7 +100,7 @@ class OutputTest(TestCase):
                 start=CodePosition(line=12, column=4),
                 end=CodePosition(line=12, column=8),
             ),
-            message="f-string doesn't have placeholders, remove redundant f-string.",
+            message="Remove the `f` prefix; this f-string has no replacement fields.",
             node=libcst.Name("value"),
             replacement=libcst.Name("fixed"),
         )
@@ -112,8 +112,8 @@ class OutputTest(TestCase):
         )
 
         assert rendered == (
-            "no-redundant-f-string [*] f-string doesn't have placeholders, "
-            "remove redundant f-string.  --> src/example.py:12:5"
+            "no-redundant-f-string [*] Remove the `f` prefix; this f-string has no "
+            "replacement fields.  --> src/example.py:12:5"
         )
 
     def test_render_rattle_brief_violation_pads_rule_name_to_width(self) -> None:

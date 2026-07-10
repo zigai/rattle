@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Require a blank line before block headers unless preceding setup feeds the block.
+Require a blank line before a block unrelated to the preceding statements.
 
 ## Message
 
-Illegal cuddle before block header. The preceding setup must directly feed the upcoming block.
+Add a blank line before this block; the preceding statements do not prepare values used by it.
 
 
 ## Settings
@@ -34,19 +34,19 @@ Illegal cuddle before block header. The preceding setup must directly feed the u
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_setup_before_compact_guard_ladder</span></td>
-      <td>Allow setup statements before compact guard-ladder branches.</td>
+      <td>Allow setup statements before consecutive early-exit branches.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">body_usage_lookahead</span></td>
-      <td>Number of following statements inspected for setup-value usage.</td>
+      <td>Number of block statements checked for uses of preceding values.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">4</span></td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">setup_run_lookback</span></td>
-      <td>Number of preceding setup statements that may stay attached to a block.</td>
+      <td>Number of preceding setup statements that may remain next to a block.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">3</span></td>
     </tr>

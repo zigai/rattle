@@ -21,7 +21,7 @@ Require equality operators when comparing primitive values.
 
 ## Message
 
-Don't use `is` or `is not` to compare primitives, as they compare references. Use == or != instead.
+Use `==` or `!=` for numeric and string values; `is` tests object identity.
 
 ## References
 

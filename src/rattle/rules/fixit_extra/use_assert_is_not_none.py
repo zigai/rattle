@@ -14,17 +14,11 @@ from rattle import Invalid, LintRule, Valid
 
 
 class UseAssertIsNotNone(LintRule):
-    """Prefer assertIsNotNone and assertIsNone for unittest None checks."""
+    """Prefer ``assertIsNotNone`` and ``assertIsNone`` for unittest ``None`` checks."""
 
     SOURCE_PATTERNS = ("assertTrue", "assertFalse")
 
-    MESSAGE: str = '"assertTrue" and "assertFalse" are deprecated. Use "assertIsNotNone" and "assertIsNone" instead.'
-    REFERENCES = (
-        (
-            "unittest deprecated aliases",
-            "https://docs.python.org/3.8/library/unittest.html#deprecated-aliases",
-        ),
-    )
+    MESSAGE: str = "Use `assertIsNone()` or `assertIsNotNone()` for `None` checks."
 
     VALID = [
         Valid("self.assertIsNotNone(x)"),

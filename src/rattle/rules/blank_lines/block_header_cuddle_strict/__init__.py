@@ -5,13 +5,13 @@ from rattle.rules.blank_lines.base import BaseBlockHeaderCuddleRule
 
 
 class BlockHeaderCuddleStrict(BaseBlockHeaderCuddleRule, LintRule):
-    """Strict variant: only the immediately previous assignment may cuddle."""
+    """Allow only the immediately preceding assignment to remain next to a block."""
 
     STRICT = True
     ALLOW_FIRST_BODY_USAGE = False
     MESSAGE = (
-        "Illegal cuddle before block header in strict mode. "
-        "Only the immediately previous assignment may feed the block header."
+        "Add a blank line before this block; only an immediately preceding assignment "
+        "used by the block may remain attached."
     )
 
     VALID = [

@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Require behavior classes to define public methods before private helpers.
+Require public methods before helpers when method order has no special meaning.
 
 ## Message
 
-Define public methods before private helpers in behavior classes.
+Define public methods before underscore-prefixed helper methods.
 
 
 ## Settings
@@ -40,7 +40,7 @@ Define public methods before private helpers in behavior classes.
     </tr>
 <tr>
       <td><span class="rule-setting-name">excluded_class_name_patterns</span></td>
-      <td>Class name glob patterns to skip before structural safety checks are applied.</td>
+      <td>Class name glob patterns to skip. The rule also skips order-sensitive classes such as dataclasses, enums, protocols, and Pydantic models.</td>
       <td><span class="rule-setting-type">list</span></td>
       <td><span class="rule-setting-default rule-setting-default-plain">[&#x27;*Enum&#x27;, &#x27;*Model&#x27;, &#x27;*Record&#x27;, &#x27;*Schema&#x27;, &#x27;*Settings&#x27;, &#x27;*Table&#x27;]</span></td>
     </tr>

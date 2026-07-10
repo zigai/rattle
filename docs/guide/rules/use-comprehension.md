@@ -19,9 +19,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Prefer comprehensions over unnecessary collection constructor calls.
 
-## Message
+## Message template
 
-It's unnecessary to use {func} around a generator expression, since there are equivalent comprehensions for this type.
+Replace this {func}() call with the equivalent comprehension.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Valid examples

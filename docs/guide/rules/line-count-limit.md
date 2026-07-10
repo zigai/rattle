@@ -19,9 +19,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Limit file, function, and method length with optional path-specific settings.
 
-## Message
+## Message template
 
 {target} has {actual_lines} lines, exceeding the configured limit of {max_lines}.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Settings

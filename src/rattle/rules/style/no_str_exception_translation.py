@@ -8,10 +8,11 @@ from rattle.rules.helpers import alias_name, target_names
 
 
 class NoStrExceptionTranslation(LintRule):
-    """Forbid translating exceptions with str(exc) messages that discard typed context."""
+    """Forbid translated exceptions from reusing a caught exception's rendered message."""
 
     MESSAGE = (
-        "Do not translate exceptions by passing str(exc); use a stable message and chain the cause."
+        "Use a fixed message when translating an exception, and preserve the cause with "
+        "`raise ... from exc`."
     )
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
 

@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Require separation after control blocks whose body exits early.
+Require a blank line after control-flow blocks whose body always exits.
 
 ## Message
 
-Missing blank line after terminal control-flow block.
+Add a blank line after this early-exit control-flow block.
 
 
 ## Settings
@@ -34,7 +34,7 @@ Missing blank line after terminal control-flow block.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_compact_guard_ladders</span></td>
-      <td>Allow compact guard-ladder terminal branches without an extra blank line.</td>
+      <td>Allow consecutive early-exit branches without extra blank lines.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
     </tr>

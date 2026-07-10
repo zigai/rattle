@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: `>= 3.3`</span>
 </p>
 
-Require collection ABCs to be imported from collections.abc.
+Require collection abstract base classes to be imported from ``collections.abc``.
 
 ## Message
 
-ABCs must be imported from collections.abc
+Import abstract base classes from `collections.abc`.
 
 
 ## Valid examples

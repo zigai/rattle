@@ -19,9 +19,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 Ban imports that cross configured package or module boundaries.
 
-## Message
+## Message template
 
 Do not import across forbidden boundary '{boundary}'.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Settings
@@ -34,7 +36,7 @@ Do not import across forbidden boundary '{boundary}'.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">forbidden_imports</span></td>
-      <td>Import boundaries to forbid. Entries may be boundary or boundary|message.</td>
+      <td>Import boundaries to forbid. Each entry has the form boundary[|message], for example &#x27;legacy.api|Import from app.api&#x27;.</td>
       <td><span class="rule-setting-type">list</span></td>
       <td><span class="rule-setting-default rule-setting-default-plain">[]</span></td>
     </tr>

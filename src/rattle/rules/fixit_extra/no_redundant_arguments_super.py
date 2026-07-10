@@ -11,9 +11,9 @@ from rattle import Invalid, LintRule, Valid
 
 
 class NoRedundantArgumentsSuper(LintRule):
-    """Remove redundant arguments when using super for readability."""
+    """Prefer zero-argument super calls."""
 
-    MESSAGE: str = "Do not use arguments when calling super for the parent class."
+    MESSAGE: str = "Call `super()` without arguments."
     REFERENCES = (("PEP 3135", "https://www.python.org/dev/peps/pep-3135/"),)
     VALID = [
         Valid(

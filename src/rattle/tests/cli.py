@@ -24,8 +24,8 @@ from .helpers import CliRunner
 def assert_brief_diagnostic(stdout: str, path: Path) -> None:
     line = stdout.strip()
     prefix = (
-        "no-redundant-f-string [*] f-string doesn't have placeholders, "
-        "remove redundant f-string.  --> "
+        "no-redundant-f-string [*] Remove the `f` prefix; this f-string has no "
+        "replacement fields.  --> "
     )
 
     assert line.startswith(prefix)
@@ -148,7 +148,7 @@ class CliTest(TestCase):
         assert result.exit_code == 0
         assert "Rules for " in result.stdout
         assert "1 enabled" in result.stdout
-        assert "use-f-string - Do not use printf style formatting" in result.stdout
+        assert "use-f-string - Use an f-string instead of `%` formatting" in result.stdout
         assert "[fix]" not in result.stdout
         assert "simple_expression_max_length" not in result.stdout
         assert "rattle.rules.fixit_extra.use_fstring:use-f-string" not in result.stdout
@@ -180,7 +180,7 @@ class CliTest(TestCase):
         first_line = result.stdout.splitlines()[0]
         assert "use-f-string [*]  Enabled" in first_line
         assert "rattle.rules.fixit_extra.use_fstring" in first_line
-        assert "Do not use printf style formatting or .format()." in result.stdout
+        assert "Use an f-string instead of `%` formatting or `str.format()`." in result.stdout
         assert "Selector:" not in result.stdout
         assert "module:" not in result.stdout
         assert "Python: Any" in result.stdout
@@ -306,8 +306,8 @@ class CliTest(TestCase):
             line = _rule_line(UseFstring())
 
         assert line.startswith("  <colored>use-f-string</colored> - ")
-        assert " - Do not use printf style formatting" in line
-        assert " - <colored>Do not use printf style formatting" not in line
+        assert " - Use an f-string instead of `%` formatting" in line
+        assert " - <colored>Use an f-string instead of `%` formatting" not in line
 
     def test_find_uv_project_root_accepts_uv_lock(self) -> None:
         with TemporaryDirectory() as td:

@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Prefer f-strings over percent formatting and str.format calls.
+Prefer f-strings over percent formatting and ``str.format`` calls.
 
 ## Message
 
-Do not use printf style formatting or .format(). Use f-string instead to be more readable and efficient.
+Use an f-string instead of `%` formatting or `str.format()`.
 
 ## References
 

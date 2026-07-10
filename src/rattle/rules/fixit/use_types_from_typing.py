@@ -10,9 +10,8 @@ from libcst.metadata import QualifiedNameProvider, ScopeProvider
 from rattle import Invalid, LintRule, Valid
 
 REPLACE_BUILTIN_TYPE_ANNOTATION: str = (
-    "For Python < 3.9, builtins.{builtin_type} is used as a type annotation "
-    "but the type system doesn't recognize it as a valid type."
-    " Use typing.{correct_type} instead."
+    "Python 3.8 does not support `{builtin_type}[...]` annotations; "
+    "use `typing.{correct_type}` instead."
 )
 
 BUILTINS_TO_REPLACE: set[str] = {"dict", "list", "set", "tuple"}

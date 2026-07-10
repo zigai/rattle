@@ -53,11 +53,11 @@ def _is_import_error_expression(expression: cst.BaseExpression) -> bool:
 
 
 class DeprecatedABCImport(LintRule):
-    """Require collection ABCs to be imported from collections.abc."""
+    """Require collection abstract base classes to be imported from ``collections.abc``."""
 
     NAME = "use-collections-abc"
 
-    MESSAGE = "ABCs must be imported from collections.abc"
+    MESSAGE = "Import abstract base classes from `collections.abc`."
     PYTHON_VERSION = ">= 3.3"
     METADATA_DEPENDENCIES = (ParentNodeProvider,)
 

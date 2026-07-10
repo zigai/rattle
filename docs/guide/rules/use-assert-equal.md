@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Prefer specific unittest comparison assertions over assertTrue comparisons.
+Prefer specific unittest assertions over comparisons passed to ``assertTrue``.
 
 ## Message
 
-"assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions.
+Use `assertEqual()` or `assertNotEqual()` instead of wrapping an equality comparison in `assertTrue()`.
 
 
 ## Valid examples

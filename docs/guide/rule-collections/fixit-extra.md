@@ -22,23 +22,23 @@ enable = ["fixit-extra"]
 | Rule | Message | Python | Autofix |
 | --- | --- | --- | :---: |
 | [collapse-isinstance-checks](../rules/collapse-isinstance-checks.md) | Multiple isinstance calls with the same target but different types can be collapsed into a single call with a tuple of types. | Any | Yes |
-| [deprecated-unittest-asserts](../rules/deprecated-unittest-asserts.md) | {deprecated} is deprecated, use {replacement} instead | Any | Yes |
-| [no-inherit-from-object](../rules/no-inherit-from-object.md) | Inheriting from object is a no-op. 'class Foo:' is just fine =) | Any | Yes |
-| [no-or-in-except](../rules/no-or-in-except.md) | Avoid using 'or' in an except block. For example:'except ValueError or TypeError' only catches 'ValueError'. Instead, use parentheses, 'except (ValueError, TypeError)' | Any | No |
-| [no-redundant-arguments-super](../rules/no-redundant-arguments-super.md) | Do not use arguments when calling super for the parent class. | Any | Yes |
-| [no-redundant-f-string](../rules/no-redundant-f-string.md) | f-string doesn't have placeholders, remove redundant f-string. | Any | Yes |
+| [deprecated-unittest-asserts](../rules/deprecated-unittest-asserts.md) | `{deprecated}` is deprecated; use `{replacement}` instead. | Any | Yes |
+| [no-inherit-from-object](../rules/no-inherit-from-object.md) | Remove the redundant `object` base class. | Any | Yes |
+| [no-or-in-except](../rules/no-or-in-except.md) | Use `except (ValueError, TypeError):`; `except ValueError or TypeError:` catches only `ValueError`. | Any | No |
+| [no-redundant-arguments-super](../rules/no-redundant-arguments-super.md) | Call `super()` without arguments. | Any | Yes |
+| [no-redundant-f-string](../rules/no-redundant-f-string.md) | Remove the `f` prefix; this f-string has no replacement fields. | Any | Yes |
 | [no-redundant-lambda](../rules/no-redundant-lambda.md) | The lambda that wraps {function} is redundant and can be replaced by the callable. | Any | Yes |
 | [no-redundant-list-comprehension](../rules/no-redundant-list-comprehension.md) | Unnecessary list comprehension inside {func}(). Use a generator expression instead. | Any | No |
-| [no-string-type-annotation](../rules/no-string-type-annotation.md) | String type hints are no longer necessary in Python, use the type identifier directly. | Any | Yes |
+| [no-string-type-annotation](../rules/no-string-type-annotation.md) | Remove the quotes from this annotation; postponed evaluation is already enabled. | Any | Yes |
 | [replace-union-with-optional](../rules/replace-union-with-optional.md) | `Optional[T]` is preferred over `Union[T, None]` or `Union[None, T]`. | Any | Yes |
-| [use-assert-equal](../rules/use-assert-equal.md) | "assertTrue" does not compare its arguments, use "assertEqual" or other appropriate functions. | Any | Yes |
-| [use-assert-in](../rules/use-assert-in.md) | Use assertIn/assertNotIn instead of assertTrue/assertFalse for inclusion check. | Any | Yes |
-| [use-assert-is-not-none](../rules/use-assert-is-not-none.md) | "assertTrue" and "assertFalse" are deprecated. Use "assertIsNotNone" and "assertIsNone" instead. | Any | Yes |
+| [use-assert-equal](../rules/use-assert-equal.md) | Use `assertEqual()` or `assertNotEqual()` instead of wrapping an equality comparison in `assertTrue()`. | Any | Yes |
+| [use-assert-in](../rules/use-assert-in.md) | Use `assertIn()` or `assertNotIn()` for membership checks. | Any | Yes |
+| [use-assert-is-not-none](../rules/use-assert-is-not-none.md) | Use `assertIsNone()` or `assertIsNotNone()` for `None` checks. | Any | Yes |
 | [use-async-sleep-in-async-def](../rules/use-async-sleep-in-async-def.md) | Do not call blocking time.sleep inside async functions; use asyncio.sleep or an async runtime sleep. | Any | No |
 | [use-cls-in-classmethod](../rules/use-cls-in-classmethod.md) | When using @classmethod, the first argument must be `cls`. | Any | Yes |
-| [use-collections-abc](../rules/use-collections-abc.md) | ABCs must be imported from collections.abc | `>= 3.3` | Yes |
-| [use-comprehension](../rules/use-comprehension.md) | It's unnecessary to use {func} around a generator expression, since there are equivalent comprehensions for this type. | Any | Yes |
-| [use-eq-for-primitives](../rules/use-eq-for-primitives.md) | Don't use `is` or `is not` to compare primitives, as they compare references. Use == or != instead. | Any | Yes |
-| [use-f-string](../rules/use-f-string.md) | Do not use printf style formatting or .format(). Use f-string instead to be more readable and efficient. | Any | Yes |
-| [use-is-for-singletons](../rules/use-is-for-singletons.md) | Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity. Use `is` or `is not` instead. | Any | Yes |
-| [use-literal](../rules/use-literal.md) | It's unnecessary to use a list or tuple within a call to {func} since there is literal syntax for this type | Any | Yes |
+| [use-collections-abc](../rules/use-collections-abc.md) | Import abstract base classes from `collections.abc`. | `>= 3.3` | Yes |
+| [use-comprehension](../rules/use-comprehension.md) | Replace this {func}() call with the equivalent comprehension. | Any | Yes |
+| [use-eq-for-primitives](../rules/use-eq-for-primitives.md) | Use `==` or `!=` for numeric and string values; `is` tests object identity. | Any | Yes |
+| [use-f-string](../rules/use-f-string.md) | Use an f-string instead of `%` formatting or `str.format()`. | Any | Yes |
+| [use-is-for-singletons](../rules/use-is-for-singletons.md) | Compare `None`, `True`, and `False` with `is` or `is not`. | Any | Yes |
+| [use-literal](../rules/use-literal.md) | Replace this {func}() call with the equivalent collection literal. | Any | Yes |

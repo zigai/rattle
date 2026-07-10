@@ -9,7 +9,7 @@ from rattle import Invalid, LintRule, Valid
 
 
 class CompareSingletonPrimitivesByIs(LintRule):
-    """Require identity operators when comparing singleton primitives."""
+    """Require identity operators when comparing ``None``, ``True``, and ``False``."""
 
     NAME = "use-is-for-singletons"
 
@@ -18,10 +18,7 @@ class CompareSingletonPrimitivesByIs(LintRule):
         ("Flake8 E712", "https://www.flake8rules.com/rules/E712.html"),
     )
 
-    MESSAGE: str = (
-        "Comparisons to singleton primitives should not be done with == or !=, as they check equality rather than identity."
-        " Use `is` or `is not` instead."
-    )
+    MESSAGE: str = "Compare `None`, `True`, and `False` with `is` or `is not`."
     VALID = [
         Valid("if x: pass"),
         Valid("if not x: pass"),

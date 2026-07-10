@@ -237,7 +237,7 @@ class SmokeTest(TestCase):
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
             result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
-            assert "use-f-string [*] Do not use printf style formatting" in result.output
+            assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert result.exit_code == 1
             assert result.stderr == "2 files checked, 1 violation in 1 file, 1 autofixable\n"
@@ -253,7 +253,7 @@ class SmokeTest(TestCase):
                 ["lint", "-r", "use-f-string", dirty.as_posix()],
                 catch_exceptions=False,
             )
-            assert "use-f-string [*] Do not use printf style formatting" in result.output
+            assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
             assert result.exit_code == 1
 
     def test_cli_short_rule_selector_resolves_configured_local_rule(self) -> None:
@@ -474,7 +474,7 @@ class SmokeTest(TestCase):
             (tdp / "broken.py").write_text("print)\n")
 
             result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
-            assert "use-f-string [*] Do not use printf style formatting" in result.output
+            assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)

@@ -168,9 +168,13 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 {{ rule.description }}
 
 {% if rule.message %}
-## Message
+## {{ "Message template" if rule.message_is_template else "Message" }}
 
 {{ rule.message }}
+{% if rule.message_is_template %}
+
+Placeholder values are filled in when the violation is reported.
+{% endif %}
 {% endif %}
 
 {% if rule.references %}
@@ -353,6 +357,7 @@ class RuleDoc:
     toctree_path: str
     description: str
     message: str
+    message_is_template: bool
     message_short: str
     references: Sequence[ReferenceDoc]
     autofix: str
@@ -544,6 +549,7 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
     slug = name
     description = markdown_text(redent(rule_doc(rule)))
     message = markdown_text(redent(str(getattr(rule, "MESSAGE", ""))))
+    message_is_template = bool(re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", message))
     references = tuple(reference_doc(reference) for reference in rule.REFERENCES)
     message_short = markdown_table_cell(message or "—")
     python_version = getattr(rule, "PYTHON_VERSION", "") or "Any"
@@ -593,6 +599,7 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
         toctree_path=f"rules/{slug}",
         description=description,
         message=message,
+        message_is_template=message_is_template,
         message_short=message_short,
         references=references,
         autofix="Yes" if rule.AUTOFIX else "No",

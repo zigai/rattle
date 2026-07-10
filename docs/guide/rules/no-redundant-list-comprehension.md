@@ -21,9 +21,11 @@ Prefer generator expressions inside ``any()`` and ``all()``. Replacing a list
 comprehension changes eager evaluation into lazy short-circuiting, so side
 effects in later iterations may no longer run.
 
-## Message
+## Message template
 
 Unnecessary list comprehension inside {func}(). Use a generator expression instead.
+
+Placeholder values are filled in when the violation is reported.
 
 
 ## Valid examples

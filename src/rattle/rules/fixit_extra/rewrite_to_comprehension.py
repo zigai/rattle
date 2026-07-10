@@ -10,13 +10,9 @@ from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameS
 
 from rattle import Invalid, LintRule, Valid
 
-UNNECESSARY_GENERATOR: str = (
-    "It's unnecessary to use {func} around a generator expression, since "
-    "there are equivalent comprehensions for this type."
-)
+UNNECESSARY_GENERATOR: str = "Replace this {func}() call with the equivalent comprehension."
 UNNECESSARY_LIST_COMPREHENSION: str = (
-    "It's unnecessary to use a list comprehension inside a call to {func} "
-    "since there are equivalent comprehensions for this type"
+    "Replace the list comprehension inside {func}() with the equivalent comprehension."
 )
 
 

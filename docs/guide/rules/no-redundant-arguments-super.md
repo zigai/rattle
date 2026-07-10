@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Remove redundant arguments when using super for readability.
+Prefer zero-argument super calls.
 
 ## Message
 
-Do not use arguments when calling super for the parent class.
+Call `super()` without arguments.
 
 ## References
 

@@ -21,4 +21,4 @@ enable = ["typing"]
 
 | Rule | Message | Python | Autofix |
 | --- | --- | --- | :---: |
-| [no-bare-object-annotations](../rules/no-bare-object-annotations.md) | Use a narrower type than bare object in annotations. | Any | No |
+| [no-bare-object-annotations](../rules/no-bare-object-annotations.md) | Replace this bare `object` annotation with a type that describes the value. | Any | No |

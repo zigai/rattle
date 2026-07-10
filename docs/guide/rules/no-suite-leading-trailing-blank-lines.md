@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Disallow leading/trailing empty lines at suite boundaries.
+Disallow empty lines at the beginning or end of code blocks.
 
 ## Message
 
-Leading or trailing blank lines in a suite are not allowed.
+Remove blank lines at the beginning or end of a code block.
 
 
 ## Valid examples

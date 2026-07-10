@@ -17,11 +17,11 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
   <span>Python: Any</span>
 </p>
 
-Require branch statements to be visually separated in large suites.
+Require a blank line before branch statements in larger code blocks.
 
 ## Message
 
-Missing blank line before return/raise/break/continue in a large suite.
+Add a blank line before this branch statement in a larger code block.
 
 
 ## Settings
@@ -34,7 +34,7 @@ Missing blank line before return/raise/break/continue in a large suite.
   <tbody>
 <tr>
       <td><span class="rule-setting-name">allow_guard_ladder_final_branch</span></td>
-      <td>Allow compact final branches in guard-ladder control flow.</td>
+      <td>Allow the final branch in a consecutive sequence of early-exit branches to remain unseparated.</td>
       <td><span class="rule-setting-type">bool</span></td>
       <td><span class="rule-setting-default rule-setting-default-constant">True</span></td>
     </tr>
@@ -46,13 +46,13 @@ Missing blank line before return/raise/break/continue in a large suite.
     </tr>
 <tr>
       <td><span class="rule-setting-name">compact_tail_max_statements</span></td>
-      <td>Maximum compact tail size allowed before a final branch statement.</td>
+      <td>Maximum number of statements allowed to remain grouped with a final branch statement.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
     </tr>
 <tr>
       <td><span class="rule-setting-name">max_suite_non_empty_lines</span></td>
-      <td>Minimum non-empty suite size before branch statements require spacing.</td>
+      <td>Maximum number of non-empty lines allowed in a block before branch statements require a preceding blank line.</td>
       <td><span class="rule-setting-type">int</span></td>
       <td><span class="rule-setting-default rule-setting-default-number">2</span></td>
     </tr>

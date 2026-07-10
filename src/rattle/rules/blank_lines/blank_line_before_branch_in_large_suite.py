@@ -24,12 +24,12 @@ from rattle.rules.blank_lines.utils import (
 
 
 class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
-    """Require branch statements to be visually separated in large suites."""
+    """Require a blank line before branch statements in larger code blocks."""
 
     NAME = "blank-line-before-branch"
     SOURCE_PATTERNS = (b"return", b"raise", b"break", b"continue")
 
-    MESSAGE = "Missing blank line before return/raise/break/continue in a large suite."
+    MESSAGE = "Add a blank line before this branch statement in a larger code block."
     EXTRA_MESSAGE = (
         "Unnecessary blank line before returning an immediately preceding annotated binding."
     )
@@ -38,13 +38,19 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             int,
             default=2,
             validator=validate_non_negative_int,
-            description="Minimum non-empty suite size before branch statements require spacing.",
+            description=(
+                "Maximum number of non-empty lines allowed in a block before branch "
+                "statements require a preceding blank line."
+            ),
         ),
         "compact_tail_max_statements": RuleSetting(
             int,
             default=2,
             validator=validate_non_negative_int,
-            description="Maximum compact tail size allowed before a final branch statement.",
+            description=(
+                "Maximum number of statements allowed to remain grouped with a final "
+                "branch statement."
+            ),
         ),
         "allow_related_return_tails": RuleSetting(
             bool,
@@ -54,7 +60,10 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
         "allow_guard_ladder_final_branch": RuleSetting(
             bool,
             default=True,
-            description="Allow compact final branches in guard-ladder control flow.",
+            description=(
+                "Allow the final branch in a consecutive sequence of early-exit branches "
+                "to remain unseparated."
+            ),
         ),
     }
 
