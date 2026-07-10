@@ -21,9 +21,8 @@ from interfacy.schema.schema import ArgumentKind, ParserSchema
 from stdl.st import colored
 
 from rattle.__version__ import __version__
-
-from .api import rattle_bytes, rattle_paths
-from .config import (
+from rattle.api import rattle_bytes, rattle_paths
+from rattle.config import (
     CollectionError,
     ConfigError,
     collect_rule_types,
@@ -33,9 +32,9 @@ from .config import (
     resolve_rule_type,
     validate_config,
 )
-from .console import AsyncConsole, echo, getchar
-from .explain import RuleInfo, render_console_rule_info
-from .ftypes import (
+from rattle.console import AsyncConsole, echo, getchar
+from rattle.explain import RuleInfo, render_console_rule_info
+from rattle.ftypes import (
     STDIN,
     Config,
     FileContent,
@@ -46,11 +45,11 @@ from .ftypes import (
     Result,
     RuleSelector,
 )
-from .output import render_console_result
-from .pyproject import TOMLDecodeError, load_pyproject
-from .rule import LintRule
-from .testing import generate_lint_rule_test_cases
-from .util import capture
+from rattle.output import render_console_result
+from rattle.pyproject import TOMLDecodeError, load_pyproject
+from rattle.rule import LintRule
+from rattle.testing import generate_lint_rule_test_cases
+from rattle.util import capture
 
 UV_REEXEC_ENV = "RATTLE_UV_RUN_REEXEC"
 UV_REEXEC_DISABLE_ENV = "RATTLE_NO_UV_RUN_REEXEC"

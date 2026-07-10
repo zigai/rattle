@@ -16,14 +16,14 @@ from pathlib import Path
 import trailrunner
 from libcst import ParserSyntaxError
 
-from .ast import AstParseError
-from .cache import ResultCache
-from .config import CollectionError, ConfigError, collect_rules, generate_config
-from .console import echo, echo_color_precomputed_diff
-from .engine import LintRunner, diff_module
-from .errors import RattleError
-from .format import format_module, format_paths
-from .ftypes import (
+from rattle.ast import AstParseError
+from rattle.cache import ResultCache
+from rattle.config import CollectionError, ConfigError, collect_rules, generate_config
+from rattle.console import echo, echo_color_precomputed_diff
+from rattle.engine import LintRunner, diff_module
+from rattle.errors import RattleError
+from rattle.format import format_module, format_paths
+from rattle.ftypes import (
     STDIN,
     Config,
     FileContent,
@@ -34,8 +34,8 @@ from .ftypes import (
     OutputFormat,
     Result,
 )
-from .output import render_rattle_result
-from .rule import LintRule, RuleConfigurationError
+from rattle.output import render_rattle_result
+from rattle.rule import LintRule, RuleConfigurationError
 
 LOG = logging.getLogger(__name__)
 ConfiguredPath = tuple[Path, Config, bool]

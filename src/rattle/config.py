@@ -22,9 +22,9 @@ from types import ModuleType
 from packaging.specifiers import SpecifierSet
 from packaging.version import InvalidVersion, Version
 
-from .config_models import ConfigModelError, parse_rattle_config, parse_ruff_config
-from .format import FORMAT_STYLES
-from .ftypes import (
+from rattle.config_models import ConfigModelError, parse_rattle_config, parse_ruff_config
+from rattle.format import FORMAT_STYLES
+from rattle.ftypes import (
     Config,
     Options,
     OutputFormat,
@@ -39,9 +39,9 @@ from .ftypes import (
     is_rule_option_value,
     is_sequence,
 )
-from .pyproject import TOMLDecodeError, load_pyproject
-from .rule import LintRule, RuleConfigurationError
-from .util import append_sys_path
+from rattle.pyproject import TOMLDecodeError, load_pyproject
+from rattle.rule import LintRule, RuleConfigurationError
+from rattle.util import append_sys_path
 
 RATTLE_CONFIG_FILENAMES = ("pyproject.toml",)
 RATTLE_LOCAL_MODULE = "rattle.local"

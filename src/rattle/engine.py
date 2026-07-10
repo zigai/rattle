@@ -22,9 +22,9 @@ from libcst.metadata import (
 )
 from moreorless import unified_diff
 
-from .ast import AstParseError
-from .errors import RattleRuleExecutionError
-from .ftypes import (
+from rattle.ast import AstParseError
+from rattle.errors import RattleRuleExecutionError
+from rattle.ftypes import (
     CodeRange,
     Config,
     FileContent,
@@ -33,7 +33,7 @@ from .ftypes import (
     MetricsHook,
     NodeReplacement,
 )
-from .rule import LintRule
+from rattle.rule import LintRule
 
 LOG = logging.getLogger(__name__)
 _RULE_SOURCE_FILTERS: dict[type[LintRule], tuple[bytes, ...] | None] = {}

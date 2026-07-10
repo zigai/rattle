@@ -26,9 +26,8 @@ from rattle.ftypes import (
     Version,
 )
 from rattle.rule import LintRule
+from rattle.tests.helpers import CliRunner
 from rattle.util import chdir
-
-from .helpers import CliRunner
 
 
 class ConfigTest(TestCase):

@@ -7,9 +7,9 @@ from dataclasses import dataclass
 
 from stdl.st import colored
 
-from .console import echo
-from .ftypes import Invalid, Valid
-from .rule import LintRule, RuleReference, RuleSetting
+from rattle.console import echo
+from rattle.ftypes import Invalid, Valid
+from rattle.rule import LintRule, RuleReference, RuleSetting
 
 JsonValue = None | str | int | float | bool | list["JsonValue"] | dict[str, "JsonValue"]
 

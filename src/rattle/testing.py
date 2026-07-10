@@ -11,9 +11,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from .engine import LintRunner, diff_violation
-from .ftypes import Config, Invalid, Valid
-from .rule import LintRule
+from rattle.engine import LintRunner, diff_violation
+from rattle.ftypes import Config, Invalid, Valid
+from rattle.rule import LintRule
 
 
 class Patch(Protocol):

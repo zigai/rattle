@@ -5,11 +5,11 @@
 
 """Linting framework built on LibCST, with automatic fixes."""
 
-from .__version__ import __version__
-from .api import print_result, rattle_bytes, rattle_file, rattle_paths
-from .ast import AstContext, AstParseError, AstProvider
-from .format import Formatter
-from .ftypes import (
+from rattle.__version__ import __version__
+from rattle.api import print_result, rattle_bytes, rattle_file, rattle_paths
+from rattle.ast import AstContext, AstParseError, AstProvider
+from rattle.format import Formatter
+from rattle.ftypes import (
     CodePosition,
     CodeRange,
     Config,
@@ -23,7 +23,7 @@ from .ftypes import (
     Tags,
     Valid,
 )
-from .rule import LintRule, RuleReference, RuleSetting
+from rattle.rule import LintRule, RuleReference, RuleSetting
 
 __all__ = [
     "AstContext",

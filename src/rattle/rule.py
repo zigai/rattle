@@ -42,7 +42,7 @@ from libcst.metadata import (
     ProviderT,
 )
 
-from .ftypes import (
+from rattle.ftypes import (
     FileContent,
     Invalid,
     LintViolation,

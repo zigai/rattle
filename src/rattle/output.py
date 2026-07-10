@@ -7,9 +7,9 @@ from pathlib import Path
 from libcst import ParserSyntaxError
 from stdl.st import colored
 
-from .ast import AstParseError
-from .console import color_precomputed_diff
-from .ftypes import CodePosition, CodeRange, FileContent, LintViolation, OutputFormat, Result
+from rattle.ast import AstParseError
+from rattle.console import color_precomputed_diff
+from rattle.ftypes import CodePosition, CodeRange, FileContent, LintViolation, OutputFormat, Result
 
 _PARSER_ERROR_PREFIX = re.compile(r"^parser error:\s*", re.IGNORECASE)
 _PARSER_LOCATION_PREFIX = re.compile(r"^error at \d+:\d+:\s*", re.IGNORECASE)

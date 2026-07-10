@@ -19,8 +19,8 @@ from msgspec.json import Decoder as JsonDecoder
 from msgspec.json import encode as encode_json
 from platformdirs import user_cache_path
 
-from .config import locate_configs
-from .ftypes import (
+from rattle.config import locate_configs
+from rattle.ftypes import (
     CodePosition,
     CodeRange,
     Config,
@@ -29,7 +29,7 @@ from .ftypes import (
     Options,
     Result,
 )
-from .rule import LintRule
+from rattle.rule import LintRule
 
 LOG = logging.getLogger(__name__)
 CACHE_VERSION = "results-v1"

@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING
 
 from libcst import Module
 
-from .errors import RattleFormatterError
-from .ftypes import Config, FileContent
-from .pyproject import TOMLDecodeError, load_pyproject
+from rattle.errors import RattleFormatterError
+from rattle.ftypes import Config, FileContent
+from rattle.pyproject import TOMLDecodeError, load_pyproject
 
 if TYPE_CHECKING:
     import black

@@ -6,13 +6,12 @@
 from rattle.config import collect_rules
 from rattle.ftypes import Config, QualifiedRule
 from rattle.testing import add_lint_rule_tests_to_module
-
-from .cli import CliTest
-from .config import ConfigTest
-from .engine import EngineTest
-from .ftypes import TypesTest
-from .rule import RuleTest, RunnerTest
-from .smoke import SmokeTest
+from rattle.tests.cli import CliTest
+from rattle.tests.config import ConfigTest
+from rattle.tests.engine import EngineTest
+from rattle.tests.ftypes import TypesTest
+from rattle.tests.rule import RuleTest, RunnerTest
+from rattle.tests.smoke import SmokeTest
 
 add_lint_rule_tests_to_module(
     globals(),

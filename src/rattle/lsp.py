@@ -27,12 +27,12 @@ from pygls import uris
 from pygls.lsp.server import LanguageServer
 from pygls.workspace.text_document import TextDocument
 
-from .__version__ import __version__
-from .api import rattle_bytes
-from .config import generate_config, locate_configs
-from .errors import RattleExecutionError
-from .ftypes import Config, FileContent, LSPOptions, Options, Result
-from .util import capture
+from rattle.__version__ import __version__
+from rattle.api import rattle_bytes
+from rattle.config import generate_config, locate_configs
+from rattle.errors import RattleExecutionError
+from rattle.ftypes import Config, FileContent, LSPOptions, Options, Result
+from rattle.util import capture
 
 
 class LSP:

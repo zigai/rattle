@@ -17,7 +17,7 @@ from libcst._add_slots import add_slots
 from libcst.metadata import CodePosition, CodeRange
 from packaging.version import Version
 
-from .errors import RattleError, RattleExecutionError
+from rattle.errors import RattleError, RattleExecutionError
 
 __all__ = ["CodePosition", "CodeRange", "Version"]
 

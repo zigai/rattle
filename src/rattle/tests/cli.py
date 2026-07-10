@@ -15,8 +15,7 @@ from rattle.cli import _find_uv_project_root, _rule_line, _should_reexec_with_uv
 from rattle.ftypes import Options
 from rattle.rule import LintRule
 from rattle.rules.fixit_extra.use_fstring import UseFstring
-
-from .helpers import CliRunner
+from rattle.tests.helpers import CliRunner
 
 
 def assert_brief_diagnostic(stdout: str, path: Path) -> None:

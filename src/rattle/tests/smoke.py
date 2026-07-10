@@ -12,8 +12,7 @@ from unittest import TestCase
 
 from rattle import __version__
 from rattle.cli import main
-
-from .helpers import CliRunner
+from rattle.tests.helpers import CliRunner
 
 
 class SmokeTest(TestCase):
