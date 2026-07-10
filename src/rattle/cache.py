@@ -13,8 +13,10 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Literal
 
-import msgspec
 from libcst import Name
+from msgspec import DecodeError, Struct, field
+from msgspec.json import Decoder as JsonDecoder
+from msgspec.json import encode as encode_json
 from platformdirs import user_cache_path
 
 from .config import locate_configs
@@ -36,12 +38,12 @@ CACHE_MAX_BYTES = 250 * 1024 * 1024
 CACHE_PRUNE_TARGET_BYTES = 200 * 1024 * 1024
 
 
-class CachedCodePosition(msgspec.Struct, frozen=True):
+class CachedCodePosition(Struct, frozen=True):
     line: int
     column: int
 
 
-class CachedCodeRange(msgspec.Struct, frozen=True):
+class CachedCodeRange(Struct, frozen=True):
     start: CachedCodePosition
     end: CachedCodePosition
 
@@ -59,7 +61,7 @@ class CachedCodeRange(msgspec.Struct, frozen=True):
         )
 
 
-class SerializedViolationCacheEntry(msgspec.Struct, frozen=True):
+class SerializedViolationCacheEntry(Struct, frozen=True):
     rule_name: str
     range: CachedCodeRange
     message: str
@@ -88,7 +90,7 @@ class SerializedViolationCacheEntry(msgspec.Struct, frozen=True):
         )
 
 
-class ResultCacheEntry(msgspec.Struct, frozen=True, kw_only=True, omit_defaults=True):
+class ResultCacheEntry(Struct, frozen=True, kw_only=True, omit_defaults=True):
     version: Literal["results-v1"]
     mtime_ns: int
     size: int
@@ -96,10 +98,10 @@ class ResultCacheEntry(msgspec.Struct, frozen=True, kw_only=True, omit_defaults=
     rule_fingerprints: list[object]
     rule_fingerprint_hash: str | None = None
     source: str | None = None
-    violations: list[SerializedViolationCacheEntry] = msgspec.field(default_factory=list)
+    violations: list[SerializedViolationCacheEntry] = field(default_factory=list)
 
 
-class CleanStatusCacheEntry(msgspec.Struct, frozen=True, kw_only=True, omit_defaults=True):
+class CleanStatusCacheEntry(Struct, frozen=True, kw_only=True, omit_defaults=True):
     version: Literal["results-v1"]
     status: Literal["clean"]
     mtime_ns: int
@@ -108,8 +110,8 @@ class CleanStatusCacheEntry(msgspec.Struct, frozen=True, kw_only=True, omit_defa
     rule_fingerprint_hash: str | None = None
 
 
-RESULT_CACHE_DECODER = msgspec.json.Decoder(ResultCacheEntry, strict=True)
-CLEAN_STATUS_CACHE_DECODER = msgspec.json.Decoder(CleanStatusCacheEntry, strict=True)
+RESULT_CACHE_DECODER = JsonDecoder(ResultCacheEntry, strict=True)
+CLEAN_STATUS_CACHE_DECODER = JsonDecoder(CleanStatusCacheEntry, strict=True)
 
 
 @dataclass(frozen=True)
@@ -292,7 +294,7 @@ class ResultCache:
         try:
             raw = self._result_entry_path(cache_key).read_bytes()
             entry = RESULT_CACHE_DECODER.decode(raw)
-        except (OSError, msgspec.DecodeError):
+        except (OSError, DecodeError):
             return None
 
         if (
@@ -342,7 +344,7 @@ class ResultCache:
         try:
             raw = self._clean_status_entry_path(cache_key).read_bytes()
             entry = CLEAN_STATUS_CACHE_DECODER.decode(raw)
-        except (OSError, msgspec.DecodeError):
+        except (OSError, DecodeError):
             return None
 
         if entry.mtime_ns != stat.st_mtime_ns or entry.size != stat.st_size:
@@ -358,14 +360,14 @@ class ResultCache:
     def _write_json(
         self,
         entry_path: Path,
-        entry: msgspec.Struct,
+        entry: Struct,
         *,
         error_message: str,
     ) -> None:
         try:
             entry_path.parent.mkdir(parents=True, exist_ok=True)
             tmp_path = entry_path.with_name(f"{entry_path.name}.{os.getpid()}.{uuid.uuid4()}.tmp")
-            tmp_path.write_bytes(msgspec.json.encode(entry, order="sorted"))
+            tmp_path.write_bytes(encode_json(entry, order="sorted"))
             tmp_path.replace(entry_path)
             _prune_cache(self.root)
         except OSError:

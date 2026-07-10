@@ -4,53 +4,53 @@ from collections.abc import Mapping
 from datetime import date, datetime, time
 from typing import TypeVar
 
-import msgspec
+from msgspec import Struct, ValidationError, convert, field, to_builtins
 
-ModelT = TypeVar("ModelT", bound=msgspec.Struct)
+ModelT = TypeVar("ModelT", bound=Struct)
 
 
 class ConfigModelError(ValueError):
     """Raised when structured configuration does not match its boundary model."""
 
 
-class OverrideConfigModel(msgspec.Struct, kw_only=True, omit_defaults=True):
+class OverrideConfigModel(Struct, kw_only=True, omit_defaults=True):
     path: str
-    enable: list[str] = msgspec.field(default_factory=list)
-    disable: list[str] = msgspec.field(default_factory=list)
-    options: dict[str, object] | list[dict[str, object]] = msgspec.field(default_factory=dict)
-    python_version: str | None = msgspec.field(default=None, name="python-version")
+    enable: list[str] = field(default_factory=list)
+    disable: list[str] = field(default_factory=list)
+    options: dict[str, object] | list[dict[str, object]] = field(default_factory=dict)
+    python_version: str | None = field(default=None, name="python-version")
     formatter: str | None = None
 
 
-class RattleConfigModel(msgspec.Struct, kw_only=True, omit_defaults=True):
+class RattleConfigModel(Struct, kw_only=True, omit_defaults=True):
     root: bool = False
-    enable_root_import: bool | str = msgspec.field(default=False, name="enable-root-import")
-    enable: list[str] = msgspec.field(default_factory=list)
-    disable: list[str] = msgspec.field(default_factory=list)
-    options: dict[str, object] | list[dict[str, object]] = msgspec.field(default_factory=dict)
-    python_version: str | None = msgspec.field(default=None, name="python-version")
+    enable_root_import: bool | str = field(default=False, name="enable-root-import")
+    enable: list[str] = field(default_factory=list)
+    disable: list[str] = field(default_factory=list)
+    options: dict[str, object] | list[dict[str, object]] = field(default_factory=dict)
+    python_version: str | None = field(default=None, name="python-version")
     formatter: str | None = None
-    output_format: str | None = msgspec.field(default=None, name="output-format")
-    output_template: str | None = msgspec.field(default=None, name="output-template")
-    exclude: list[str] = msgspec.field(default_factory=list)
-    inherit_ruff_files: bool = msgspec.field(default=False, name="inherit-ruff-files")
-    per_file_enable: dict[str, list[str]] = msgspec.field(
+    output_format: str | None = field(default=None, name="output-format")
+    output_template: str | None = field(default=None, name="output-template")
+    exclude: list[str] = field(default_factory=list)
+    inherit_ruff_files: bool = field(default=False, name="inherit-ruff-files")
+    per_file_enable: dict[str, list[str]] = field(
         default_factory=dict,
         name="per-file-enable",
     )
-    per_file_disable: dict[str, list[str]] = msgspec.field(
+    per_file_disable: dict[str, list[str]] = field(
         default_factory=dict,
         name="per-file-disable",
     )
-    overrides: list[OverrideConfigModel] = msgspec.field(default_factory=list)
+    overrides: list[OverrideConfigModel] = field(default_factory=list)
 
 
-class RuffConfigModel(msgspec.Struct, kw_only=True, omit_defaults=True):
-    include: list[str] = msgspec.field(default_factory=list)
-    extend_include: list[str] = msgspec.field(default_factory=list, name="extend-include")
-    exclude: list[str] = msgspec.field(default_factory=list)
-    extend_exclude: list[str] = msgspec.field(default_factory=list, name="extend-exclude")
-    force_exclude: bool = msgspec.field(default=False, name="force-exclude")
+class RuffConfigModel(Struct, kw_only=True, omit_defaults=True):
+    include: list[str] = field(default_factory=list)
+    extend_include: list[str] = field(default_factory=list, name="extend-include")
+    exclude: list[str] = field(default_factory=list)
+    extend_exclude: list[str] = field(default_factory=list, name="extend-exclude")
+    force_exclude: bool = field(default=False, name="force-exclude")
 
 
 RATTLE_CONFIG_KEYS = frozenset(
@@ -78,14 +78,14 @@ OVERRIDE_CONFIG_KEYS = frozenset(
 
 def _convert_config(value: object, model_type: type[ModelT]) -> ModelT:
     try:
-        return msgspec.convert(value, type=model_type, strict=True)
-    except msgspec.ValidationError as e:
+        return convert(value, type=model_type, strict=True)
+    except ValidationError as e:
         raise ConfigModelError(str(e)) from None
 
 
 def parse_rattle_config(value: object) -> dict[str, object]:
     model = _convert_config(value, RattleConfigModel)
-    parsed = msgspec.to_builtins(
+    parsed = to_builtins(
         model,
         builtin_types=(date, datetime, time),
     )
