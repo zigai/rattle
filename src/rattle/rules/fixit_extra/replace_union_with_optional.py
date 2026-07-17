@@ -7,7 +7,6 @@ from pathlib import Path
 
 import libcst as cst
 import libcst.matchers as m
-from libcst.metadata import ScopeProvider
 
 from rattle import FileContent, Invalid, LintRule, Valid
 
@@ -19,7 +18,6 @@ class ReplaceUnionWithOptional(LintRule):
     REFERENCES = (
         ("typing.Optional", "https://docs.python.org/3/library/typing.html#typing.Optional"),
     )
-    METADATA_DEPENDENCIES = (ScopeProvider,)
     VALID = [
         Valid(
             """
@@ -53,11 +51,6 @@ class ReplaceUnionWithOptional(LintRule):
             def func() -> Union[Dict[str, int], None]:
                 pass
             """,
-            expected_replacement="""
-            from typing import Optional
-            def func() -> Optional[Dict[str, int]]:
-                pass
-            """,
         ),
         Invalid(
             """
@@ -65,21 +58,11 @@ class ReplaceUnionWithOptional(LintRule):
             def func() -> Union[str, None]:
                 pass
             """,
-            expected_replacement="""
-            from typing import Optional
-            def func() -> Optional[str]:
-                pass
-            """,
         ),
         Invalid(
             """
             from typing import Optional
             def func() -> Union[Dict, None]:
-                pass
-            """,
-            expected_replacement="""
-            from typing import Optional
-            def func() -> Optional[Dict]:
                 pass
             """,
         ),
@@ -91,25 +74,7 @@ class ReplaceUnionWithOptional(LintRule):
 
     def leave_Annotation(self, original_node: cst.Annotation) -> None:
         if self.contains_union_with_none(original_node):
-            scope = self.get_metadata(ScopeProvider, original_node, None)
-            nones = 0
-            indexes = []
-            replacement = None
-            if scope is not None and "Optional" in scope:
-                for s in cst.ensure_type(original_node.annotation, cst.Subscript).slice:
-                    if m.matches(s, m.SubscriptElement(m.Index(m.Name("None")))):
-                        nones += 1
-                    else:
-                        indexes.append(s.slice)
-                if not (nones > 1) and len(indexes) == 1:
-                    replacement = original_node.with_changes(
-                        annotation=cst.Subscript(
-                            value=cst.Name("Optional"),
-                            slice=(cst.SubscriptElement(indexes[0]),),
-                        )
-                    )
-                    # TODO(T57106602) refactor lint replacement once extract exists
-            self.report(original_node, self.MESSAGE, replacement=replacement)
+            self.report(original_node, self.MESSAGE)
 
     def contains_union_with_none(self, node: cst.Annotation) -> bool:
         return m.matches(

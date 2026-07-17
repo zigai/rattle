@@ -8,8 +8,10 @@ from collections.abc import Sequence
 import libcst as cst
 import libcst.matchers as m
 from libcst.helpers import ensure_type
+from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import enclosing_class_defines_method
 
 
 class UseAssertIsNotNone(LintRule):
@@ -18,6 +20,7 @@ class UseAssertIsNotNone(LintRule):
     SOURCE_PATTERNS = ("assertTrue", "assertFalse")
 
     MESSAGE: str = "Use `assertIsNone()` or `assertIsNotNone()` for `None` checks."
+    METADATA_DEPENDENCIES = (ParentNodeProvider,)
 
     VALID = [
         Valid("self.assertIsNotNone(x)"),
@@ -77,24 +80,6 @@ class UseAssertIsNotNone(LintRule):
         ),
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._class_method_stack: list[set[str]] = []
-
-    def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        self._class_method_stack.append(
-            {
-                statement.name.value
-                for statement in node.body.body
-                if isinstance(statement, cst.FunctionDef)
-            }
-        )
-
-    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
-        del original_node
-
-        self._class_method_stack.pop()
-
     def _first_extracted_node(
         self,
         extracted: cst.CSTNode | Sequence[cst.CSTNode],
@@ -144,7 +129,7 @@ class UseAssertIsNotNone(LintRule):
                 self._first_extracted_node(result["assertion_name"]),
                 cst.Name,
             )
-            if self._class_defines_assertion_method(assertion_name.value):
+            if enclosing_class_defines_method(self, node, assertion_name.value):
                 return
 
             argument = ensure_type(
@@ -176,9 +161,6 @@ class UseAssertIsNotNone(LintRule):
 
             if new_call is not node:
                 self.report(node, self.MESSAGE, replacement=new_call)
-
-    def _class_defines_assertion_method(self, name: str) -> bool:
-        return bool(self._class_method_stack and name in self._class_method_stack[-1])
 
 
 __all__ = [

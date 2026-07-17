@@ -39,4 +39,4 @@ class NoUnderscoreImportAliases(LintRule):
         if not node.asname.name.value.startswith("_"):
             return
 
-        self.report(node, self.MESSAGE)
+        self.report(node.asname.name, self.MESSAGE)

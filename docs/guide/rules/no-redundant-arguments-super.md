@@ -13,7 +13,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
-  <span>Autofix: Yes</span>
+  <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
 
@@ -83,13 +83,6 @@ class Foo(Bar):
     def foo(self, bar):
         super(Foo, self).foo(bar)
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-class Foo(Bar):
-    def foo(self, bar):
-        super().foo(bar)
-```
 ```{raw} html
 </div>
 ```
@@ -97,7 +90,7 @@ class Foo(Bar):
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 class Foo(Bar):
@@ -105,33 +98,17 @@ class Foo(Bar):
     def foo(cls, bar):
         super(Foo, cls).foo(bar)
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-class Foo(Bar):
-    @classmethod
-    def foo(cls, bar):
-        super().foo(bar)
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 class Foo:
     class InnerFoo(Bar):
         def foo(self, bar):
             super(Foo.InnerFoo, self).foo(bar)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-class Foo:
-    class InnerFoo(Bar):
-        def foo(self, bar):
-            super().foo(bar)
 ```
 ```{raw} html
 </div>
@@ -145,15 +122,6 @@ class Foo:
         class InnerInnerFoo(Bar):
             def foo(self, bar):
                 super(Foo.InnerFoo.InnerInnerFoo, self).foo(bar)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-class Foo:
-    class InnerFoo(Bar):
-        class InnerInnerFoo(Bar):
-            def foo(self, bar):
-                super().foo(bar)
 ```
 ```{raw} html
 </div>

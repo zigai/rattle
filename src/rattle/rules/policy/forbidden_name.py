@@ -12,7 +12,7 @@ from rattle import LintRule, RuleSetting
 from rattle.rules.helpers import optional_setting_text, setting_fields, target_names
 
 _ENTRY_PATTERN = re.compile(
-    r"(?P<kind>any|variable|parameter|function|class|attribute|import|alias):(?P<pattern>[A-Za-z_][A-Za-z0-9_*?\[\]!-]*)"
+    r"(?P<kind>any|variable|parameter|function|class|attribute|import|alias):(?P<pattern>[A-Za-z_*?\[\]!][A-Za-z0-9_*?\[\]!-]*)"
 )
 _GLOB_CHARS = frozenset("*?[")
 

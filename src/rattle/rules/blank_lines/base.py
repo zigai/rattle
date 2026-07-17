@@ -132,6 +132,8 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
             cst.With: "with",
         }.get(type(statement))
         if keyword is not None:
+            if isinstance(statement, (cst.For, cst.With)) and statement.asynchronous is not None:
+                keyword = f"async {keyword}"
             return self._range_for_keyword(statement, keyword)
 
         return self._first_line_range(statement)

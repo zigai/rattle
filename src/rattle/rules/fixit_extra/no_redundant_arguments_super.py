@@ -73,11 +73,6 @@ class NoRedundantArgumentsSuper(LintRule):
                 def foo(self, bar):
                     super(Foo, self).foo(bar)
             """,
-            expected_replacement="""
-            class Foo(Bar):
-                def foo(self, bar):
-                    super().foo(bar)
-            """,
         ),
         Invalid(
             """
@@ -85,12 +80,6 @@ class NoRedundantArgumentsSuper(LintRule):
                 @classmethod
                 def foo(cls, bar):
                     super(Foo, cls).foo(bar)
-            """,
-            expected_replacement="""
-            class Foo(Bar):
-                @classmethod
-                def foo(cls, bar):
-                    super().foo(bar)
             """,
         ),
         Invalid(
@@ -100,12 +89,6 @@ class NoRedundantArgumentsSuper(LintRule):
                     def foo(self, bar):
                         super(Foo.InnerFoo, self).foo(bar)
             """,
-            expected_replacement="""
-            class Foo:
-                class InnerFoo(Bar):
-                    def foo(self, bar):
-                        super().foo(bar)
-            """,
         ),
         Invalid(
             """
@@ -114,13 +97,6 @@ class NoRedundantArgumentsSuper(LintRule):
                     class InnerInnerFoo(Bar):
                         def foo(self, bar):
                             super(Foo.InnerFoo.InnerInnerFoo, self).foo(bar)
-            """,
-            expected_replacement="""
-            class Foo:
-                class InnerFoo(Bar):
-                    class InnerInnerFoo(Bar):
-                        def foo(self, bar):
-                            super().foo(bar)
             """,
         ),
     ]
@@ -164,7 +140,8 @@ class NoRedundantArgumentsSuper(LintRule):
             ),
         ):
             self.report(
-                original_node, self.MESSAGE, replacement=original_node.with_changes(args=())
+                original_node,
+                self.MESSAGE,
             )
 
     def _build_arg_class_matcher(self) -> m.BaseExpressionMatchType:

@@ -5,7 +5,7 @@
 
 
 import libcst
-from libcst.metadata import QualifiedNameProvider, ScopeProvider
+from libcst.metadata import ParentNodeProvider, QualifiedNameProvider, ScopeProvider
 
 from rattle import Invalid, LintRule, Valid
 
@@ -31,6 +31,7 @@ class UseTypesFromTyping(LintRule):
     METADATA_DEPENDENCIES = (
         QualifiedNameProvider,
         ScopeProvider,
+        ParentNodeProvider,
     )
     VALID = [
         Valid(
@@ -159,17 +160,22 @@ class UseTypesFromTyping(LintRule):
         super().__init__()
         self.annotation_counter: int = 0
         self.builtin_type_aliases_by_node: dict[libcst.CSTNode, str] = {}
+        self.has_unknown_star_import = False
 
     def visit_Module(self, node: libcst.Module) -> None:
         del node
 
         self.annotation_counter = 0
         self.builtin_type_aliases_by_node = {}
+        self.has_unknown_star_import = False
+
+    def visit_ImportFrom(self, node: libcst.ImportFrom) -> None:
+        if isinstance(node.names, libcst.ImportStar):
+            module = libcst.Module([]).code_for_node(node.module) if node.module is not None else ""
+            if module not in {"builtins", "typing"}:
+                self.has_unknown_star_import = True
 
     def visit_Assign(self, node: libcst.Assign) -> None:
-        if not isinstance(node.value, libcst.Name):
-            return
-
         builtin_type = self._builtin_type_name(node.value)
         for assign_target in node.targets:
             target = assign_target.target
@@ -220,6 +226,11 @@ class UseTypesFromTyping(LintRule):
 
     def _builtin_type_name(self, node: libcst.BaseExpression) -> str | None:
         qualified_names = self.get_metadata(QualifiedNameProvider, node, set())
+        if self.has_unknown_star_import and (
+            not qualified_names
+            or (isinstance(node, libcst.Name) and node.value in BUILTINS_TO_REPLACE)
+        ):
+            return None
         if not qualified_names:
             if isinstance(node, libcst.Name) and node.value in BUILTINS_TO_REPLACE:
                 return node.value
@@ -287,14 +298,20 @@ class UseTypesFromTyping(LintRule):
             for assignment in assignments
         )
 
-    @staticmethod
-    def _assignment_imports_typing_type(assignment: object, type_name: str) -> bool:
+    def _assignment_imports_typing_type(self, assignment: object, type_name: str) -> bool:
         node = getattr(assignment, "node", None)
-        if not isinstance(node, libcst.ImportFrom):
+        if (
+            not isinstance(node, libcst.ImportFrom)
+            or not isinstance(node.module, libcst.Name)
+            or node.module.value != "typing"
+            or isinstance(node.names, libcst.ImportStar)
+        ):
             return False
-        if not isinstance(node.module, libcst.Name) or node.module.value != "typing":
+        statement = self.get_metadata(ParentNodeProvider, node, None)
+        if not isinstance(statement, libcst.SimpleStatementLine):
             return False
-        if isinstance(node.names, libcst.ImportStar):
+        module = self.get_metadata(ParentNodeProvider, statement, None)
+        if not isinstance(module, libcst.Module):
             return False
 
         for alias in node.names:

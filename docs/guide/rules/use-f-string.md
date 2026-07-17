@@ -94,10 +94,23 @@ f"{'hi'!s}"
 ```python
 "a name: %s" % name
 ```
-<p class="rule-example-label">Suggested fix</p>
-
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
-f"a name: {name!s}"
+u"%s" % name
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+"an attribute %s ." % obj.attr
 ```
 ```{raw} html
 </div>
@@ -106,85 +119,37 @@ f"a name: {name!s}"
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-u"%s" % name
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"{name!s}"
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-"an attribute %s ." % obj.attr
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"an attribute {obj.attr!s} ."
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 r"raw string value=%s" % val
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-fr"raw string value={val!s}"
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 "{%s}" % val
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"{{{val!s}}}"
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 "{%s" % val
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"{{{val!s}"
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 "The type of var: %s" % type(var)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"The type of var: {type(var)!s}"
 ```
 ```{raw} html
 </div>
@@ -199,7 +164,7 @@ f"The type of var: {type(var)!s}"
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 <p class="rule-example-label">Options</p>
 
@@ -208,11 +173,6 @@ simple_expression_max_length = 100
 ```
 ```python
 "%s" % abcdefghijklmnopqrstuvwxyz1234567890
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"{abcdefghijklmnopqrstuvwxyz1234567890!s}"
 ```
 ```{raw} html
 </div>
@@ -232,15 +192,10 @@ f"type of var: {type(var)!s}, value of var: {var!s}"
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 '%s" double quote is used' % var
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f'{var!s}" double quote is used'
 ```
 ```{raw} html
 </div>
@@ -260,15 +215,10 @@ f"var1: {class_object.attribute!s}, var2: {dict_lookup['some_key']!s}, var3: {so
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 "a list: %s" % " ".join(var)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"a list: {' '.join(var)!s}"
 ```
 ```{raw} html
 </div>

@@ -16,7 +16,7 @@ class NoStringTypeAnnotation(LintRule):
 
     MESSAGE = "Remove the quotes from this annotation; postponed evaluation is already enabled."
     REFERENCES = (("PEP 563", "https://www.python.org/dev/peps/pep-0563/#forward-references"),)
-    SOURCE_PATTERNS = ("from __future__ import annotations",)
+    SOURCE_PATTERNS = ("__future__",)
 
     VALID = [
         # Usage of a Class for instantiation and typing.
@@ -266,7 +266,20 @@ class NoStringTypeAnnotation(LintRule):
         self.literal_names: set[str] = set()
         self.annotated_names: set[str] = set()
 
+    def visit_Module(self, node: cst.Module) -> None:
+        for statement in node.body:
+            if not isinstance(statement, cst.SimpleStatementLine):
+                continue
+            for small_statement in statement.body:
+                if isinstance(small_statement, cst.Import):
+                    self._record_import(small_statement)
+                elif isinstance(small_statement, cst.ImportFrom):
+                    self._record_import_from(small_statement)
+
     def visit_Import(self, node: cst.Import) -> None:
+        self._record_import(node)
+
+    def _record_import(self, node: cst.Import) -> None:
         for alias in node.names:
             if not isinstance(alias, cst.ImportAlias):
                 continue
@@ -274,16 +287,17 @@ class NoStringTypeAnnotation(LintRule):
                 self.typing_module_names.add(self._imported_name(alias))
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
-        if m.matches(
-            node,
-            m.ImportFrom(
-                module=m.Name("__future__"),
-                names=[
-                    m.ZeroOrMore(),
-                    m.ImportAlias(name=m.Name("annotations")),
-                    m.ZeroOrMore(),
-                ],
-            ),
+        self._record_import_from(node)
+
+    def _record_import_from(self, node: cst.ImportFrom) -> None:
+        if (
+            isinstance(node.module, cst.Name)
+            and node.module.value == "__future__"
+            and not isinstance(node.names, cst.ImportStar)
+            and any(
+                isinstance(alias.name, cst.Name) and alias.name.value == "annotations"
+                for alias in node.names
+            )
         ):
             self.has_future_annotations_import = True
 
@@ -332,34 +346,42 @@ class NoStringTypeAnnotation(LintRule):
     def visit_SimpleString(self, node: cst.SimpleString) -> None:
         if not self.has_future_annotations_import:
             return
+        parent = self.get_metadata(ParentNodeProvider, node, None)
+        if isinstance(parent, cst.ConcatenatedString):
+            return
         if self.in_annotation and not self.in_literal and not self._is_annotated_metadata(node):
-            # This is not allowed past Python3.7 since it's no longer necessary.
-            value = node.evaluated_value
-            try:
-                if isinstance(value, bytes):
-                    value = value.decode("utf-8")
-                repl = cst.parse_expression(value)
-                self.report(node, self.MESSAGE, replacement=repl)
-            except (UnicodeDecodeError, cst.ParserSyntaxError):
-                self.report(node, self.MESSAGE)
+            self._report_string(node, node.evaluated_value)
 
-    def _is_annotated_metadata(self, node: cst.SimpleString) -> bool:
+    def visit_ConcatenatedString(self, node: cst.ConcatenatedString) -> None:
+        if not self.has_future_annotations_import:
+            return
+        if self.in_annotation and not self.in_literal and not self._is_annotated_metadata(node):
+            self._report_string(node, node.evaluated_value)
+
+    def _report_string(self, node: cst.BaseString, value: str | bytes | None) -> None:
+        if value is None:
+            self.report(node, self.MESSAGE)
+            return
+        try:
+            if isinstance(value, bytes):
+                value = value.decode("utf-8")
+            repl = cst.parse_expression(value)
+            self.report(node, self.MESSAGE, replacement=repl)
+        except (UnicodeDecodeError, cst.ParserSyntaxError):
+            self.report(node, self.MESSAGE)
+
+    def _is_annotated_metadata(self, node: cst.BaseString) -> bool:
         if not self.in_annotated:
             return False
 
-        parent = self.get_metadata(ParentNodeProvider, node, None)
-        while parent is not None and not isinstance(parent, cst.SubscriptElement):
-            parent = self.get_metadata(ParentNodeProvider, parent, None)
-
-        if not isinstance(parent, cst.SubscriptElement):
-            return False
-
-        subscript = self.get_metadata(ParentNodeProvider, parent, None)
-        if subscript not in self.in_annotated or not isinstance(subscript, cst.Subscript):
-            return False
-
-        elements = list(subscript.slice)
-        return parent in elements[1:]
+        current: cst.CSTNode = node
+        while (parent := self.get_metadata(ParentNodeProvider, current, None)) is not None:
+            if isinstance(parent, cst.SubscriptElement):
+                subscript = self.get_metadata(ParentNodeProvider, parent, None)
+                if subscript in self.in_annotated and isinstance(subscript, cst.Subscript):
+                    return parent in list(subscript.slice)[1:]
+            current = parent
+        return False
 
     def _imported_name(self, alias: cst.ImportAlias) -> str:
         if alias.asname is not None:

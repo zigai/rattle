@@ -51,7 +51,7 @@ class A(object):
 ## Invalid examples
 
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 class B(object):
@@ -67,24 +67,12 @@ class B:
 </div>
 ```
 ```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
-```
-```{raw} html
 <div class="rule-invalid-example">
 ```
 ```python
 class B(object, A):
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-class B(A):
-    pass
-```
 ```{raw} html
 </div>
-```
-```{raw} html
-</details>
 ```

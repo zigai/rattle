@@ -13,7 +13,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
-  <span>Autofix: Yes</span>
+  <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
 
@@ -86,11 +86,6 @@ class C:
 ```
 ```python
 lambda x: foo(x)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-foo
 ```
 ```{raw} html
 </div>

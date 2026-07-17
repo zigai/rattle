@@ -6,8 +6,10 @@
 import libcst as cst
 import libcst.matchers as m
 from libcst.helpers import ensure_type
+from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import enclosing_class_defines_method
 
 
 class UseAssertIn(LintRule):
@@ -16,6 +18,7 @@ class UseAssertIn(LintRule):
     SOURCE_PATTERNS = ("assertTrue", "assertFalse")
 
     MESSAGE: str = "Use `assertIn()` or `assertNotIn()` for membership checks."
+    METADATA_DEPENDENCIES = (ParentNodeProvider,)
     REFERENCES = (
         (
             "unittest assertIn",
@@ -73,24 +76,6 @@ class UseAssertIn(LintRule):
         ),
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._class_method_stack: list[set[str]] = []
-
-    def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        self._class_method_stack.append(
-            {
-                statement.name.value
-                for statement in node.body.body
-                if isinstance(statement, cst.FunctionDef)
-            }
-        )
-
-    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
-        del original_node
-
-        self._class_method_stack.pop()
-
     def visit_Call(self, node: cst.Call) -> None:
         # Todo: Make use of single extract instead of having several
         # if else statements to make the code more robust and readable.
@@ -101,7 +86,7 @@ class UseAssertIn(LintRule):
                 args=[m.Arg(m.Comparison(comparisons=[m.ComparisonTarget(operator=m.In())]))],
             ),
         ):
-            if self._class_defines_assertion_method("assertTrue"):
+            if enclosing_class_defines_method(self, node, "assertTrue"):
                 return
 
             # self.assertTrue(a in b) -> self.assertIn(a, b)
@@ -135,7 +120,7 @@ class UseAssertIn(LintRule):
                 ),
             ):
                 # self.assertTrue(not a in b) -> self.assertNotIn(a, b)
-                if self._class_defines_assertion_method("assertTrue"):
+                if enclosing_class_defines_method(self, node, "assertTrue"):
                     return
                 matched = True
                 arg1 = cst.Arg(
@@ -160,7 +145,7 @@ class UseAssertIn(LintRule):
                 ),
             ):
                 # self.assertTrue(a not in b) -> self.assertNotIn(a, b)
-                if self._class_defines_assertion_method("assertTrue"):
+                if enclosing_class_defines_method(self, node, "assertTrue"):
                     return
                 matched = True
                 arg1 = cst.Arg(ensure_type(node.args[0].value, cst.Comparison).left)
@@ -175,7 +160,7 @@ class UseAssertIn(LintRule):
                 ),
             ):
                 # self.assertFalse(a in b) -> self.assertNotIn(a, b)
-                if self._class_defines_assertion_method("assertFalse"):
+                if enclosing_class_defines_method(self, node, "assertFalse"):
                     return
                 matched = True
                 arg1 = cst.Arg(ensure_type(node.args[0].value, cst.Comparison).left)
@@ -189,9 +174,6 @@ class UseAssertIn(LintRule):
                     args=[arg1, arg2],
                 )
                 self.report(node, self.MESSAGE, replacement=new_call)
-
-    def _class_defines_assertion_method(self, name: str) -> bool:
-        return bool(self._class_method_stack and name in self._class_method_stack[-1])
 
 
 __all__ = [

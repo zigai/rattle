@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def _validate_non_negative_int(value: object) -> bool:
 
 
 def _validate_limit_table(value: object) -> bool:
-    assert isinstance(value, dict)
+    assert isinstance(value, Mapping)
 
     for path_pattern, limits in value.items():
         if not path_pattern:
@@ -70,6 +71,12 @@ def _apply_limits(
 
 def _line_span(range_start_line: int, range_end_line: int) -> int:
     return range_end_line - range_start_line + 1
+
+
+def _glob_specificity(pattern: str) -> tuple[int, int, int]:
+    wildcard_count = sum(pattern.count(character) for character in "*?[")
+    literal_count = len(pattern) - wildcard_count
+    return literal_count, -wildcard_count, len(pattern)
 
 
 class LineCountLimit(LintRule):
@@ -169,7 +176,7 @@ class LineCountLimit(LintRule):
         )
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-        is_method = self._is_direct_class_member(node)
+        is_method = self._is_class_member(node)
         is_nested_function = self._function_depth > 0 and not is_method
         max_lines = (
             self._current_limits.max_method_lines
@@ -217,7 +224,7 @@ class LineCountLimit(LintRule):
 
         glob_limits = self.setting("glob_limits", dict[str, dict[str, int]])
         for path_pattern, configured_limits in sorted(
-            glob_limits.items(), key=lambda item: len(item[0])
+            glob_limits.items(), key=lambda item: _glob_specificity(item[0])
         ):
             if not self._matches_glob_path(path_pattern, self._current_file_path):
                 continue
@@ -244,13 +251,15 @@ class LineCountLimit(LintRule):
         normalized_pattern = Path(path_pattern).as_posix()
         return fnmatch.fnmatchcase(normalized_path, f"*/{normalized_pattern}")
 
-    def _is_direct_class_member(self, node: cst.FunctionDef) -> bool:
-        parent = self.get_metadata(ParentNodeProvider, node, None)
-        if not isinstance(parent, cst.IndentedBlock):
-            return False
-
-        grandparent = self.get_metadata(ParentNodeProvider, parent, None)
-        return isinstance(grandparent, cst.ClassDef)
+    def _is_class_member(self, node: cst.FunctionDef) -> bool:
+        current: cst.CSTNode = node
+        while (parent := self.get_metadata(ParentNodeProvider, current, None)) is not None:
+            if isinstance(parent, cst.ClassDef):
+                return True
+            if isinstance(parent, (cst.FunctionDef, cst.Lambda)):
+                return False
+            current = parent
+        return False
 
     def _matches_per_file_path(self, path_pattern: str, file_path: Path) -> bool:
         if matches_exact_path(path_pattern, file_path):

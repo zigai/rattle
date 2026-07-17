@@ -13,7 +13,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
-  <span>Autofix: Yes</span>
+  <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
 
@@ -82,29 +82,19 @@ def foo():
 ## Invalid examples
 
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 isinstance(x, y) or isinstance(x, z)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-isinstance(x, (y, z))
 ```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 isinstance(x, y) or isinstance(x, z) or isinstance(x, q)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-isinstance(x, (y, z, q))
 ```
 ```{raw} html
 </div>
@@ -115,10 +105,32 @@ isinstance(x, (y, z, q))
 ```python
 something or isinstance(x, y) or isinstance(x, z) or another
 ```
-<p class="rule-example-label">Suggested fix</p>
-
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
-something or isinstance(x, (y, z)) or another
+isinstance(x, y) or isinstance(x, z) or isinstance(x, q) or isinstance(x, w)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d) or isinstance(z, e)
 ```
 ```{raw} html
 </div>
@@ -127,75 +139,21 @@ something or isinstance(x, (y, z)) or another
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-isinstance(x, y) or isinstance(x, z) or isinstance(x, q) or isinstance(x, w)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-isinstance(x, (y, z, q, w))
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-isinstance(x, (a, b)) or isinstance(y, (c, d))
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d) or isinstance(z, e)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-isinstance(x, (a, b)) or isinstance(y, (c, d)) or isinstance(z, e)
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d) or isinstance(z, e) or isinstance(q, f) or isinstance(q, g) or isinstance(q, h)
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-isinstance(x, (a, b)) or isinstance(y, (c, d)) or isinstance(z, e) or isinstance(q, (f, g, h))
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 import builtins
 
 builtins.isinstance(x, A) or builtins.isinstance(x, B)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-import builtins
-
-builtins.isinstance(x, (A, B))
 ```
 ```{raw} html
 </div>
@@ -207,13 +165,6 @@ builtins.isinstance(x, (A, B))
 from builtins import isinstance as check
 
 check(x, A) or check(x, B)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-from builtins import isinstance as check
-
-check(x, (A, B))
 ```
 ```{raw} html
 </div>

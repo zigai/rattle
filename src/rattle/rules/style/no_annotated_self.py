@@ -159,11 +159,13 @@ class NoAnnotatedSelf(LintRule):
 
     def _is_direct_class_member(self, node: cst.FunctionDef) -> bool:
         parent = self.get_metadata(ParentNodeProvider, node, None)
-        if not isinstance(parent, cst.IndentedBlock):
-            return False
-
-        grandparent = self.get_metadata(ParentNodeProvider, parent, None)
-        return isinstance(grandparent, cst.ClassDef)
+        while parent is not None:
+            if isinstance(parent, cst.ClassDef):
+                return True
+            if isinstance(parent, cst.FunctionDef | cst.Lambda):
+                return False
+            parent = self.get_metadata(ParentNodeProvider, parent, None)
+        return False
 
     def _is_non_instance_method(self, node: cst.FunctionDef) -> bool:
         return any(

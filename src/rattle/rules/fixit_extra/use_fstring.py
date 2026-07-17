@@ -8,6 +8,7 @@ from collections.abc import Callable
 
 import libcst as cst
 import libcst.matchers as m
+from libcst.metadata import ParentNodeProvider, ScopeProvider
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
 
@@ -36,10 +37,10 @@ def _gen_match_simple_expression(
             (
                 isinstance(node, cst.Tuple)
                 and all(
-                    len(codegen(elm.value)) < simple_expression_max_length for elm in node.elements
+                    len(codegen(elm.value)) <= simple_expression_max_length for elm in node.elements
                 )
             )
-            or len(codegen(node)) < simple_expression_max_length
+            or len(codegen(node)) <= simple_expression_max_length
         )
 
     return _match_simple_expression
@@ -100,6 +101,7 @@ class UseFstring(LintRule):
             description="Maximum expression length to autofix inline in an f-string.",
         ),
     }
+    METADATA_DEPENDENCIES = (ParentNodeProvider, ScopeProvider)
 
     VALID = [
         Valid("somebody='you'; f\"Hey, {somebody}.\""),
@@ -112,46 +114,30 @@ class UseFstring(LintRule):
     INVALID = [
         Invalid('"Hey, {somebody}.".format(somebody="you")'),
         Invalid('"%s" % "hi"', expected_replacement='''f"{'hi'!s}"'''),
-        Invalid('"a name: %s" % name', expected_replacement='f"a name: {name!s}"'),
-        Invalid('u"%s" % name', expected_replacement='f"{name!s}"'),
-        Invalid(
-            '"an attribute %s ." % obj.attr',
-            expected_replacement='f"an attribute {obj.attr!s} ."',
-        ),
-        Invalid(
-            'r"raw string value=%s" % val',
-            expected_replacement='fr"raw string value={val!s}"',
-        ),
-        Invalid('"{%s}" % val', expected_replacement='f"{{{val!s}}}"'),
-        Invalid('"{%s" % val', expected_replacement='f"{{{val!s}"'),
-        Invalid(
-            '"The type of var: %s" % type(var)',
-            expected_replacement='f"The type of var: {type(var)!s}"',
-        ),
+        Invalid('"a name: %s" % name'),
+        Invalid('u"%s" % name'),
+        Invalid('"an attribute %s ." % obj.attr'),
+        Invalid('r"raw string value=%s" % val'),
+        Invalid('"{%s}" % val'),
+        Invalid('"{%s" % val'),
+        Invalid('"The type of var: %s" % type(var)'),
         Invalid(
             '"%s" % obj.this_is_a_very_long_expression(parameter)["a_very_long_key"]',
         ),
         Invalid(
             '"%s" % abcdefghijklmnopqrstuvwxyz1234567890',
-            expected_replacement='f"{abcdefghijklmnopqrstuvwxyz1234567890!s}"',
             options={"simple_expression_max_length": 100},
         ),
         Invalid(
             '"type of var: %s, value of var: %s" % (type(var), var)',
             expected_replacement='f"type of var: {type(var)!s}, value of var: {var!s}"',
         ),
-        Invalid(
-            "'%s\" double quote is used' % var",
-            expected_replacement="f'{var!s}\" double quote is used'",
-        ),
+        Invalid("'%s\" double quote is used' % var"),
         Invalid(
             '"var1: %s, var2: %s, var3: %s, var4: %s" % (class_object.attribute, dict_lookup["some_key"], some_module.some_function(), var4)',
             expected_replacement='''f"var1: {class_object.attribute!s}, var2: {dict_lookup['some_key']!s}, var3: {some_module.some_function()!s}, var4: {var4!s}"''',
         ),
-        Invalid(
-            '"a list: %s" % " ".join(var)',
-            expected_replacement='''f"a list: {' '.join(var)!s}"''',
-        ),
+        Invalid('"a list: %s" % " ".join(var)'),
         Invalid('"%s" % (first, second)'),
     ]
 
@@ -201,7 +187,7 @@ class UseFstring(LintRule):
             expressions = (
                 [elm.value for elm in expr.elements] if isinstance(expr, cst.Tuple) else [expr]
             )
-            if len(expressions) != len(tokens) - 1:
+            if not self._can_autofix_expressions(expr, expressions, len(tokens) - 1, codegen):
                 self.report(node, self.MESSAGE)
                 return
             escape_transformer = EscapeStringQuote(simple_string.quote)
@@ -236,6 +222,91 @@ class UseFstring(LintRule):
             node, m.BinaryOperation(left=m.SimpleString(), operator=m.Modulo())
         ) and isinstance(cst.ensure_type(node.left, cst.SimpleString).evaluated_value, str):
             self.report(node, self.MESSAGE)
+
+    def _is_known_non_tuple(self, expression: cst.BaseExpression) -> bool:
+        if isinstance(
+            expression,
+            (
+                cst.BaseNumber,
+                cst.Dict,
+                cst.DictComp,
+                cst.GeneratorExp,
+                cst.Lambda,
+                cst.List,
+                cst.ListComp,
+                cst.Set,
+                cst.SetComp,
+                cst.SimpleString,
+            ),
+        ):
+            return True
+        if isinstance(expression, cst.Name):
+            if expression.value in {"False", "None", "True"}:
+                return True
+            assignments = self._reference_assignments(expression)
+            return bool(assignments) and all(
+                (value := self._assignment_value(assignment)) is not None
+                and self._is_known_non_tuple(value)
+                for assignment in assignments
+            )
+        if isinstance(expression, cst.Call) and isinstance(expression.func, cst.Name):
+            assignments = self._reference_assignments(expression.func)
+            return bool(assignments) and all(
+                isinstance(getattr(assignment, "node", None), cst.ClassDef)
+                for assignment in assignments
+            )
+        return False
+
+    def _reference_assignments(self, name: cst.Name) -> list[object]:
+        scope = self.get_metadata(ScopeProvider, name, None)
+        if scope is None:
+            return []
+        try:
+            assignments = scope[name.value]
+        except KeyError:
+            return []
+        return [
+            assignment
+            for assignment in assignments
+            if any(access.node is name for access in assignment.references)
+        ]
+
+    def _assignment_value(self, assignment: object) -> cst.BaseExpression | None:
+        current = getattr(assignment, "node", None)
+        while isinstance(current, cst.CSTNode):
+            if isinstance(current, cst.Assign):
+                return current.value
+            if isinstance(current, cst.AnnAssign):
+                return current.value
+            current = self.get_metadata(ParentNodeProvider, current, None)
+        return None
+
+    def _can_autofix_expressions(
+        self,
+        original_expression: cst.BaseExpression,
+        expressions: list[cst.BaseExpression],
+        placeholder_count: int,
+        codegen: Callable[[cst.CSTNode], str],
+    ) -> bool:
+        if (
+            placeholder_count == 1
+            and not isinstance(original_expression, cst.Tuple)
+            and not self._is_known_non_tuple(original_expression)
+        ):
+            return False
+        if len(expressions) != placeholder_count:
+            return False
+        return all(self._is_legacy_fstring_safe(value, codegen) for value in expressions)
+
+    def _is_legacy_fstring_safe(
+        self,
+        expression: cst.BaseExpression,
+        codegen: Callable[[cst.CSTNode], str],
+    ) -> bool:
+        code = codegen(expression)
+        if "\\" in code or "\n" in code or "\r" in code:
+            return False
+        return not m.findall(expression, m.FormattedString())
 
 
 __all__ = [

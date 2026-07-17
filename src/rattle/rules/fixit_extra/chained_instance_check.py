@@ -65,36 +65,26 @@ class CollapseIsinstanceChecks(LintRule):
     INVALID = [
         Invalid(
             "isinstance(x, y) or isinstance(x, z)",
-            expected_replacement="isinstance(x, (y, z))",
         ),
         Invalid(
             "isinstance(x, y) or isinstance(x, z) or isinstance(x, q)",
-            expected_replacement="isinstance(x, (y, z, q))",
         ),
         Invalid(
             "something or isinstance(x, y) or isinstance(x, z) or another",
-            expected_replacement="something or isinstance(x, (y, z)) or another",
         ),
         Invalid(
             "isinstance(x, y) or isinstance(x, z) or isinstance(x, q) or isinstance(x, w)",
-            expected_replacement="isinstance(x, (y, z, q, w))",
         ),
         Invalid(
             "isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d)",
-            expected_replacement="isinstance(x, (a, b)) or isinstance(y, (c, d))",
         ),
         Invalid(
             "isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d) "
             "or isinstance(z, e)",
-            expected_replacement="isinstance(x, (a, b)) or isinstance(y, (c, d)) or isinstance(z, e)",
         ),
         Invalid(
             "isinstance(x, a) or isinstance(x, b) or isinstance(y, c) or isinstance(y, d) "
             "or isinstance(z, e) or isinstance(q, f) or isinstance(q, g) or isinstance(q, h)",
-            expected_replacement=(
-                "isinstance(x, (a, b)) or isinstance(y, (c, d)) or isinstance(z, e)"
-                " or isinstance(q, (f, g, h))"
-            ),
         ),
         Invalid(
             """
@@ -102,22 +92,12 @@ class CollapseIsinstanceChecks(LintRule):
 
             builtins.isinstance(x, A) or builtins.isinstance(x, B)
             """,
-            expected_replacement="""
-            import builtins
-
-            builtins.isinstance(x, (A, B))
-            """,
         ),
         Invalid(
             """
             from builtins import isinstance as check
 
             check(x, A) or check(x, B)
-            """,
-            expected_replacement="""
-            from builtins import isinstance as check
-
-            check(x, (A, B))
             """,
         ),
     ]
@@ -131,33 +111,13 @@ class CollapseIsinstanceChecks(LintRule):
             return None
 
         stack = tuple(self.unwrap(node))
-        operands, targets = self.collect_targets(stack)
+        operands, _targets = self.collect_targets(stack)
 
         # If nothing gets collapsed, just exit from this short-path
         if len(operands) == len(stack):
             return None
 
-        replacement = None
-        for operand in operands:
-            if operand in targets:
-                target_info = targets[operand]
-                call_func = target_info.func
-                matches = target_info.matches
-                if len(matches) == 1:
-                    arg = cst.Arg(value=matches[0])
-                else:
-                    arg = cst.Arg(cst.Tuple([cst.Element(match) for match in matches]))
-                operand = cst.Call(call_func, [cst.Arg(operand), arg])
-
-            if replacement is None:
-                replacement = operand
-            else:
-                replacement = cst.BooleanOperation(
-                    left=replacement, right=operand, operator=cst.Or()
-                )
-
-        if replacement is not None:
-            self.report(node, self.MESSAGE, replacement=replacement)
+        self.report(node, self.MESSAGE)
 
     def unwrap(self, node: cst.BaseExpression) -> Iterator[cst.BaseExpression]:
         if m.matches(node, m.BooleanOperation(operator=m.Or())):

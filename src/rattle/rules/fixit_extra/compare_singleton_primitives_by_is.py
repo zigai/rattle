@@ -79,11 +79,20 @@ class CompareSingletonPrimitivesByIs(LintRule):
         return (
             isinstance(left, cst.Name)
             and left.value in {"True", "False"}
-            and isinstance(right, cst.BaseNumber)
+            and self.is_number_literal(right)
         ) or (
             isinstance(right, cst.Name)
             and right.value in {"True", "False"}
-            and isinstance(left, cst.BaseNumber)
+            and self.is_number_literal(left)
+        )
+
+    def is_number_literal(self, node: cst.BaseExpression) -> bool:
+        if isinstance(node, cst.BaseNumber):
+            return True
+        return (
+            isinstance(node, cst.UnaryOperation)
+            and isinstance(node.operator, (cst.Plus, cst.Minus))
+            and isinstance(node.expression, cst.BaseNumber)
         )
 
     def visit_Comparison(self, node: cst.Comparison) -> None:
@@ -115,17 +124,26 @@ class CompareSingletonPrimitivesByIs(LintRule):
             )
 
     def alter_operator(self, original_op: cst.Equal | cst.NotEqual) -> cst.Is | cst.IsNot:
+        whitespace_before = self._identity_operator_whitespace(original_op.whitespace_before)
+        whitespace_after = self._identity_operator_whitespace(original_op.whitespace_after)
         return (
             cst.IsNot(
-                whitespace_before=original_op.whitespace_before,
-                whitespace_after=original_op.whitespace_after,
+                whitespace_before=whitespace_before,
+                whitespace_after=whitespace_after,
             )
             if isinstance(original_op, cst.NotEqual)
             else cst.Is(
-                whitespace_before=original_op.whitespace_before,
-                whitespace_after=original_op.whitespace_after,
+                whitespace_before=whitespace_before,
+                whitespace_after=whitespace_after,
             )
         )
+
+    def _identity_operator_whitespace(
+        self, whitespace: cst.BaseParenthesizableWhitespace
+    ) -> cst.BaseParenthesizableWhitespace:
+        if isinstance(whitespace, cst.SimpleWhitespace) and not whitespace.value:
+            return cst.SimpleWhitespace(" ")
+        return whitespace
 
 
 __all__ = [

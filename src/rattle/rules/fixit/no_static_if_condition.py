@@ -258,6 +258,11 @@ class NoStaticIfCondition(LintRule):
             return False
         if any(isinstance(part, cst.FormattedStringText) and part.value for part in node.parts):
             return True
+        if any(
+            isinstance(part, cst.FormattedStringExpression) and part.equal is not None
+            for part in node.parts
+        ):
+            return True
         return None
 
     @staticmethod

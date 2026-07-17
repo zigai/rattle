@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import libcst as cst
-import libcst.matchers as m
+from libcst.metadata import ParentNodeProvider
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
 
@@ -28,6 +28,7 @@ class NoRedundantFString(LintRule):
     )
 
     MESSAGE: str = "Remove the `f` prefix; this f-string has no replacement fields."
+    METADATA_DEPENDENCIES = (ParentNodeProvider,)
 
     VALID = [
         Valid('good: str = "good"'),
@@ -68,10 +69,14 @@ class NoRedundantFString(LintRule):
     ]
 
     def visit_FormattedString(self, node: cst.FormattedString) -> None:
-        if not m.matches(node, m.FormattedString(parts=(m.FormattedStringText(),))):
+        if any(isinstance(part, cst.FormattedStringExpression) for part in node.parts):
+            return
+        if self._would_become_docstring(node):
             return
 
-        old_string_inner = cst.ensure_type(node.parts[0], cst.FormattedStringText).value
+        old_string_inner = "".join(
+            cst.ensure_type(part, cst.FormattedStringText).value for part in node.parts
+        )
         if "{{" in old_string_inner or "}}" in old_string_inner:
             old_string_inner = old_string_inner.replace("{{", "{").replace("}}", "}")
 
@@ -80,6 +85,20 @@ class NoRedundantFString(LintRule):
         )
 
         self.report(node, self.MESSAGE, replacement=cst.SimpleString(new_string_literal))
+
+    def _would_become_docstring(self, node: cst.FormattedString) -> bool:
+        expression = self.get_metadata(ParentNodeProvider, node, None)
+        if not isinstance(expression, cst.Expr):
+            return False
+        statement = self.get_metadata(ParentNodeProvider, expression, None)
+        if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
+            return False
+        suite = self.get_metadata(ParentNodeProvider, statement, None)
+        if isinstance(suite, cst.Module):
+            return bool(suite.body) and suite.body[0] is statement
+        if isinstance(suite, cst.IndentedBlock):
+            return bool(suite.body) and suite.body[0] is statement
+        return False
 
 
 __all__ = [

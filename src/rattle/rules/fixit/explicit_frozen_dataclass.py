@@ -12,7 +12,7 @@ from libcst.metadata import (
 )
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
-from rattle.rules.helpers import dotted_name
+from rattle.rules.helpers import attribute_root_is_imported_module, dotted_name
 
 
 class ExplicitFrozenDataclass(LintRule):
@@ -285,7 +285,7 @@ class ExplicitFrozenDataclass(LintRule):
         if not any(name.source is QualifiedNameSource.LOCAL for name in qualified_names):
             return True
 
-        return self._attribute_root_is_active_module_import(expression, "dataclasses")
+        return attribute_root_is_imported_module(self, expression, {"dataclasses"})
 
     def _expression_is_dataclass_alias(self, expression: cst.BaseExpression) -> bool:
         if not isinstance(expression, cst.Name):
@@ -310,60 +310,6 @@ class ExplicitFrozenDataclass(LintRule):
             and assignment_node in self._dataclass_alias_nodes
             for assignment in reference_assignments
         )
-
-    def _attribute_root_is_active_module_import(
-        self,
-        expression: cst.BaseExpression,
-        module_name: str,
-    ) -> bool:
-        if not isinstance(expression, cst.Attribute):
-            return False
-
-        root: cst.BaseExpression = expression
-        while isinstance(root, cst.Attribute):
-            root = root.value
-        if not isinstance(root, cst.Name):
-            return False
-
-        scope = self.get_metadata(ScopeProvider, root, None)
-        if scope is None:
-            return False
-        try:
-            assignments = scope[root.value]
-        except KeyError:
-            return False
-
-        reference_assignments = [
-            assignment
-            for assignment in assignments
-            if any(access.node is root for access in assignment.references)
-        ]
-        return bool(reference_assignments) and all(
-            self._assignment_imports_module(assignment, root.value, module_name)
-            for assignment in reference_assignments
-        )
-
-    @staticmethod
-    def _assignment_imports_module(
-        assignment: object,
-        bound_name: str,
-        module_name: str,
-    ) -> bool:
-        node = getattr(assignment, "node", None)
-        if not isinstance(node, cst.Import):
-            return False
-
-        for alias in node.names:
-            if dotted_name(alias.name) != module_name:
-                continue
-            imported_name = (
-                dotted_name(alias.asname.name)
-                if alias.asname is not None
-                else module_name.partition(".")[0]
-            )
-            if imported_name == bound_name:
-                return True
-        return False
 
     def _expression_is_star_imported_dataclass(self, expression: cst.BaseExpression) -> bool:
         if not self._has_dataclasses_star_import:

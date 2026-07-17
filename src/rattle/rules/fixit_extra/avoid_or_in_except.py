@@ -58,8 +58,16 @@ class AvoidOrInExcept(LintRule):
     ]
 
     def visit_ExceptHandler(self, node: cst.ExceptHandler) -> None:
-        if m.matches(node, m.ExceptHandler(type=m.BooleanOperation(operator=m.Or()))):
-            self.report(node, self.MESSAGE)
+        self._report_or_expression(node.type)
+
+    def visit_ExceptStarHandler(self, node: cst.ExceptStarHandler) -> None:
+        self._report_or_expression(node.type)
+
+    def _report_or_expression(self, expression: cst.BaseExpression | None) -> None:
+        if expression is None:
+            return
+        if m.findall(expression, m.BooleanOperation(operator=m.Or())):
+            self.report(expression, self.MESSAGE)
 
 
 __all__ = [

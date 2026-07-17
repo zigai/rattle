@@ -13,7 +13,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
-  <span>Autofix: Yes</span>
+  <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
 
@@ -56,29 +56,19 @@ list(val for val in iterable)
 ## Invalid examples
 
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 list(val for val in iterable)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-[val for val in iterable]
 ```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 list(val for row in matrix for val in row)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-[val for row in matrix for val in row]
 ```
 ```{raw} html
 </div>
@@ -89,10 +79,32 @@ list(val for row in matrix for val in row)
 ```python
 set(val for val in iterable)
 ```
-<p class="rule-example-label">Suggested fix</p>
-
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
 ```python
-{val for val in iterable}
+dict((x, f(x)) for val in iterable)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+dict((x, y) for y, x in iterable)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+dict([val, val+1] for val in iterable)
 ```
 ```{raw} html
 </div>
@@ -101,71 +113,19 @@ set(val for val in iterable)
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-dict((x, f(x)) for val in iterable)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{x: f(x) for val in iterable}
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-dict((x, y) for y, x in iterable)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{x: y for y, x in iterable}
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-dict([val, val+1] for val in iterable)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{val: val+1 for val in iterable}
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 dict((x["name"], json.loads(x["data"])) for x in responses)
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{x["name"]: json.loads(x["data"]) for x in responses}
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 dict((k, v) for k, v in iter for iter in iters)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{k: v for k, v in iter for iter in iters}
 ```
 ```{raw} html
 </div>
@@ -180,43 +140,28 @@ set([val for val in iterable])
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 dict([[val, val+1] for val in iterable])
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{val: val+1 for val in iterable}
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 dict([(x, f(x)) for x in foo])
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{x: f(x) for x in foo}
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 dict([(x, y) for y, x in iterable])
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{x: y for y, x in iterable}
 ```
 ```{raw} html
 </div>

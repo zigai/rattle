@@ -108,15 +108,10 @@ self.assertEqual(a, b, "message")
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 self.assertTrue(not a == b)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-self.assertNotEqual(a, b)
 ```
 ```{raw} html
 </div>
@@ -126,11 +121,6 @@ self.assertNotEqual(a, b)
 ```
 ```python
 self.assertTrue(not a != b)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-self.assertEqual(a, b)
 ```
 ```{raw} html
 </div>

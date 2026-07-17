@@ -77,25 +77,13 @@ class RewriteToLiteral(LintRule):
         )
         key = cst.ensure_type(pair_value.elements[0], cst.Element).value
         value = cst.ensure_type(pair_value.elements[1], cst.Element).value
-        return cst.DictElement(key, value)
+        return cst.DictElement(key, value, comma=pair.comma)
 
     def visit_Call(self, node: cst.Call) -> None:
-        if m.matches(
-            node,
-            m.Call(
-                func=m.Name("tuple") | m.Name("list") | m.Name("set") | m.Name("dict"),
-                args=[m.Arg(value=m.List() | m.Tuple())],
-            ),
-        ) or m.matches(
-            node,
-            m.Call(func=m.Name("tuple") | m.Name("list") | m.Name("dict"), args=[]),
-        ):
-            pairs_matcher = m.ZeroOrMore(
-                m.Element(m.Tuple(elements=[m.DoNotCare(), m.DoNotCare()]))
-                | m.Element(m.List(elements=[m.DoNotCare(), m.DoNotCare()]))
-            )
-
+        if self._matches_literal_call(node):
             exp = cst.ensure_type(node, cst.Call)
+            if exp.args and not self._has_plain_positional_argument(exp.args[0]):
+                return
             call_name = cst.ensure_type(exp.func, cst.Name).value
             if not QualifiedNameProvider.has_name(
                 self,
@@ -118,31 +106,8 @@ class RewriteToLiteral(LintRule):
                     raise ValueError(f"Unexpected {type(arg)}")
                 message_formatter = UNNECESSARY_LITERAL
 
-            new_node: cst.CSTNode
-            if call_name == "tuple":
-                new_node = cst.Tuple(elements=elements)
-            elif call_name == "list":
-                new_node = cst.List(elements=elements)
-            elif call_name == "set":
-                # set() doesn't have an equivalent literal call. If it was
-                # matched here, it's an unnecessary literal suggestion.
-                if len(elements) == 0:
-                    self.report(
-                        node,
-                        UNNECESSARY_LITERAL.format(func=call_name),
-                        replacement=node.deep_replace(node, cst.Call(func=cst.Name("set"))),
-                    )
-                    return
-                new_node = cst.Set(elements=elements)
-            elif len(elements) == 0 or m.matches(
-                exp.args[0].value,
-                m.Tuple(elements=[pairs_matcher]) | m.List(elements=[pairs_matcher]),
-            ):
-                new_node = cst.Dict(
-                    elements=[self._dict_element_from_pair(element) for element in elements]
-                )
-            else:
-                # Unrecognized form
+            new_node = self._literal_replacement(exp, call_name, elements)
+            if new_node is None:
                 return
 
             self.report(
@@ -150,6 +115,50 @@ class RewriteToLiteral(LintRule):
                 message_formatter.format(func=call_name),
                 replacement=node.deep_replace(node, new_node),
             )
+
+    def _has_plain_positional_argument(self, argument: cst.Arg) -> bool:
+        return argument.keyword is None and not argument.star
+
+    def _literal_replacement(
+        self,
+        call: cst.Call,
+        call_name: str,
+        elements: Sequence[cst.BaseElement],
+    ) -> cst.BaseExpression | None:
+        if call_name in {"tuple", "list"}:
+            return (
+                cst.Tuple(elements=elements)
+                if call_name == "tuple"
+                else cst.List(elements=elements)
+            )
+        if call_name == "set":
+            if not elements:
+                return cst.Call(func=cst.Name("set"))
+            return cst.Set(elements=elements)
+        if not elements:
+            return cst.Dict(elements=[])
+        pairs_matcher = m.ZeroOrMore(
+            m.Element(m.Tuple(elements=[m.Element(), m.Element()]))
+            | m.Element(m.List(elements=[m.Element(), m.Element()]))
+        )
+        if not m.matches(
+            call.args[0].value,
+            m.Tuple(elements=[pairs_matcher]) | m.List(elements=[pairs_matcher]),
+        ):
+            return None
+        return cst.Dict(elements=[self._dict_element_from_pair(element) for element in elements])
+
+    def _matches_literal_call(self, node: cst.Call) -> bool:
+        return m.matches(
+            node,
+            m.Call(
+                func=m.Name("tuple") | m.Name("list") | m.Name("set") | m.Name("dict"),
+                args=[m.Arg(value=m.List() | m.Tuple())],
+            ),
+        ) or m.matches(
+            node,
+            m.Call(func=m.Name("tuple") | m.Name("list") | m.Name("dict"), args=[]),
+        )
 
 
 __all__ = [

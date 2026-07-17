@@ -46,7 +46,7 @@ class NoRedundantLambda(LintRule):
         ),
     ]
     INVALID = [
-        Invalid("lambda x: foo(x)", expected_replacement="foo"),
+        Invalid("lambda x: foo(x)"),
     ]
 
     @staticmethod
@@ -88,7 +88,6 @@ class NoRedundantLambda(LintRule):
             self.report(
                 node,
                 UNNECESSARY_LAMBDA.format(function=full_name),
-                replacement=call.func,
             )
 
     def _is_in_class_scope(self, node: cst.CSTNode) -> bool:

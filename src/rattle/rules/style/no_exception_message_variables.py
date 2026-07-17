@@ -5,7 +5,11 @@ from libcst.metadata import PositionProvider, ScopeProvider
 from libcst.metadata.scope_provider import Assignment
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import callable_dotted_name, single_small_statement
+from rattle.rules.helpers import (
+    callable_dotted_name,
+    has_name_declaration,
+    single_small_statement,
+)
 
 SuiteNode = cst.Module | cst.IndentedBlock
 
@@ -262,6 +266,8 @@ class NoExceptionMessageVariables(LintRule):
         if replacement_and_names is None:
             return
         replacement, target, reference = replacement_and_names
+        if has_name_declaration(node, target.value):
+            return
         if not self._is_only_reference(target, reference):
             return
 

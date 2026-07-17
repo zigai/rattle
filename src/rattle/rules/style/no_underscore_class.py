@@ -27,4 +27,4 @@ class NoUnderscoreClass(LintRule):
         if not node.name.value.startswith("_"):
             return
 
-        self.report(node, self.MESSAGE)
+        self.report(node.name, self.MESSAGE)

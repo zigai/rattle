@@ -14,6 +14,7 @@ from libcst.metadata import (
 )
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import has_name_declaration, ordinary_parameters
 
 CLS = "cls"
 
@@ -265,20 +266,29 @@ class UseClsInClassmethod(LintRule):
         ):
             return  # If it's not a @classmethod, we are not interested.
 
-        repl: cst.CSTNode | cst.RemovalSentinel | cst.FlattenSentinel[cst.FunctionDef]
         ordered_params = [*node.params.posonly_params, *node.params.params]
         if not ordered_params:
-            # No params, but there must be the 'cls' param.
-            # Static analysis can catch this, but we also generate an autofix,
-            # so it still makes sense for us to report it here.
-            new_params = node.params.with_changes(params=(cst.Param(name=cst.Name(value=CLS)),))
-            repl = node.with_changes(params=new_params)
-            self.report(node, self.MESSAGE, replacement=repl)
+            self._report_missing_positional_parameter(node)
             return
 
         p0_name = ordered_params[0].name
         if p0_name.value == CLS:
             return  # All good.
+
+        replacement = self._renamed_classmethod(node, p0_name)
+        self.report(node, self.MESSAGE, replacement=replacement)
+
+    def _report_missing_positional_parameter(self, node: cst.FunctionDef) -> None:
+        if any(param.name.value == CLS for param in ordinary_parameters(node.params)):
+            self.report(node, self.MESSAGE)
+            return
+
+        new_params = node.params.with_changes(params=(cst.Param(name=cst.Name(value=CLS)),))
+        self.report(node, self.MESSAGE, replacement=node.with_changes(params=new_params))
+
+    def _renamed_classmethod(
+        self, node: cst.FunctionDef, p0_name: cst.Name
+    ) -> cst.FunctionDef | None:
 
         # Rename all assignments and references of the first param within the
         # function scope, as long as they are done via a Name node.
@@ -292,15 +302,16 @@ class UseClsInClassmethod(LintRule):
             # If metadata creation fails, then the whole lint fails, and if it succeeds,
             # then there is valid metadata. But many other lint rule implementations contain
             # a defensive scope None check like this one, so I assume it is necessary.
-            self.report(node, self.MESSAGE)
-            return
+            return None
 
         if scope[CLS]:
             # The scope already has another assignment to "cls".
             # Trying to rename the first param to "cls" as well may produce broken code.
             # We should therefore refrain from suggesting an autofix in this case.
-            self.report(node, self.MESSAGE)
-            return
+            return None
+
+        if has_name_declaration(node.body, CLS):
+            return None
 
         refs: list[cst.Name | cst.Attribute | cst.BaseString] = []
         assignments = scope[p0_name.value]
@@ -311,12 +322,12 @@ class UseClsInClassmethod(LintRule):
                     refs.append(assign_node)
                 elif isinstance(assign_node, cst.Param):
                     refs.append(assign_node.name)
-                # There are other types of possible assignment nodes: ClassDef,
-                # FunctionDef, Import, etc. We deliberately do not handle those here.
+                else:
+                    return None
             refs += [r.node for r in a.references]
 
-        repl = node.visit(RenameTransformer(refs, CLS))
-        self.report(node, self.MESSAGE, replacement=repl)
+        replacement = node.visit(RenameTransformer(refs, CLS))
+        return replacement if isinstance(replacement, cst.FunctionDef) else None
 
 
 __all__ = [

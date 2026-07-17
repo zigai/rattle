@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,7 +9,6 @@ from rattle import LintRule, RuleSetting
 from rattle.rules.helpers import optional_setting_text, setting_fields
 
 _CODEGEN_MODULE = cst.Module(body=[])
-_IMPORT_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*")
 
 
 @dataclass(frozen=True)
@@ -26,7 +24,7 @@ def _parse_forbidden_import(entry: str | ForbiddenImportEntry) -> ForbiddenImpor
     boundary, message = setting_fields(entry, 2)
     normalized_message = optional_setting_text(message)
 
-    if not _IMPORT_PATTERN.fullmatch(boundary):
+    if not boundary or any(not part.isidentifier() for part in boundary.split(".")):
         raise ValueError(f"expected import boundary in forbidden import entry, got {entry!r}")
     if normalized_message == "":
         raise ValueError(f"expected non-empty message in forbidden import entry, got {entry!r}")
@@ -64,14 +62,6 @@ def _matches_import_boundary(imported_name: str, boundary: str) -> bool:
     return imported_name == boundary or imported_name.startswith(f"{boundary}.")
 
 
-def _matches_relative_import_boundary(imported_name: str, boundary: str) -> bool:
-    if _matches_import_boundary(imported_name, boundary):
-        return True
-
-    boundary_tail = boundary.rsplit(".", 1)[-1]
-    return imported_name == boundary_tail or imported_name.startswith(f"{boundary_tail}.")
-
-
 class ForbiddenImport(LintRule):
     """Ban imports that cross configured package or module boundaries."""
 
@@ -95,9 +85,13 @@ class ForbiddenImport(LintRule):
         super().__init__()
 
         self._messages_by_boundary: dict[str, str | None] = {}
+        self._current_file_path: Path | None = None
 
     def should_lint_file(self, source: bytes, path: Path) -> bool:
-        del path
+        self._current_file_path = path
+
+        if b"from ." in source:
+            return True
 
         for entry in _parse_forbidden_imports_setting(self.settings.get("forbidden_imports", ())):
             boundary = entry.boundary
@@ -127,6 +121,7 @@ class ForbiddenImport(LintRule):
         del original_node
 
         self._messages_by_boundary = {}
+        self._current_file_path = None
 
     def visit_Import(self, node: cst.Import) -> None:
         for imported_alias in node.names:
@@ -139,24 +134,14 @@ class ForbiddenImport(LintRule):
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
         if node.module is None:
-            if not node.relative or isinstance(node.names, cst.ImportStar):
-                return
-
-            for imported_alias in node.names:
-                imported_name = _node_name(imported_alias.name)
-                boundary = self._forbidden_boundary_for_import_name(
-                    imported_name, relative=node.relative
-                )
-                if boundary is None:
-                    continue
-
-                self.report(imported_alias, self._message_for_boundary(boundary))
-
+            self._report_moduleless_relative_import(node)
             return
 
         module_name = _node_name(node.module)
         if isinstance(node.names, cst.ImportStar):
-            boundary = self._forbidden_boundary_for_import_name(module_name, relative=node.relative)
+            boundary = self._forbidden_boundary_for_import_name(
+                module_name, relative_level=len(node.relative)
+            )
             if boundary is not None:
                 self.report(node.names, self._message_for_boundary(boundary))
 
@@ -165,11 +150,32 @@ class ForbiddenImport(LintRule):
         for imported_alias in node.names:
             imported_name = _node_name(imported_alias.name)
             full_name = _full_imported_name(module_name, imported_name)
-            boundary = self._forbidden_boundary_for_import_name(full_name, relative=node.relative)
+            boundary = self._forbidden_boundary_for_import_name(
+                full_name, relative_level=len(node.relative)
+            )
             if boundary is None:
                 continue
 
             self.report(imported_alias, self._message_for_boundary(boundary))
+
+    def _report_moduleless_relative_import(self, node: cst.ImportFrom) -> None:
+        if not node.relative:
+            return
+        if isinstance(node.names, cst.ImportStar):
+            boundary = self._forbidden_boundary_for_import_name(
+                "", relative_level=len(node.relative)
+            )
+            if boundary is not None:
+                self.report(node.names, self._message_for_boundary(boundary))
+            return
+
+        for imported_alias in node.names:
+            imported_name = _node_name(imported_alias.name)
+            boundary = self._forbidden_boundary_for_import_name(
+                imported_name, relative_level=len(node.relative)
+            )
+            if boundary is not None:
+                self.report(imported_alias, self._message_for_boundary(boundary))
 
     def _message_for_boundary(self, boundary: str) -> str:
         message = self._messages_by_boundary[boundary]
@@ -179,15 +185,32 @@ class ForbiddenImport(LintRule):
         return message
 
     def _forbidden_boundary_for_import_name(
-        self, imported_name: str, *, relative: object = False
+        self, imported_name: str, *, relative_level: int = 0
     ) -> str | None:
-        for boundary in self._messages_by_boundary:
-            matches = (
-                _matches_relative_import_boundary(imported_name, boundary)
-                if relative
-                else _matches_import_boundary(imported_name, boundary)
-            )
-            if matches:
+        candidates = (
+            self._relative_import_candidates(imported_name, relative_level)
+            if relative_level
+            else (imported_name,)
+        )
+        for boundary in sorted(
+            self._messages_by_boundary,
+            key=lambda value: (value.count("."), len(value)),
+            reverse=True,
+        ):
+            if any(_matches_import_boundary(candidate, boundary) for candidate in candidates):
                 return boundary
 
         return None
+
+    def _relative_import_candidates(
+        self, imported_name: str, relative_level: int
+    ) -> tuple[str, ...]:
+        if self._current_file_path is None:
+            return ()
+        package_parts = list(self._current_file_path.parent.parts)
+        parent_levels = relative_level - 1
+        if parent_levels:
+            package_parts = package_parts[:-parent_levels]
+        imported_parts = imported_name.split(".") if imported_name else []
+        target_parts = [*package_parts, *imported_parts]
+        return tuple(".".join(target_parts[index:]) for index in range(len(package_parts)))

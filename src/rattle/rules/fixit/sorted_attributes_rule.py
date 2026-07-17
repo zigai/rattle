@@ -133,11 +133,22 @@ class SortedAttributes(LintRule):
             if not assign_lines:
                 return
 
+            first_line = cst.ensure_type(assign_lines[0], cst.SimpleStatementLine)
+            group_leading_lines = first_line.leading_lines
+            normalized_assign_lines = [
+                cst.ensure_type(line, cst.SimpleStatementLine).with_changes(leading_lines=[])
+                for line in assign_lines
+            ]
             sorted_assign_lines = sorted(
-                assign_lines,
+                normalized_assign_lines,
                 key=self._get_assign_name,
             )
-            changed = changed or sorted_assign_lines != assign_lines
+            sorted_assign_lines[0] = sorted_assign_lines[0].with_changes(
+                leading_lines=group_leading_lines
+            )
+            changed = changed or [self._get_assign_name(line) for line in sorted_assign_lines] != [
+                self._get_assign_name(line) for line in assign_lines
+            ]
             replacement_lines.extend(sorted_assign_lines)
             assign_lines.clear()
 

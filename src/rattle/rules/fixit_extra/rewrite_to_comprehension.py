@@ -41,52 +41,41 @@ class RewriteToComprehension(LintRule):
     INVALID = [
         Invalid(
             "list(val for val in iterable)",
-            expected_replacement="[val for val in iterable]",
         ),
         # Nested list comprehenstion
         Invalid(
             "list(val for row in matrix for val in row)",
-            expected_replacement="[val for row in matrix for val in row]",
         ),
         Invalid(
             "set(val for val in iterable)",
-            expected_replacement="{val for val in iterable}",
         ),
         Invalid(
             "dict((x, f(x)) for val in iterable)",
-            expected_replacement="{x: f(x) for val in iterable}",
         ),
         Invalid(
             "dict((x, y) for y, x in iterable)",
-            expected_replacement="{x: y for y, x in iterable}",
         ),
         Invalid(
             "dict([val, val+1] for val in iterable)",
-            expected_replacement="{val: val+1 for val in iterable}",
         ),
         Invalid(
             'dict((x["name"], json.loads(x["data"])) for x in responses)',
-            expected_replacement='{x["name"]: json.loads(x["data"]) for x in responses}',
         ),
         # Nested dict comprehension
         Invalid(
             "dict((k, v) for k, v in iter for iter in iters)",
-            expected_replacement="{k: v for k, v in iter for iter in iters}",
         ),
         Invalid(
             "set([val for val in iterable])",
         ),
         Invalid(
             "dict([[val, val+1] for val in iterable])",
-            expected_replacement="{val: val+1 for val in iterable}",
         ),
         Invalid(
             "dict([(x, f(x)) for x in foo])",
-            expected_replacement="{x: f(x) for x in foo}",
         ),
         Invalid(
             "dict([(x, y) for y, x in iterable])",
-            expected_replacement="{x: y for y, x in iterable}",
         ),
         Invalid(
             "set([val for row in matrix for val in row])",
@@ -117,37 +106,14 @@ class RewriteToComprehension(LintRule):
                 exp = cst.ensure_type(node.args[0].value, cst.ListComp)
                 message_formatter = UNNECESSARY_LIST_COMPREHENSION
 
-            replacement: cst.Call | cst.BaseComp | None = None
-            if call_name == "list":
-                replacement = node.deep_replace(node, cst.ListComp(elt=exp.elt, for_in=exp.for_in))
-            elif call_name == "set":
-                if isinstance(exp, cst.GeneratorExp):
-                    replacement = node.deep_replace(
-                        node,
-                        cst.SetComp(elt=exp.elt, for_in=exp.for_in),
-                    )
-            elif call_name == "dict":
-                elt = exp.elt
-                key = None
-                value = None
-                if m.matches(elt, m.Tuple(m.DoNotCare(), m.DoNotCare())):
-                    elt = cst.ensure_type(elt, cst.Tuple)
-                    key = elt.elements[0].value
-                    value = elt.elements[1].value
-                elif m.matches(elt, m.List(m.DoNotCare(), m.DoNotCare())):
-                    elt = cst.ensure_type(elt, cst.List)
-                    key = elt.elements[0].value
-                    value = elt.elements[1].value
-                else:
-                    # Unrecognized form
-                    return
+            if call_name == "dict" and not m.matches(
+                exp.elt,
+                m.Tuple(elements=[m.Element(), m.Element()])
+                | m.List(elements=[m.Element(), m.Element()]),
+            ):
+                return
 
-                replacement = node.deep_replace(
-                    node,
-                    cst.DictComp(key=key, value=value, for_in=exp.for_in),
-                )
-
-            self.report(node, message_formatter.format(func=call_name), replacement=replacement)
+            self.report(node, message_formatter.format(func=call_name))
 
 
 __all__ = [

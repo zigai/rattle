@@ -124,8 +124,26 @@ def _movable_all_assignment_statement(
         return None
     if any(line.comment is not None for line in all_assignment_statement.leading_lines):
         return None
+    assignment = single_small_statement(all_assignment_statement)
+    if assignment is None or not _is_static_all_assignment(assignment):
+        return None
 
     return all_assignment_statement
+
+
+def _is_static_all_assignment(statement: cst.BaseSmallStatement) -> bool:
+    if isinstance(statement, (cst.Assign, cst.AnnAssign)):
+        value = statement.value
+    else:
+        return False
+    if not isinstance(value, (cst.List, cst.Tuple)):
+        return False
+    return all(
+        isinstance(element, cst.Element)
+        and isinstance(element.value, cst.SimpleString)
+        and isinstance(element.value.evaluated_value, str)
+        for element in value.elements
+    )
 
 
 def _safe_trailing_statements(
@@ -134,14 +152,20 @@ def _safe_trailing_statements(
     future_annotations_enabled: bool,
     strip_first_leading_lines: bool,
 ) -> list[cst.BaseStatement] | None:
-    if not trailing_statements:
+    if not trailing_statements or not all(
+        isinstance(statement, cst.FunctionDef) for statement in trailing_statements
+    ):
         return None
+    function_definitions = [
+        statement for statement in trailing_statements if isinstance(statement, cst.FunctionDef)
+    ]
     if not all(
         _is_safe_function_definition(
             statement,
             future_annotations_enabled=future_annotations_enabled,
         )
-        for statement in trailing_statements
+        and statement.name.value != "__all__"
+        for statement in function_definitions
     ):
         return None
 

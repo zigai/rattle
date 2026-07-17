@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import libcst as cst
-import libcst.matchers as m
 from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
@@ -49,9 +48,6 @@ class NoInheritFromObject(LintRule):
             """
             class B(object, A):
                 pass""",
-            expected_replacement="""
-                class B(A):
-                    pass""",
             range=CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 8)),
         ),
     ]
@@ -61,16 +57,28 @@ class NoInheritFromObject(LintRule):
             base
             for base in node.bases
             if not (
-                m.matches(base.value, m.Name("object"))
-                and QualifiedNameProvider.has_name(
+                QualifiedNameProvider.has_name(
                     self,
                     base.value,
                     QualifiedName(name="builtins.object", source=QualifiedNameSource.BUILTIN),
+                )
+                or QualifiedNameProvider.has_name(
+                    self,
+                    base.value,
+                    QualifiedName(name="builtins.object", source=QualifiedNameSource.IMPORT),
                 )
             )
         )
 
         if tuple(node.bases) != new_bases:
+            can_fix = (
+                len(node.bases) == 1
+                and not node.keywords
+                and "#" not in cst.Module([]).code_for_node(node)
+            )
+            if not can_fix:
+                self.report(node, self.MESSAGE)
+                return
             # reconstruct classdef, removing parens if bases and keywords are empty
             new_classdef = node.with_changes(
                 bases=new_bases,

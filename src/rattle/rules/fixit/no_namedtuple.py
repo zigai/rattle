@@ -12,7 +12,7 @@ from libcst.metadata import (
 )
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import dotted_name
+from rattle.rules.helpers import attribute_root_is_imported_module, dotted_name
 
 
 class NoNamedTuple(LintRule):
@@ -400,52 +400,10 @@ class NoNamedTuple(LintRule):
         matching_names = imported_names.intersection(qualified_names)
         has_local_name = any(name.source is QualifiedNameSource.LOCAL for name in qualified_names)
         if matching_names and has_local_name and isinstance(expression, cst.Attribute):
-            root: cst.BaseExpression = expression
-            while isinstance(root, cst.Attribute):
-                root = root.value
-            if isinstance(root, cst.Name):
-                scope = self.get_metadata(ScopeProvider, root, None)
-                if scope is not None:
-                    try:
-                        assignments = scope[root.value]
-                    except KeyError:
-                        assignments = set()
-                    module_names = {name.name.rpartition(".")[0] for name in matching_names}
-                    reference_assignments = [
-                        assignment
-                        for assignment in assignments
-                        if any(access.node is root for access in assignment.references)
-                    ]
-                    return bool(reference_assignments) and all(
-                        any(
-                            self._assignment_imports_module(assignment, root.value, module_name)
-                            for module_name in module_names
-                        )
-                        for assignment in reference_assignments
-                    )
+            module_names = {name.name.rpartition(".")[0] for name in matching_names}
+            return attribute_root_is_imported_module(self, expression, module_names)
 
         return bool(matching_names) and not has_local_name
-
-    @staticmethod
-    def _assignment_imports_module(
-        assignment: object,
-        bound_name: str,
-        module_name: str,
-    ) -> bool:
-        node = getattr(assignment, "node", None)
-        if not isinstance(node, cst.Import):
-            return False
-        for alias in node.names:
-            if dotted_name(alias.name) != module_name:
-                continue
-            imported_name = (
-                dotted_name(alias.asname.name)
-                if alias.asname is not None
-                else module_name.partition(".")[0]
-            )
-            if imported_name == bound_name:
-                return True
-        return False
 
 
 __all__ = [

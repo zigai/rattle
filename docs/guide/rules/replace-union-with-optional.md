@@ -13,7 +13,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 
 <p class="rule-metadata">
   <span>Collection: <code>fixit-extra</code></span>
-  <span>Autofix: Yes</span>
+  <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>
 
@@ -55,39 +55,25 @@ def func() -> Union[str, None]:
 </div>
 ```
 ```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 from typing import Optional
 def func() -> Union[Dict[str, int], None]:
     pass
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-from typing import Optional
-def func() -> Optional[Dict[str, int]]:
-    pass
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
 ```
 ```python
 from typing import Optional
 def func() -> Union[str, None]:
-    pass
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-from typing import Optional
-def func() -> Optional[str]:
     pass
 ```
 ```{raw} html
@@ -99,13 +85,6 @@ def func() -> Optional[str]:
 ```python
 from typing import Optional
 def func() -> Union[Dict, None]:
-    pass
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-from typing import Optional
-def func() -> Optional[Dict]:
     pass
 ```
 ```{raw} html

@@ -5,8 +5,10 @@
 
 import libcst as cst
 import libcst.matchers as m
+from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import enclosing_class_defines_method
 
 
 class NoAssertTrueForComparisons(LintRule):
@@ -19,6 +21,7 @@ class NoAssertTrueForComparisons(LintRule):
         "Use `assertEqual()` or `assertNotEqual()` instead of wrapping an equality "
         "comparison in `assertTrue()`."
     )
+    METADATA_DEPENDENCIES = (ParentNodeProvider,)
 
     VALID = [
         Valid("self.assertEqual(a, b)"),
@@ -47,49 +50,27 @@ class NoAssertTrueForComparisons(LintRule):
         ),
         Invalid(
             "self.assertTrue(not a == b)",
-            expected_replacement="self.assertNotEqual(a, b)",
         ),
         Invalid(
             "self.assertTrue(not a != b)",
-            expected_replacement="self.assertEqual(a, b)",
         ),
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._class_method_stack: list[set[str]] = []
-
-    def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        self._class_method_stack.append(
-            {
-                statement.name.value
-                for statement in node.body.body
-                if isinstance(statement, cst.FunctionDef)
-            }
-        )
-
-    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
-        del original_node
-
-        self._class_method_stack.pop()
-
     def visit_Call(self, node: cst.Call) -> None:
-        if not m.matches(
-            node.func,
-            m.Attribute(value=m.Name("self"), attr=m.Name("assertTrue")),
-        ):
-            return
-        if self._class_defines_assertion_method("assertTrue"):
-            return
-        if not node.args:
-            return
-
-        first_arg = node.args[0]
-        if first_arg.keyword is not None or first_arg.star:
+        first_arg = self._comparison_argument(node)
+        if first_arg is None:
             return
 
         assertion_name, comparison = _assertion_for_condition(first_arg.value)
         if assertion_name is None or comparison is None:
+            return
+        if enclosing_class_defines_method(self, node, assertion_name):
+            return
+
+        is_negated = isinstance(first_arg.value, cst.UnaryOperation)
+        has_comment = "#" in cst.Module([]).code_for_node(first_arg)
+        if is_negated or has_comment:
+            self.report(node, self.MESSAGE)
             return
 
         target = comparison.comparisons[0]
@@ -103,8 +84,21 @@ class NoAssertTrueForComparisons(LintRule):
         )
         self.report(node, self.MESSAGE, replacement=replacement)
 
-    def _class_defines_assertion_method(self, name: str) -> bool:
-        return bool(self._class_method_stack and name in self._class_method_stack[-1])
+    def _comparison_argument(self, node: cst.Call) -> cst.Arg | None:
+        if not m.matches(
+            node.func,
+            m.Attribute(value=m.Name("self"), attr=m.Name("assertTrue")),
+        ):
+            return None
+        if enclosing_class_defines_method(self, node, "assertTrue"):
+            return None
+        if not node.args:
+            return None
+
+        first_arg = node.args[0]
+        if first_arg.keyword is not None or first_arg.star:
+            return None
+        return first_arg
 
 
 def _assertion_for_condition(
