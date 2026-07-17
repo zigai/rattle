@@ -21,6 +21,11 @@ def _reports(rule: LintRule, source: str) -> tuple[LintRunner, list[LintViolatio
     return runner, list(runner.collect_violations([rule], Config(path=path)))
 
 
+def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
+    runner, reports = _reports(rule, source)
+    return reports, runner.apply_replacements(reports).code
+
+
 @pytest.mark.parametrize(
     "source",
     [
@@ -326,3 +331,88 @@ def test_variadic_callable_syntax_ignores_rebound_typing_module() -> None:
     )
 
     assert reports == []
+
+
+def test_sorted_attributes_preserves_group_boundary_and_converges() -> None:
+    reports, fixed = _fixed(
+        SortedAttributes(),
+        '''
+        class Constants:
+            """@sorted-attributes"""
+            z = 1
+
+            b = 2
+            a = 3
+        ''',
+    )
+
+    assert len(reports) == 1
+    assert "    z = 1\n\n    a = 3\n    b = 2" in fixed
+    _runner, remaining_reports = _reports(SortedAttributes(), fixed)
+    assert remaining_reports == []
+
+
+def test_variadic_callable_diagnostic_preserves_comments() -> None:
+    _runner, reports = _reports(
+        VariadicCallableSyntax(),
+        """
+        from typing import Callable
+
+        value: Callable[[
+            ...  # arbitrary positional parameters
+        ], int]
+        """,
+    )
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+
+
+def test_conditionally_imported_typing_name_is_not_used_for_fix() -> None:
+    _runner, reports = _reports(
+        UseTypesFromTyping(),
+        """
+        from typing import TYPE_CHECKING
+
+        if TYPE_CHECKING:
+            from typing import List
+
+        value: list[str]
+        """,
+    )
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+
+
+def test_unknown_star_import_prevents_builtin_annotation_guess() -> None:
+    _runner, reports = _reports(
+        UseTypesFromTyping(),
+        """
+        from customtypes import *
+
+        value: list[str]
+        """,
+    )
+
+    assert reports == []
+
+
+def test_qualified_builtin_assignment_alias_is_detected() -> None:
+    _runner, reports = _reports(
+        UseTypesFromTyping(),
+        """
+        import builtins
+
+        Alias = builtins.list
+        value: Alias[str]
+        """,
+    )
+
+    assert len(reports) == 1
+
+
+def test_static_if_detects_debug_fstring() -> None:
+    _runner, reports = _reports(NoStaticIfCondition(), 'if f"{value=}":\n    pass')
+
+    assert len(reports) == 1

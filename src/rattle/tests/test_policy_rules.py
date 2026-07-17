@@ -11,6 +11,7 @@ from rattle.rules.policy.forbidden_call import ForbiddenCall
 from rattle.rules.policy.forbidden_import import ForbiddenImport
 from rattle.rules.policy.forbidden_name import ForbiddenName
 from rattle.rules.policy.line_count_limit import LineCountLimit
+from rattle.rules.policy.no_underscore_import_aliases import NoUnderscoreImportAliases
 from rattle.rules.policy.no_unsafe_tempfile_factories import NoUnsafeTempfileFactories
 
 
@@ -43,11 +44,13 @@ def _run_forbidden_call(
 def _run_forbidden_import(
     source: str,
     forbidden_imports: list[str],
+    *,
+    path: Path = Path("fixture.py"),
 ) -> list[LintViolation]:
     rule = ForbiddenImport()
     rule.configure({"forbidden_imports": forbidden_imports})
 
-    return _run_rule(rule, source)
+    return _run_rule(rule, source, path=path)
 
 
 def _run_forbidden_name(
@@ -455,6 +458,7 @@ def test_forbidden_import_reports_relative_boundary() -> None:
         from .private import X
         """,
         ["private"],
+        path=Path("private/module.py"),
     )
 
     assert [report.message for report in reports] == [
@@ -468,6 +472,7 @@ def test_forbidden_import_reports_relative_boundary_tail() -> None:
         from .private import X
         """,
         ["pkg.private"],
+        path=Path("pkg/module.py"),
     )
 
     assert [report.message for report in reports] == [
@@ -481,11 +486,53 @@ def test_forbidden_import_reports_relative_import_without_module() -> None:
         from . import private
         """,
         ["pkg.private"],
+        path=Path("pkg/module.py"),
     )
 
     assert [report.message for report in reports] == [
         "Do not import across forbidden boundary 'pkg.private'."
     ]
+
+
+def test_forbidden_import_does_not_match_relative_import_in_other_package() -> None:
+    reports = _run_forbidden_import(
+        """
+        from .private import X
+        """,
+        ["pkg.private"],
+        path=Path("other/module.py"),
+    )
+
+    assert reports == []
+
+
+def test_forbidden_import_reports_moduleless_relative_star() -> None:
+    reports = _run_forbidden_import(
+        """
+        from . import *
+        """,
+        ["pkg"],
+        path=Path("pkg/module.py"),
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not import across forbidden boundary 'pkg'."
+    ]
+
+
+def test_forbidden_import_prefers_most_specific_boundary() -> None:
+    reports = _run_forbidden_import(
+        "import alpha.beta",
+        ["alpha", "alpha.beta|specific boundary"],
+    )
+
+    assert [report.message for report in reports] == ["specific boundary"]
+
+
+def test_forbidden_import_accepts_unicode_module_identifier() -> None:
+    reports = _run_forbidden_import("import café", ["café"])
+
+    assert len(reports) == 1
 
 
 def test_forbidden_import_allows_module_with_boundary_prefix_only() -> None:
@@ -766,6 +813,52 @@ def test_unsafe_tempfile_reports_assignment_expression_alias() -> None:
     assert [report.message for report in reports] == [rule.MESSAGE]
 
 
+def test_unsafe_tempfile_reports_module_assignment_alias() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+
+        temporary = tempfile
+        temporary.mkstemp()
+        """,
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
+
+
+def test_unsafe_tempfile_reports_star_imported_factory_alias() -> None:
+    rule = NoUnsafeTempfileFactories()
+    reports = _run_rule(
+        rule,
+        """
+        from tempfile import *
+
+        make_temp = mkstemp
+        make_temp()
+        """,
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
+
+
+def test_unsafe_tempfile_empty_exclusions_include_test_filename() -> None:
+    rule = NoUnsafeTempfileFactories()
+    rule.configure({"excluded_path_parts": []})
+    reports = _run_rule(
+        rule,
+        """
+        import tempfile
+
+        tempfile.mkstemp()
+        """,
+        path=Path("test_temp.py"),
+    )
+
+    assert [report.message for report in reports] == [rule.MESSAGE]
+
+
 def test_unsafe_tempfile_reports_destructured_literal_alias() -> None:
     rule = NoUnsafeTempfileFactories()
     reports = _run_rule(
@@ -898,6 +991,30 @@ def test_line_count_limit_glob_matches_repo_relative_path_outside_cwd(tmp_path: 
     ]
 
 
+def test_line_count_limit_exact_glob_overrides_broader_longer_glob(tmp_path: Path) -> None:
+    root = tmp_path / "repo"
+    path = root / "src" / "a" / "b.py"
+    reports = _run_line_count_limit(
+        """
+        def large() -> None:
+            first()
+            second()
+        """,
+        {
+            "glob_limits": {
+                "src/a/b.py": {"max_function_lines": 2},
+                "src/**/b.py": {"max_function_lines": 10},
+            }
+        },
+        path=path,
+        root=root,
+    )
+
+    assert [report.message for report in reports] == [
+        "Function 'large' has 3 lines, exceeding the configured limit of 2."
+    ]
+
+
 def test_line_count_limit_per_file_limits_match_repo_relative_path(tmp_path: Path) -> None:
     root = tmp_path / "repo"
     path = root / "src" / "fixture.py"
@@ -938,3 +1055,38 @@ def test_line_count_limit_nested_class_method_uses_method_limit() -> None:
     assert [report.message for report in reports] == [
         "Method 'oversized' has 3 lines, exceeding the configured limit of 2."
     ]
+
+
+def test_line_count_limit_class_control_flow_method_uses_method_limit() -> None:
+    reports = _run_line_count_limit(
+        """
+        class Service:
+            if enabled:
+                def oversized(self):
+                    first()
+                    second()
+        """,
+        {
+            "max_function_lines": 10,
+            "max_method_lines": 2,
+        },
+    )
+
+    assert [report.message for report in reports] == [
+        "Method 'oversized' has 3 lines, exceeding the configured limit of 2."
+    ]
+
+
+def test_forbidden_name_accepts_documented_leading_glob() -> None:
+    reports = _run_forbidden_name("class UserManager: pass", ["class:*Manager"])
+
+    assert len(reports) == 1
+
+
+def test_underscore_import_alias_range_targets_alias_name() -> None:
+    reports = _run_rule(NoUnderscoreImportAliases(), "import json as _json")
+
+    assert len(reports) == 1
+    assert reports[0].range is not None
+    assert reports[0].range.start.column == 15
+    assert reports[0].range.end.column == 20

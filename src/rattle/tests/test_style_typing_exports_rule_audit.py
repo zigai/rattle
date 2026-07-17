@@ -26,6 +26,11 @@ def _reports(
     return runner, list(runner.collect_violations([rule], Config(path=path)))
 
 
+def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
+    runner, reports = _reports(rule, source)
+    return reports, runner.apply_replacements(reports).code
+
+
 def test_module_all_allows_a_trailing_construction_block() -> None:
     _runner, reports = _reports(
         ModuleAllAtBottom(),
@@ -348,3 +353,76 @@ def test_rules_cover_adversarial_but_unambiguous_cases(
     _runner, reports = _reports(rule, source)
 
     assert len(reports) == (0 if isinstance(rule, PublicMethodOrder) else 1)
+
+
+def test_module_all_dynamic_value_is_reported_without_reordering_fix() -> None:
+    _runner, reports = _reports(
+        ModuleAllAtBottom(),
+        """
+        def public():
+            return "old"
+
+        __all__ = [public]
+
+        def public():
+            return "new"
+        """,
+    )
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+
+
+def test_module_all_fix_does_not_move_past_binding_named_all() -> None:
+    _runner, reports = _reports(
+        ModuleAllAtBottom(),
+        """
+        __all__ = ["public"]
+
+        def __all__():
+            return "runtime binding"
+        """,
+    )
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+
+
+def test_exception_message_global_assignment_is_not_treated_as_local() -> None:
+    _runner, reports = _reports(
+        NoExceptionMessageVariables(),
+        """
+        message = "original"
+
+        def fail():
+            global message
+            message = "invalid"
+            raise ValueError(message)
+        """,
+    )
+
+    assert reports == []
+
+
+def test_underscore_class_range_targets_class_name() -> None:
+    _runner, reports = _reports(NoUnderscoreClass(), "class _Private:\n    pass")
+
+    assert len(reports) == 1
+    assert reports[0].range is not None
+    assert reports[0].range.start.column == 6
+    assert reports[0].range.end.column == 14
+
+
+def test_annotated_self_in_conditional_class_body_is_reported() -> None:
+    reports, fixed = _fixed(
+        NoAnnotatedSelf(),
+        """
+        class Service:
+            if enabled:
+                def run(self: "Service") -> None:
+                    pass
+        """,
+    )
+
+    assert len(reports) == 1
+    assert "def run(self) -> None:" in fixed

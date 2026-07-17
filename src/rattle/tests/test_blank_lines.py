@@ -1295,3 +1295,26 @@ def test_bl400_fix_inserts_one_case_separator_and_converges() -> None:
     assert "        third = 3\n\n        case _:" in fixed_code
     _, fixed_reports = _run_rule(MatchCaseSeparation, fixed_code)
     assert fixed_reports == []
+
+
+@pytest.mark.parametrize(
+    ("header", "expected_length"),
+    [("async for item in items:", 9), ("async with context():", 10)],
+)
+def test_relaxed_cuddle_async_header_range_covers_keyword(
+    header: str,
+    expected_length: int,
+) -> None:
+    _runner, reports = _run_rule(
+        BlockHeaderCuddleRelaxed,
+        f"""
+        async def run():
+            prepare()
+            {header}
+                consume()
+        """,
+    )
+
+    assert len(reports) == 1
+    assert reports[0].range is not None
+    assert reports[0].range.end.column - reports[0].range.start.column == expected_length
