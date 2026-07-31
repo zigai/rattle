@@ -1327,8 +1327,10 @@ class ConfigTest(TestCase):
             results = config.validate_config(path)
 
             assert results == [
-                "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
-                "Expected `array`, got `str` - at `$.per-file-enable[...]`"
+                (
+                    "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                    "Expected `array`, got `str` - at `$.per-file-enable[...]`"
+                )
             ]
 
         with self.subTest("validate-config invalid inherit-ruff-files"), TemporaryDirectory() as td:
@@ -1345,8 +1347,10 @@ class ConfigTest(TestCase):
             results = config.validate_config(path)
 
             assert results == [
-                "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
-                "Expected `bool`, got `str` - at `$.inherit-ruff-files`"
+                (
+                    "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                    "Expected `bool`, got `str` - at `$.inherit-ruff-files`"
+                )
             ]
 
         with self.subTest("validate-config invalid exclude"), TemporaryDirectory() as td:
@@ -1363,8 +1367,10 @@ class ConfigTest(TestCase):
             results = config.validate_config(path)
 
             assert results == [
-                "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
-                "Expected `array`, got `str` - at `$.exclude`"
+                (
+                    "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                    "Expected `array`, got `str` - at `$.exclude`"
+                )
             ]
 
         with self.subTest("validate-config invalid output template"), TemporaryDirectory() as td:
@@ -1381,8 +1387,10 @@ class ConfigTest(TestCase):
             results = config.validate_config(path)
 
             assert results == [
-                "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
-                "Expected `str | null`, got `int` - at `$.output-template`"
+                (
+                    "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                    "Expected `str | null`, got `int` - at `$.output-template`"
+                )
             ]
 
     def test_validate_config_with_override(self) -> None:
