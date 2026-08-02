@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import re
 import textwrap
+import tokenize
+from collections import Counter
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -20,6 +23,7 @@ from rattle.rules.blank_lines import (
 from rattle.rules.blank_lines.blank_line_before_assignment import BlankLineBeforeAssignment
 from rattle.rules.blank_lines.block_header_cuddle_strict import BlockHeaderCuddleStrict
 from rattle.rules.blank_lines.match_case_separation import MatchCaseSeparation
+from rattle.testing import _execution_outcome
 
 RULE_CLASSES: tuple[type[LintRule], ...] = (
     NoSuiteLeadingTrailingBlankLines,
@@ -43,6 +47,14 @@ DEFAULT_RULE_COLLECTION: tuple[type[LintRule], ...] = (
 
 def _dedent(source: str) -> str:
     return textwrap.dedent(re.sub(r"\A\n", "", source))
+
+
+def _comments(source: str) -> Counter[str]:
+    return Counter(
+        token.string
+        for token in tokenize.generate_tokens(StringIO(source).readline)
+        if token.type == tokenize.COMMENT
+    )
 
 
 def _as_valid(case: str | Valid) -> Valid:
@@ -128,6 +140,8 @@ def test_invalid_fixtures_produce_expected_reports(
     if case.expected_replacement is not None:
         fixed_code = runner.apply_replacements(reports).code
         assert fixed_code == _dedent(case.expected_replacement)
+        assert not (_comments(_dedent(case.code)) - _comments(fixed_code))
+        assert _execution_outcome(_dedent(case.code)) == _execution_outcome(fixed_code)
 
         _, fixed_reports = _run_rule(rule_cls, fixed_code, case.options)
         assert fixed_reports == []
@@ -396,7 +410,7 @@ def test_default_rule_collection_converges_after_nested_loop_tail_return() -> No
     assert fixed_reports == []
 
 
-def test_default_rule_collection_converges_after_nested_guard_chain_assignment_followup() -> None:
+def test_default_rule_collection_composes_nested_guard_chain_fixes() -> None:
     runner, reports = _run_rules(
         DEFAULT_RULE_COLLECTION,
         """
@@ -419,10 +433,6 @@ def test_default_rule_collection_converges_after_nested_guard_chain_assignment_f
     assert reports
 
     fixed_code = runner.apply_replacements(reports).code
-    second_runner, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
-    assert fixed_reports
-
-    fixed_code = second_runner.apply_replacements(fixed_reports).code
     _, fixed_reports = _run_rules(DEFAULT_RULE_COLLECTION, fixed_code)
     assert fixed_reports == []
 

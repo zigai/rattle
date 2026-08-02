@@ -3,11 +3,18 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from __future__ import annotations
+
+import builtins
 import re
 import textwrap
+import tokenize
 import unittest
-from collections.abc import Collection, Mapping
+import warnings
+from collections import Counter
+from collections.abc import Collection, Iterator, Mapping
 from dataclasses import dataclass
+from io import StringIO
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -24,9 +31,72 @@ class Report(Protocol):
     patch: Patch | None
 
 
+class _ExecutionProbe:
+    __hash__ = object.__hash__
+
+    def __getattr__(self, name: str) -> _ExecutionProbe:
+        del name
+        return self
+
+    def __call__(self, *args: object, **kwargs: object) -> _ExecutionProbe:
+        del args, kwargs
+        return self
+
+    def __getitem__(self, key: object) -> _ExecutionProbe:
+        del key
+        return self
+
+    def __iter__(self) -> Iterator[object]:
+        return iter(())
+
+    def __bool__(self) -> bool:
+        return False
+
+    def __contains__(self, item: object) -> bool:
+        del item
+        return False
+
+    def __eq__(self, other: object) -> bool:
+        del other
+        return False
+
+    def __ne__(self, other: object) -> bool:
+        del other
+        return True
+
+
+class _ExecutionNamespace(dict[str, object]):
+    def __missing__(self, key: str) -> object:
+        if hasattr(builtins, key):
+            return getattr(builtins, key)
+        value = _ExecutionProbe()
+        self[key] = value
+        return value
+
+
+def _execution_outcome(source: str) -> str:
+    namespace = _ExecutionNamespace({"__name__": "__rattle_autofix_test__"})
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            code = compile(source, "<autofix-test>", "exec")
+        exec(code, namespace)  # noqa: S102 - executes repository-owned regression fixtures
+    except Exception as e:  # noqa: BLE001 - compare fixture behavior across an autofix
+        return type(e).__name__
+    return "success"
+
+
 def _dedent(src: str) -> str:
     src = re.sub(r"\A\n", "", src)
     return textwrap.dedent(src)
+
+
+def _comments(source: str) -> Counter[str]:
+    return Counter(
+        token.string
+        for token in tokenize.generate_tokens(StringIO(source).readline)
+        if token.type == tokenize.COMMENT
+    )
 
 
 def get_fixture_path(fixture_top_dir: Path, rule_module: str, rules_package: str) -> Path:
@@ -103,11 +173,35 @@ class LintRuleTestCase(unittest.TestCase):
             if test_case.expected_message is not None:
                 assert test_case.expected_message == report.message
 
-        if test_case.expected_replacement:
+        if test_case.expected_replacement is not None:
             # make sure we produced expected final code
             expected_code = _dedent(test_case.expected_replacement)
             modified_code = runner.apply_replacements(reports).bytes.decode()
             assert expected_code == modified_code
+            original_outcome = _execution_outcome(source_code)
+            fixed_outcome = _execution_outcome(modified_code)
+            assert original_outcome == fixed_outcome or (
+                rule.AUTOFIX_MAY_REPAIR_EXECUTION and fixed_outcome == "success"
+            ), (
+                "Auto-fix changed whether the fixture executes successfully or which exception "
+                "it raises.\n"
+                f"Original outcome: {original_outcome}; fixed outcome: {fixed_outcome}.\n"
+                f"Before:\n{source_code}\nAfter:\n{modified_code}"
+            )
+            if rule.PRESERVE_COMMENTS:
+                assert not (_comments(source_code) - _comments(modified_code)), (
+                    "Auto-fix removed source comments.\n"
+                    f"Before:\n{source_code}\nAfter:\n{modified_code}"
+                )
+
+            converged_rule = type(rule)()
+            converged_rule.configure(test_case.options or {})
+            converged_runner = LintRunner(path, modified_code.encode())
+            remaining = list(converged_runner.collect_violations([converged_rule], config))
+            assert remaining == [], (
+                "Auto-fix did not converge; the fixed source still violates the same rule:\n"
+                + "\n".join(str(report) for report in remaining)
+            )
 
             if len(reports) == 1:
                 # make sure we generated a reasonable diff

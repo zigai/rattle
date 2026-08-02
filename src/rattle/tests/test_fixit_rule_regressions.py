@@ -200,6 +200,76 @@ def test_sorted_attributes_does_not_sort_across_blank_lines() -> None:
     assert reports == []
 
 
+def test_sorted_attributes_preserves_assignment_comments() -> None:
+    reports, fixed = _fixed(
+        SortedAttributes(),
+        '''
+        class Constants:
+            """@sorted-attributes"""
+            z = 1
+            # documentation for a
+            a = 2
+        ''',
+    )
+
+    assert len(reports) == 1
+    assert "    # documentation for a\n    a = 2" in fixed
+
+
+def test_sorted_attributes_withholds_fix_for_runtime_dependencies() -> None:
+    runner, reports = _reports(
+        SortedAttributes(),
+        '''
+        class Constants:
+            """@sorted-attributes"""
+            z = 1
+            a = z
+        ''',
+    )
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+    assert runner.apply_replacements(reports).code == dedent(
+        '''
+        class Constants:
+            """@sorted-attributes"""
+            z = 1
+            a = z
+        ''',
+    )
+
+
+def test_sorted_attributes_literal_fix_preserves_runtime_values() -> None:
+    source = dedent(
+        '''
+        class Constants:
+            """@sorted-attributes"""
+            z = 1
+            a = 2
+        ''',
+    )
+    reports, fixed = _fixed(SortedAttributes(), source)
+    original_namespace: dict[str, object] = {}
+    fixed_namespace: dict[str, object] = {}
+
+    exec(source, original_namespace)
+    exec(fixed, fixed_namespace)
+
+    assert reports[0].replacement is not None
+    original = original_namespace["Constants"]
+    updated = fixed_namespace["Constants"]
+    assert (vars(original)["a"], vars(original)["z"]) == (
+        vars(updated)["a"],
+        vars(updated)["z"],
+    )
+
+
+def test_static_if_large_integer_does_not_crash() -> None:
+    _runner, reports = _reports(NoStaticIfCondition(), "if " + "1" * 5_000 + ":\n    pass\n")
+
+    assert len(reports) == 1
+
+
 @pytest.mark.parametrize(
     "comment",
     ["# noqa", "# NOQA: E123", "# flake8:noqa", "# type: ignore  # noqa"],
@@ -331,6 +401,33 @@ def test_variadic_callable_syntax_ignores_rebound_typing_module() -> None:
     )
 
     assert reports == []
+
+
+@pytest.mark.parametrize(
+    ("rule", "source"),
+    [
+        (
+            ExplicitFrozenDataclass(),
+            "from dataclasses import dataclass\n(alias,) = (dataclass,)\n@alias\nclass C: pass\n",
+        ),
+        (
+            NoNamedTuple(),
+            "from typing import NamedTuple\n(alias,) = (NamedTuple,)\nclass C(alias): pass\n",
+        ),
+        (
+            VariadicCallableSyntax(),
+            "from typing import Callable\n(alias,) = (Callable,)\nx: alias[[...], int]\n",
+        ),
+        (
+            UseTypesFromTyping(),
+            "from builtins import list as ListType\n(alias,) = (ListType,)\nx: alias[str]\n",
+        ),
+    ],
+)
+def test_assignment_alias_tracker_supports_destructuring(rule: LintRule, source: str) -> None:
+    _runner, reports = _reports(rule, source)
+
+    assert len(reports) == 1
 
 
 def test_sorted_attributes_preserves_group_boundary_and_converges() -> None:

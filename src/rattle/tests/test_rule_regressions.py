@@ -15,6 +15,7 @@ from rattle.rules.fixit_extra.compare_singleton_primitives_by_is import (
     CompareSingletonPrimitivesByIs,
 )
 from rattle.rules.fixit_extra.deprecated_abc_import import DeprecatedABCImport
+from rattle.rules.fixit_extra.deprecated_unittest_asserts import DeprecatedUnittestAsserts
 from rattle.rules.fixit_extra.no_assert_true_for_comparison import (
     NoAssertTrueForComparisons,
 )
@@ -35,6 +36,7 @@ from rattle.rules.fixit_extra.use_async_sleep_in_async_def import (
     UseAsyncSleepInAsyncDef,
 )
 from rattle.rules.fixit_extra.use_fstring import UseFstring
+from rattle.rules.style.no_exception_message_variables import NoExceptionMessageVariables
 from rattle.rules.style.no_str_exception_translation import NoStrExceptionTranslation
 from rattle.rules.style.public_method_order import PublicMethodOrder
 from rattle.rules.typing.no_bare_object_annotations import NoBareObjectAnnotations
@@ -49,6 +51,112 @@ def _reports(rule: LintRule, source: str) -> tuple[LintRunner, list[LintViolatio
 def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
     runner, reports = _reports(rule, source)
     return reports, runner.apply_replacements(reports).code
+
+
+@pytest.mark.parametrize(
+    ("rule", "source"),
+    [
+        (
+            UseAssertIn(),
+            "self.assertTrue(\n    item in items  # preserve rationale\n)\n",
+        ),
+        (
+            UseAssertIsNotNone(),
+            "self.assertTrue(\n    item is not None  # preserve rationale\n)\n",
+        ),
+        (
+            RewriteToLiteral(),
+            "value = list([\n    # preserve element rationale\n    item,\n])\n",
+        ),
+    ],
+)
+def test_comment_bearing_rewrites_are_diagnostic_only(rule: LintRule, source: str) -> None:
+    runner, reports = _reports(rule, source)
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+    assert runner.apply_replacements(reports).code == source
+
+
+def test_bytes_annotation_rewrite_is_diagnostic_only() -> None:
+    _runner, reports = _reports(
+        NoStringTypeAnnotation(),
+        'from __future__ import annotations\nvalue: b"int"\n',
+    )
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'def f(): f"value"\n',
+        'def f():\n    f"left" "right"\n',
+    ],
+)
+def test_redundant_fstring_one_line_forms_do_not_create_docstrings(source: str) -> None:
+    runner, reports = _reports(NoRedundantFString(), source)
+
+    assert len(reports) == 0
+    assert runner.module.code == source
+
+
+def test_use_fstring_withholds_fix_when_class_call_may_return_tuple() -> None:
+    _runner, reports = _reports(
+        UseFstring(),
+        """
+        class Factory:
+            def __new__(cls):
+                return ("a", "b")
+
+        result = "%s" % Factory()
+        """,
+    )
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+
+
+def test_classmethod_rename_withholds_fix_for_dynamic_namespace_access() -> None:
+    _runner, reports = _reports(
+        UseClsInClassmethod(),
+        """
+        class C:
+            @classmethod
+            def make(receiver):
+                return locals()["receiver"]
+        """,
+    )
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "detail = build_detail()\nraise CustomError(code(), detail)\n",
+        'message = "safe"  # preserve rationale\nraise ValueError(message)\n',
+    ],
+)
+def test_exception_message_inlining_withholds_unsafe_fixes(source: str) -> None:
+    _runner, reports = _reports(NoExceptionMessageVariables(), source)
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+
+
+def test_nested_parent_and_child_fixes_are_composed() -> None:
+    source = 'self.assertEquals("%s" % "hi", "value")\n'
+    path = Path("sample.py")
+    runner = LintRunner(path, source.encode())
+    reports = list(
+        runner.collect_violations([DeprecatedUnittestAsserts(), UseFstring()], Config(path=path))
+    )
+
+    assert len(reports) == 2
+    assert runner.apply_replacements(reports).code == ('self.assertEqual(f"{\'hi\'!s}", "value")\n')
 
 
 @pytest.mark.parametrize(
@@ -407,22 +515,27 @@ def test_use_f_string_percent_s_autofix_uses_str_conversion() -> None:
 
 
 @pytest.mark.parametrize(
-    ("source", "expected"),
+    "source",
     [
-        ("value==True", "value is True"),
-        ("value ==True", "value is True"),
-        ("value== True", "value is True"),
-        ("value!=None", "value is not None"),
+        "value==True",
+        "value ==True",
+        "value== True",
+        "value!=None",
     ],
 )
-def test_singleton_comparison_fix_adds_required_whitespace(
-    source: str,
-    expected: str,
-) -> None:
+def test_singleton_comparison_does_not_fix_dynamic_equality(source: str) -> None:
     reports, fixed = _fixed(CompareSingletonPrimitivesByIs(), source)
 
     assert len(reports) == 1
-    assert fixed == expected
+    assert reports[0].replacement is None
+    assert fixed == source
+
+
+def test_singleton_comparison_safe_fix_adds_required_whitespace() -> None:
+    reports, fixed = _fixed(CompareSingletonPrimitivesByIs(), "None==False")
+
+    assert len(reports) == 1
+    assert fixed == "None is False"
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,8 @@ import re
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from rattle import Config, LintRule
 from rattle.engine import LintRunner
 from rattle.ftypes import LintViolation
@@ -39,6 +41,67 @@ def _run_forbidden_call(
     rule.configure({"forbidden_calls": forbidden_calls})
 
     return _run_rule(rule, source)
+
+
+def test_forbidden_call_ignores_relative_star_import() -> None:
+    reports = _run_forbidden_call('from .os import *\nremove("path")\n', ["os.remove"])
+
+    assert reports == []
+
+
+def test_forbidden_call_reports_assigned_module_alias() -> None:
+    reports = _run_forbidden_call(
+        'import os\nplatform = os\nplatform.remove("path")\n', ["os.remove"]
+    )
+
+    assert [report.message for report in reports] == ["Do not call forbidden callable 'os.remove'."]
+
+
+def test_unsafe_tempfile_ignores_relative_star_import() -> None:
+    rule = NoUnsafeTempfileFactories()
+    rule.configure({"excluded_path_parts": []})
+
+    assert _run_rule(rule, "from .tempfile import *\nmkstemp()\n") == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import tempfile\nt: object = tempfile\nt.mkstemp()\n",
+        "import tempfile\n(t := tempfile).mkdtemp()\n",
+    ],
+)
+def test_unsafe_tempfile_reports_all_assignment_like_module_aliases(source: str) -> None:
+    rule = NoUnsafeTempfileFactories()
+    rule.configure({"excluded_path_parts": []})
+
+    assert [report.message for report in _run_rule(rule, source)] == [rule.MESSAGE]
+
+
+@pytest.mark.parametrize("setting_name", ["glob_limits", "per_file_limits"])
+def test_line_count_paths_are_matched_relative_to_repo_root(setting_name: str) -> None:
+    pattern = "src/*.py" if setting_name == "glob_limits" else "src/x.py"
+    options = {
+        "max_function_lines": 10,
+        setting_name: {pattern: {"max_function_lines": 2}},
+    }
+    source = "def f():\n    first()\n    second()\n"
+
+    nested_reports = _run_line_count_limit(
+        source,
+        options,
+        path=Path("/repo/vendor/src/x.py"),
+        root=Path("/repo"),
+    )
+    direct_reports = _run_line_count_limit(
+        source,
+        options,
+        path=Path("/repo/src/x.py"),
+        root=Path("/repo"),
+    )
+
+    assert nested_reports == []
+    assert len(direct_reports) == 1
 
 
 def _run_forbidden_import(
