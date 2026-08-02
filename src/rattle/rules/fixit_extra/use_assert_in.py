@@ -9,7 +9,7 @@ from libcst.helpers import ensure_type
 from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import enclosing_class_defines_method
+from rattle.rules.helpers import enclosing_class_defines_method, has_comments
 
 
 class UseAssertIn(LintRule):
@@ -76,7 +76,9 @@ class UseAssertIn(LintRule):
         ),
     ]
 
-    def visit_Call(self, node: cst.Call) -> None:
+    def visit_Call(  # noqa: C901 - normalizes the unittest membership polarity matrix
+        self, node: cst.Call
+    ) -> None:
         # Todo: Make use of single extract instead of having several
         # if else statements to make the code more robust and readable.
         if m.matches(
@@ -87,6 +89,8 @@ class UseAssertIn(LintRule):
             ),
         ):
             if enclosing_class_defines_method(self, node, "assertTrue"):
+                return
+            if enclosing_class_defines_method(self, node, "assertIn"):
                 return
 
             # self.assertTrue(a in b) -> self.assertIn(a, b)
@@ -99,7 +103,11 @@ class UseAssertIn(LintRule):
                     ),
                 ],
             )
-            self.report(node, self.MESSAGE, replacement=new_call)
+            self.report(
+                node,
+                self.MESSAGE,
+                replacement=None if has_comments(node.args[0]) else new_call,
+            )
         else:
             # ... -> self.assertNotIn(a, b)
             matched, arg1, arg2 = False, None, None
@@ -169,11 +177,17 @@ class UseAssertIn(LintRule):
                 )
 
             if matched:
+                if enclosing_class_defines_method(self, node, "assertNotIn"):
+                    return
                 new_call = node.with_changes(
                     func=cst.Attribute(value=cst.Name("self"), attr=cst.Name("assertNotIn")),
                     args=[arg1, arg2],
                 )
-                self.report(node, self.MESSAGE, replacement=new_call)
+                self.report(
+                    node,
+                    self.MESSAGE,
+                    replacement=None if has_comments(node.args[0]) else new_call,
+                )
 
 
 __all__ = [

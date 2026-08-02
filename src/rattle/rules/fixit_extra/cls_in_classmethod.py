@@ -19,6 +19,21 @@ from rattle.rules.helpers import has_name_declaration, ordinary_parameters
 CLS = "cls"
 
 
+class DynamicNamespaceAccessVisitor(cst.CSTVisitor):
+    def __init__(self) -> None:
+        self.found = False
+
+    def visit_Call(self, node: cst.Call) -> bool:
+        if isinstance(node.func, cst.Name) and node.func.value in {
+            "eval",
+            "exec",
+            "locals",
+            "vars",
+        }:
+            self.found = True
+        return not self.found
+
+
 class RenameTransformer(cst.CSTTransformer):
     def __init__(
         self, names: list[cst.Name | cst.BaseString | cst.Attribute], new_name: str
@@ -289,6 +304,10 @@ class UseClsInClassmethod(LintRule):
     def _renamed_classmethod(
         self, node: cst.FunctionDef, p0_name: cst.Name
     ) -> cst.FunctionDef | None:
+        dynamic_access = DynamicNamespaceAccessVisitor()
+        node.body.visit(dynamic_access)
+        if dynamic_access.found:
+            return None
 
         # Rename all assignments and references of the first param within the
         # function scope, as long as they are done via a Name node.

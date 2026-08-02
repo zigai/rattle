@@ -7,6 +7,7 @@ import libcst as cst
 import libcst.matchers as m
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import is_static_literal_expression
 
 LineType = cst.BaseSmallStatement | cst.BaseStatement
 
@@ -114,7 +115,9 @@ class SortedAttributes(LintRule):
         del node
         self._fixed_classes = {}
 
-    def leave_ClassDef(self, original_node: cst.ClassDef) -> None:
+    def leave_ClassDef(  # noqa: C901 - maintains assignment-group sorting state
+        self, original_node: cst.ClassDef
+    ) -> None:
         node = original_node
         for child, replacement in self._fixed_classes.items():
             if child is not original_node:
@@ -127,28 +130,44 @@ class SortedAttributes(LintRule):
         replacement_lines: list[LineType] = []
         assign_lines: list[LineType] = []
         changed = False
+        safe_to_fix = True
 
         def _flush_assign_lines() -> None:
-            nonlocal changed
+            nonlocal changed, safe_to_fix
             if not assign_lines:
                 return
 
             first_line = cst.ensure_type(assign_lines[0], cst.SimpleStatementLine)
-            group_leading_lines = first_line.leading_lines
-            normalized_assign_lines = [
-                cst.ensure_type(line, cst.SimpleStatementLine).with_changes(leading_lines=[])
-                for line in assign_lines
-            ]
+            group_leading_lines = tuple(
+                line for line in first_line.leading_lines if line.comment is None
+            )
+            normalized_assign_lines = []
+            for line in assign_lines:
+                statement_line = cst.ensure_type(line, cst.SimpleStatementLine)
+                normalized_assign_lines.append(
+                    statement_line.with_changes(
+                        leading_lines=tuple(
+                            leading
+                            for leading in statement_line.leading_lines
+                            if leading.comment is not None
+                        )
+                    )
+                )
             sorted_assign_lines = sorted(
                 normalized_assign_lines,
                 key=self._get_assign_name,
             )
             sorted_assign_lines[0] = sorted_assign_lines[0].with_changes(
-                leading_lines=group_leading_lines
+                leading_lines=(*group_leading_lines, *sorted_assign_lines[0].leading_lines)
             )
-            changed = changed or [self._get_assign_name(line) for line in sorted_assign_lines] != [
+            group_changed = [self._get_assign_name(line) for line in sorted_assign_lines] != [
                 self._get_assign_name(line) for line in assign_lines
             ]
+            changed = changed or group_changed
+            if group_changed and not all(
+                self._assignment_is_safe_to_move(line) for line in assign_lines
+            ):
+                safe_to_fix = False
             replacement_lines.extend(sorted_assign_lines)
             assign_lines.clear()
 
@@ -164,8 +183,13 @@ class SortedAttributes(LintRule):
         _flush_assign_lines()
         if not changed:
             return
-        replacement = node.with_changes(body=node.body.with_changes(body=replacement_lines))
-        self._fixed_classes[original_node] = replacement
+        replacement = (
+            node.with_changes(body=node.body.with_changes(body=replacement_lines))
+            if safe_to_fix
+            else None
+        )
+        if replacement is not None:
+            self._fixed_classes[original_node] = replacement
         self.report(
             original_node,
             self.MESSAGE,
@@ -200,6 +224,11 @@ class SortedAttributes(LintRule):
             assign = cst.ensure_type(statement, cst.AnnAssign)
             target = cst.ensure_type(assign.target, cst.Name)
         return target.value
+
+    def _assignment_is_safe_to_move(self, line: LineType) -> bool:
+        statement = cst.ensure_type(line, cst.SimpleStatementLine).body[0]
+        value = statement.value if isinstance(statement, (cst.Assign, cst.AnnAssign)) else None
+        return value is not None and is_static_literal_expression(value)
 
 
 __all__ = [

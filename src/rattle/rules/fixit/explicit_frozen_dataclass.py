@@ -5,6 +5,7 @@
 
 import libcst as cst
 from libcst.metadata import (
+    PositionProvider,
     QualifiedName,
     QualifiedNameProvider,
     QualifiedNameSource,
@@ -12,7 +13,11 @@ from libcst.metadata import (
 )
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
-from rattle.rules.helpers import attribute_root_is_imported_module, dotted_name
+from rattle.rules.helpers import (
+    AssignmentAliasTracker,
+    attribute_root_is_imported_module,
+    dotted_name,
+)
 
 
 class ExplicitFrozenDataclass(LintRule):
@@ -22,7 +27,7 @@ class ExplicitFrozenDataclass(LintRule):
         "Dataclass mutability must be explicit. Add `frozen=True` for immutable "
         "value objects or `frozen=False` when instances are intentionally mutable."
     )
-    METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider)
+    METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider, PositionProvider)
     SOURCE_PATTERNS = ("dataclass",)
     VALID = [
         Valid(
@@ -214,19 +219,19 @@ class ExplicitFrozenDataclass(LintRule):
     def __init__(self) -> None:
         super().__init__()
 
-        self._dataclass_alias_nodes: set[cst.CSTNode] = set()
+        self._dataclass_aliases = AssignmentAliasTracker[bool](self)
         self._has_dataclasses_star_import = False
 
     def visit_Module(self, node: cst.Module) -> None:
         del node
 
-        self._dataclass_alias_nodes = set()
+        self._dataclass_aliases.reset()
         self._has_dataclasses_star_import = False
 
     def leave_Module(self, original_node: cst.Module) -> None:
         del original_node
 
-        self._dataclass_alias_nodes = set()
+        self._dataclass_aliases.reset()
         self._has_dataclasses_star_import = False
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
@@ -234,25 +239,18 @@ class ExplicitFrozenDataclass(LintRule):
             self._has_dataclasses_star_import = True
 
     def visit_Assign(self, node: cst.Assign) -> None:
-        if self._expression_is_imported_dataclass(
-            node.value
-        ) or self._expression_is_dataclass_alias(node.value):
-            for assign_target in node.targets:
-                if isinstance(assign_target.target, cst.Name):
-                    self._dataclass_alias_nodes.add(assign_target.target)
-        else:
-            for assign_target in node.targets:
-                if isinstance(assign_target.target, cst.Name):
-                    self._dataclass_alias_nodes.discard(assign_target.target)
+        for assign_target in node.targets:
+            self._dataclass_aliases.record(
+                assign_target.target, node.value, self._dataclass_alias_value
+            )
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
-        if not isinstance(node.target, cst.Name) or node.value is None:
+        if node.value is None:
             return
+        self._dataclass_aliases.record(node.target, node.value, self._dataclass_alias_value)
 
-        if self._expression_is_imported_dataclass(
-            node.value
-        ) or self._expression_is_dataclass_alias(node.value):
-            self._dataclass_alias_nodes.add(node.target)
+    def visit_NamedExpr(self, node: cst.NamedExpr) -> None:
+        self._dataclass_aliases.record(node.target, node.value, self._dataclass_alias_value)
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         for d in node.decorators:
@@ -288,28 +286,12 @@ class ExplicitFrozenDataclass(LintRule):
         return attribute_root_is_imported_module(self, expression, {"dataclasses"})
 
     def _expression_is_dataclass_alias(self, expression: cst.BaseExpression) -> bool:
-        if not isinstance(expression, cst.Name):
-            return False
+        return self._dataclass_aliases.resolve(expression) is True
 
-        scope = self.get_metadata(ScopeProvider, expression, None)
-        if scope is None:
-            return False
-
-        try:
-            assignments = scope[expression.value]
-        except KeyError:
-            return False
-
-        reference_assignments = [
-            assignment
-            for assignment in assignments
-            if any(access.node is expression for access in assignment.references)
-        ]
-        return bool(reference_assignments) and all(
-            (assignment_node := getattr(assignment, "node", None)) is not None
-            and assignment_node in self._dataclass_alias_nodes
-            for assignment in reference_assignments
-        )
+    def _dataclass_alias_value(self, expression: cst.BaseExpression) -> bool | None:
+        if self._expression_is_imported_dataclass(expression):
+            return True
+        return self._dataclass_aliases.resolve(expression)
 
     def _expression_is_star_imported_dataclass(self, expression: cst.BaseExpression) -> bool:
         if not self._has_dataclasses_star_import:

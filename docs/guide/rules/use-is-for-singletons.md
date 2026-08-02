@@ -94,29 +94,19 @@ True == 1
 ## Invalid examples
 
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 x != True
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-x is not True
 ```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 x != False
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-x is not False
 ```
 ```{raw} html
 </div>
@@ -127,55 +117,14 @@ x is not False
 ```python
 x == False
 ```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-x is False
-```
 ```{raw} html
 </div>
 ```
 ```{raw} html
-<details class="rule-extra-examples"><summary>Show more</summary>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 x == None
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-x is None
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-x != None
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-x is not None
-```
-```{raw} html
-</div>
-```
-```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-False == x
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-False is x
 ```
 ```{raw} html
 </div>
@@ -184,12 +133,42 @@ False is x
 <div class="rule-invalid-example">
 ```
 ```python
+x != None
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+False == x
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
 x is True == y
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+None == False
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-x is True is y
+None is False
 ```
 ```{raw} html
 </div>

@@ -408,6 +408,12 @@ class LintRule(BatchableCSTVisitor):
     test case that provides an expected replacement.
     """
 
+    PRESERVE_COMMENTS: ClassVar[bool] = True
+    "Whether generated autofixes must preserve every source comment."
+
+    AUTOFIX_MAY_REPAIR_EXECUTION: ClassVar[bool] = False
+    "Whether an autofix intentionally repairs a fixture that cannot execute."
+
     name: ClassVar[str] = ""
     """
     Canonical kebab-case name of this lint rule.
@@ -416,6 +422,7 @@ class LintRule(BatchableCSTVisitor):
     def __init__(self) -> None:
         self._violations: list[LintViolation] = []
         self._lint_ignore_enabled = True
+        self._config_root = Path.cwd()
         self.settings: Mapping[str, RuleOptionValue] = MappingProxyType({})
 
     def __init_subclass__(cls) -> None:
@@ -423,7 +430,7 @@ class LintRule(BatchableCSTVisitor):
         cls.name = cls.__dict__.get("NAME") or rule_name_from_class_name(cls.__name__)
         invalid = cls.INVALID
         cls.AUTOFIX = any(
-            isinstance(case, Invalid) and bool(case.expected_replacement) for case in invalid
+            isinstance(case, Invalid) and case.expected_replacement is not None for case in invalid
         )
 
     def __str__(self) -> str:

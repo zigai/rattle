@@ -355,6 +355,8 @@ class NoStringTypeAnnotation(LintRule):
     def visit_ConcatenatedString(self, node: cst.ConcatenatedString) -> None:
         if not self.has_future_annotations_import:
             return
+        if isinstance(self.get_metadata(ParentNodeProvider, node, None), cst.ConcatenatedString):
+            return
         if self.in_annotation and not self.in_literal and not self._is_annotated_metadata(node):
             self._report_string(node, node.evaluated_value)
 
@@ -362,12 +364,13 @@ class NoStringTypeAnnotation(LintRule):
         if value is None:
             self.report(node, self.MESSAGE)
             return
+        if isinstance(value, bytes):
+            self.report(node, self.MESSAGE)
+            return
         try:
-            if isinstance(value, bytes):
-                value = value.decode("utf-8")
             repl = cst.parse_expression(value)
             self.report(node, self.MESSAGE, replacement=repl)
-        except (UnicodeDecodeError, cst.ParserSyntaxError):
+        except cst.ParserSyntaxError:
             self.report(node, self.MESSAGE)
 
     def _is_annotated_metadata(self, node: cst.BaseString) -> bool:

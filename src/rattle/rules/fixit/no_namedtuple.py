@@ -5,6 +5,7 @@
 
 import libcst as cst
 from libcst.metadata import (
+    PositionProvider,
     QualifiedName,
     QualifiedNameProvider,
     QualifiedNameSource,
@@ -12,7 +13,11 @@ from libcst.metadata import (
 )
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import attribute_root_is_imported_module, dotted_name
+from rattle.rules.helpers import (
+    AssignmentAliasTracker,
+    attribute_root_is_imported_module,
+    dotted_name,
+)
 
 
 class NoNamedTuple(LintRule):
@@ -34,7 +39,7 @@ class NoNamedTuple(LintRule):
             "https://medium.com/@jacktator/dataclass-vs-namedtuple-vs-object-for-performance-optimization-in-python-691e234253b9",
         ),
     )
-    METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider)
+    METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider, PositionProvider)
     SOURCE_PATTERNS = ("NamedTuple", "namedtuple")
 
     VALID = [
@@ -261,15 +266,13 @@ class NoNamedTuple(LintRule):
 
     def __init__(self) -> None:
         super().__init__()
-        self.namedtuple_alias_nodes: set[cst.CSTNode] = set()
-        self.collections_namedtuple_alias_nodes: set[cst.CSTNode] = set()
+        self._aliases = AssignmentAliasTracker[str](self)
         self.star_import_modules: set[str] = set()
 
     def visit_Module(self, node: cst.Module) -> None:
         del node
 
-        self.namedtuple_alias_nodes = set()
-        self.collections_namedtuple_alias_nodes = set()
+        self._aliases.reset()
         self.star_import_modules = set()
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
@@ -281,24 +284,16 @@ class NoNamedTuple(LintRule):
             self.star_import_modules.add(module_name)
 
     def visit_Assign(self, node: cst.Assign) -> None:
-        is_namedtuple = self._is_namedtuple_expression(node.value)
-        is_collections_namedtuple = self._is_collections_namedtuple_factory(node.value)
         for assign_target in node.targets:
-            if not isinstance(assign_target.target, cst.Name):
-                continue
-            if is_namedtuple:
-                self.namedtuple_alias_nodes.add(assign_target.target)
-            if is_collections_namedtuple:
-                self.collections_namedtuple_alias_nodes.add(assign_target.target)
+            self._aliases.record(assign_target.target, node.value, self._alias_value)
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
-        if not isinstance(node.target, cst.Name) or node.value is None:
+        if node.value is None:
             return
+        self._aliases.record(node.target, node.value, self._alias_value)
 
-        if self._is_namedtuple_expression(node.value):
-            self.namedtuple_alias_nodes.add(node.target)
-        if self._is_collections_namedtuple_factory(node.value):
-            self.collections_namedtuple_alias_nodes.add(node.target)
+    def visit_NamedExpr(self, node: cst.NamedExpr) -> None:
+        self._aliases.record(node.target, node.value, self._alias_value)
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         if any(self._is_namedtuple_expression(base.value) for base in node.bases):
@@ -321,28 +316,7 @@ class NoNamedTuple(LintRule):
         return self._has_active_qualified_import(expression, self.qualified_namedtuples)
 
     def _is_namedtuple_alias(self, expression: cst.BaseExpression) -> bool:
-        if not isinstance(expression, cst.Name):
-            return False
-
-        scope = self.get_metadata(ScopeProvider, expression, None)
-        if scope is None:
-            return False
-
-        try:
-            assignments = scope[expression.value]
-        except KeyError:
-            return False
-
-        reference_assignments = [
-            assignment
-            for assignment in assignments
-            if any(access.node is expression for access in assignment.references)
-        ]
-        return bool(reference_assignments) and all(
-            (assignment_node := getattr(assignment, "node", None)) is not None
-            and assignment_node in self.namedtuple_alias_nodes
-            for assignment in reference_assignments
-        )
+        return self._aliases.resolve(expression) == "typing"
 
     def _is_star_imported_namedtuple(self, expression: cst.BaseExpression) -> bool:
         if not self.star_import_modules.intersection({"typing", "typing_extensions"}):
@@ -369,27 +343,16 @@ class NoNamedTuple(LintRule):
         return not qualified_names
 
     def _is_collections_namedtuple_alias(self, expression: cst.BaseExpression) -> bool:
-        if not isinstance(expression, cst.Name):
-            return False
+        return self._aliases.resolve(expression) == "collections"
 
-        scope = self.get_metadata(ScopeProvider, expression, None)
-        if scope is None:
-            return False
-        try:
-            assignments = scope[expression.value]
-        except KeyError:
-            return False
-
-        reference_assignments = [
-            assignment
-            for assignment in assignments
-            if any(access.node is expression for access in assignment.references)
-        ]
-        return bool(reference_assignments) and all(
-            (assignment_node := getattr(assignment, "node", None)) is not None
-            and assignment_node in self.collections_namedtuple_alias_nodes
-            for assignment in reference_assignments
-        )
+    def _alias_value(self, expression: cst.BaseExpression) -> str | None:
+        if self._is_imported_namedtuple(expression):
+            return "typing"
+        if self._has_active_qualified_import(
+            expression, frozenset({self.qualified_collections_namedtuple})
+        ):
+            return "collections"
+        return self._aliases.resolve(expression)
 
     def _has_active_qualified_import(
         self,

@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import libcst as cst
+import libcst.matchers as m
 from libcst.metadata import ParentNodeProvider
 
 from rattle import CodePosition, CodeRange, Invalid, LintRule, Valid
@@ -87,18 +88,28 @@ class NoRedundantFString(LintRule):
         self.report(node, self.MESSAGE, replacement=cst.SimpleString(new_string_literal))
 
     def _would_become_docstring(self, node: cst.FormattedString) -> bool:
-        expression = self.get_metadata(ParentNodeProvider, node, None)
-        if not isinstance(expression, cst.Expr):
-            return False
-        statement = self.get_metadata(ParentNodeProvider, expression, None)
-        if not isinstance(statement, cst.SimpleStatementLine) or len(statement.body) != 1:
-            return False
-        suite = self.get_metadata(ParentNodeProvider, statement, None)
-        if isinstance(suite, cst.Module):
-            return bool(suite.body) and suite.body[0] is statement
-        if isinstance(suite, cst.IndentedBlock):
-            return bool(suite.body) and suite.body[0] is statement
-        return False
+        literal: cst.CSTNode = node
+        while isinstance(
+            parent := self.get_metadata(ParentNodeProvider, literal, None),
+            cst.ConcatenatedString,
+        ):
+            literal = parent
+        result = False
+        if not m.findall(literal, m.FormattedStringExpression()):
+            expression = self.get_metadata(ParentNodeProvider, literal, None)
+            if isinstance(expression, cst.Expr):
+                statement = self.get_metadata(ParentNodeProvider, expression, None)
+                if (
+                    isinstance(statement, (cst.SimpleStatementLine, cst.SimpleStatementSuite))
+                    and statement.body
+                    and statement.body[0] is expression
+                ):
+                    suite = self.get_metadata(ParentNodeProvider, statement, None)
+                    if isinstance(suite, (cst.Module, cst.IndentedBlock)):
+                        result = bool(suite.body) and suite.body[0] is statement
+                    elif isinstance(statement, cst.SimpleStatementSuite):
+                        result = isinstance(suite, (cst.ClassDef, cst.FunctionDef))
+        return result
 
 
 __all__ = [

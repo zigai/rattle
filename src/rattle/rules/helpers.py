@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import fnmatch
-from collections.abc import Collection, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 import libcst as cst
 from libcst import MaybeSentinel
@@ -20,6 +20,42 @@ if TYPE_CHECKING:
     from rattle.rule import LintRule
 
 DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
+AliasValue = TypeVar("AliasValue")
+
+
+class AssignmentAliasTracker(Generic[AliasValue]):
+    """Track assignment aliases and resolve the bindings that reach each name use."""
+
+    def __init__(self, rule: LintRule) -> None:
+        self._rule = rule
+        self._values_by_assignment_node: dict[cst.CSTNode, AliasValue] = {}
+
+    def reset(self) -> None:
+        self._values_by_assignment_node.clear()
+
+    def record(
+        self,
+        target: cst.BaseExpression,
+        value: cst.BaseExpression,
+        resolve_value: Callable[[cst.BaseExpression], AliasValue | None],
+    ) -> None:
+        for leaf_target, leaf_value in assignment_leaf_pairs(target, value):
+            if not isinstance(leaf_target, cst.Name):
+                continue
+
+            resolved = resolve_value(leaf_value)
+            if resolved is None:
+                self._values_by_assignment_node.pop(leaf_target, None)
+            else:
+                self._values_by_assignment_node[leaf_target] = resolved
+
+    def resolve(self, expression: cst.BaseExpression) -> AliasValue | None:
+        if not isinstance(expression, cst.Name):
+            return None
+        assignment = latest_assignment(self._rule, expression)
+        if assignment is None:
+            return None
+        return self._values_by_assignment_node.get(assignment.node)
 
 
 class _NameDeclarationVisitor(cst.CSTVisitor):
@@ -56,6 +92,51 @@ def has_name_declaration(node: cst.CSTNode, name: str) -> bool:
     return visitor.found
 
 
+class _CommentVisitor(cst.CSTVisitor):
+    def __init__(self) -> None:
+        self.found = False
+
+    def visit_Comment(self, node: cst.Comment) -> bool:
+        del node
+        self.found = True
+        return False
+
+
+def has_comments(node: cst.CSTNode) -> bool:
+    visitor = _CommentVisitor()
+    node.visit(visitor)
+    return visitor.found
+
+
+def is_static_literal_expression(node: cst.BaseExpression) -> bool:
+    result = False
+    if isinstance(node, (cst.BaseNumber, cst.SimpleString, cst.Ellipsis)):
+        result = True
+    elif isinstance(node, cst.Name):
+        result = node.value in {"False", "None", "True"}
+    elif isinstance(node, cst.ConcatenatedString):
+        result = is_static_literal_expression(node.left) and is_static_literal_expression(
+            node.right
+        )
+    elif isinstance(node, cst.UnaryOperation):
+        result = isinstance(node.operator, (cst.Minus, cst.Plus)) and isinstance(
+            node.expression, cst.BaseNumber
+        )
+    elif isinstance(node, (cst.List, cst.Set, cst.Tuple)):
+        result = all(
+            isinstance(element, cst.Element) and is_static_literal_expression(element.value)
+            for element in node.elements
+        )
+    elif isinstance(node, cst.Dict):
+        result = all(
+            isinstance(element, cst.DictElement)
+            and is_static_literal_expression(element.key)
+            and is_static_literal_expression(element.value)
+            for element in node.elements
+        )
+    return result
+
+
 def enclosing_class_defines_method(
     rule: LintRule,
     node: cst.CSTNode,
@@ -77,7 +158,7 @@ def latest_assignment(
     name: cst.Name,
     *,
     same_scope_only: bool = False,
-) -> BaseAssignment | None:
+) -> Assignment | None:
     scope = rule.get_metadata(ScopeProvider, name, None)
     reference_position = rule.get_metadata(PositionProvider, name, None)
     if scope is None or reference_position is None:
@@ -88,7 +169,7 @@ def latest_assignment(
     except KeyError:
         return None
 
-    preceding_assignments: list[tuple[int, int, BaseAssignment]] = []
+    preceding_assignments: list[tuple[int, int, Assignment]] = []
     for assignment in assignments:
         if same_scope_only and assignment.scope is not scope:
             continue
@@ -377,6 +458,7 @@ def validate_non_negative_int(value: object) -> object:
 
 
 __all__ = [
+    "AssignmentAliasTracker",
     "alias_name",
     "assignment_imports_module",
     "assignment_leaf_pairs",
@@ -384,10 +466,12 @@ __all__ = [
     "callable_dotted_name",
     "dotted_name",
     "enclosing_class_defines_method",
+    "has_comments",
     "has_name_declaration",
     "is_docstring_statement",
     "is_excluded_path",
     "is_name",
+    "is_static_literal_expression",
     "latest_assignment",
     "latest_assignment_node",
     "matches_any_pattern",

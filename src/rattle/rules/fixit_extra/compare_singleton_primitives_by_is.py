@@ -4,8 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 import libcst as cst
+from libcst.metadata import ParentNodeProvider, PositionProvider, ScopeProvider
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import latest_assignment
 
 
 class CompareSingletonPrimitivesByIs(LintRule):
@@ -19,6 +21,7 @@ class CompareSingletonPrimitivesByIs(LintRule):
     )
 
     MESSAGE: str = "Compare `None`, `True`, and `False` with `is` or `is not`."
+    METADATA_DEPENDENCIES = (ParentNodeProvider, PositionProvider, ScopeProvider)
     VALID = [
         Valid("if x: pass"),
         Valid("if not x: pass"),
@@ -42,32 +45,26 @@ class CompareSingletonPrimitivesByIs(LintRule):
     INVALID = [
         Invalid(
             code="x != True",
-            expected_replacement="x is not True",
         ),
         Invalid(
             code="x != False",
-            expected_replacement="x is not False",
         ),
         Invalid(
             code="x == False",
-            expected_replacement="x is False",
         ),
         Invalid(
             code="x == None",
-            expected_replacement="x is None",
         ),
         Invalid(
             code="x != None",
-            expected_replacement="x is not None",
         ),
         Invalid(
             code="False == x",
-            expected_replacement="False is x",
         ),
         Invalid(
             code="x is True == y",
-            expected_replacement="x is True is y",
         ),
+        Invalid(code="None == False", expected_replacement="None is False"),
     ]
 
     def is_singleton(self, node: cst.BaseExpression) -> bool:
@@ -98,6 +95,7 @@ class CompareSingletonPrimitivesByIs(LintRule):
     def visit_Comparison(self, node: cst.Comparison) -> None:
         # Initialize the needs_report flag as False to begin with
         needs_report = False
+        safe_to_fix = True
         left_comp = node.left
         altered_comparisons = []
         for target in node.comparisons:
@@ -110,6 +108,7 @@ class CompareSingletonPrimitivesByIs(LintRule):
                 self.is_singleton(left_comp) or self.is_singleton(right_comp)
             ):
                 needs_report = True
+                safe_to_fix = safe_to_fix and self._comparison_is_safe_to_fix(left_comp, right_comp)
                 altered_comparisons.append(
                     target.with_changes(operator=self.alter_operator(operator))
                 )
@@ -120,7 +119,11 @@ class CompareSingletonPrimitivesByIs(LintRule):
 
         if needs_report:
             self.report(
-                node, self.MESSAGE, replacement=node.with_changes(comparisons=altered_comparisons)
+                node,
+                self.MESSAGE,
+                replacement=(
+                    node.with_changes(comparisons=altered_comparisons) if safe_to_fix else None
+                ),
             )
 
     def alter_operator(self, original_op: cst.Equal | cst.NotEqual) -> cst.Is | cst.IsNot:
@@ -144,6 +147,57 @@ class CompareSingletonPrimitivesByIs(LintRule):
         if isinstance(whitespace, cst.SimpleWhitespace) and not whitespace.value:
             return cst.SimpleWhitespace(" ")
         return whitespace
+
+    def _comparison_is_safe_to_fix(
+        self, left: cst.BaseExpression, right: cst.BaseExpression
+    ) -> bool:
+        if self.is_singleton(left) and self.is_singleton(right):
+            return True
+        singleton = left if self.is_singleton(left) else right
+        other = right if singleton is left else left
+        if isinstance(singleton, cst.Name) and singleton.value == "None":
+            return self._known_builtin_literal(other, allow_numbers=True)
+        return self._known_builtin_literal(other, allow_numbers=False)
+
+    def _known_builtin_literal(
+        self,
+        expression: cst.BaseExpression,
+        *,
+        allow_numbers: bool,
+        seen: frozenset[str] = frozenset(),
+    ) -> bool:
+        result = False
+        if isinstance(expression, cst.BaseNumber):
+            result = allow_numbers
+        elif isinstance(
+            expression,
+            (
+                cst.ConcatenatedString,
+                cst.Dict,
+                cst.FormattedString,
+                cst.List,
+                cst.Set,
+                cst.SimpleString,
+                cst.Tuple,
+            ),
+        ):
+            result = True
+        elif isinstance(expression, cst.Name) and expression.value not in seen:
+            assignment = latest_assignment(self, expression)
+            current: cst.CSTNode | None = assignment.node if assignment is not None else None
+            while current is not None:
+                value = None
+                if isinstance(current, (cst.Assign, cst.AnnAssign)):
+                    value = current.value
+                if value is not None:
+                    result = self._known_builtin_literal(
+                        value,
+                        allow_numbers=allow_numbers,
+                        seen=seen | {expression.value},
+                    )
+                    break
+                current = self.get_metadata(ParentNodeProvider, current, None)
+        return result
 
 
 __all__ = [

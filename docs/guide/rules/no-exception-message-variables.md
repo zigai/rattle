@@ -56,16 +56,11 @@ raise ValueError(msg) from msg
 ## Invalid examples
 
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 message = build_message()
 raise ValueError(message)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-raise ValueError(build_message())
 ```
 ```{raw} html
 </div>
@@ -121,16 +116,11 @@ raise ValueError("invalid value")
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 message = f"invalid value: {value}"
 raise RuntimeError(message) from exc
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-raise RuntimeError(f"invalid value: {value}") from exc
 ```
 ```{raw} html
 </div>

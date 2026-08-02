@@ -212,6 +212,7 @@ class LintRunner:
                 continue
             if not _rule_may_match_source(rule, self.source):
                 continue
+            rule._config_root = config.root
             rule._lint_ignore_enabled = lint_ignore_enabled
             if lint_ignore_enabled:
                 _ensure_parent_metadata(rule)
@@ -288,23 +289,58 @@ class LintRunner:
 
         return count
 
-    def apply_replacements(self, violations: Collection[LintViolation]) -> Module:
+    def apply_replacements(  # noqa: C901 - composes nested replacement trees
+        self, violations: Collection[LintViolation]
+    ) -> Module:
         """Apply any autofixes to the module, and return the resulting source code."""
         replacements = {v.node: v.replacement for v in violations if v.replacement}
 
-        class ReplacementTransformer(CSTTransformer):
+        class DescendantCollector(CSTTransformer):
+            def __init__(self) -> None:
+                self.nodes: set[CSTNode] = set()
+
             def on_visit(self, node: CSTNode) -> bool:
-                # don't visit children if we're going to replace the parent anyways
-                return node not in replacements
+                self.nodes.add(node)
+                return True
+
+        class StructuralReplacementTransformer(CSTTransformer):
+            def __init__(
+                self, nested_replacements: Mapping[CSTNode, NodeReplacement[CSTNode]]
+            ) -> None:
+                self._pending = dict(nested_replacements)
 
             def on_leave(
                 self,
                 original_node: CSTNode,
                 updated_node: CSTNode,
             ) -> NodeReplacement[CSTNode]:
+                for source, replacement in tuple(self._pending.items()):
+                    if original_node.deep_equals(source):
+                        del self._pending[source]
+                        return replacement
+                return updated_node
+
+        class ReplacementTransformer(CSTTransformer):
+            def on_leave(
+                self,
+                original_node: CSTNode,
+                updated_node: CSTNode,
+            ) -> NodeReplacement[CSTNode]:
                 if original_node in replacements:
-                    new = replacements[original_node]
-                    return new
+                    replacement = replacements[original_node]
+                    if isinstance(replacement, CSTNode):
+                        collector = DescendantCollector()
+                        original_node.visit(collector)
+                        nested_replacements = {
+                            node: nested_replacement
+                            for node, nested_replacement in replacements.items()
+                            if node is not original_node and node in collector.nodes
+                        }
+                        if nested_replacements:
+                            return replacement.visit(
+                                StructuralReplacementTransformer(nested_replacements)
+                            )
+                    return replacement
                 return updated_node
 
         updated: Module = self.module.visit(ReplacementTransformer())

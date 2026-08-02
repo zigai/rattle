@@ -14,9 +14,8 @@ from libcst.metadata import (
 
 from rattle import LintRule, RuleSetting
 from rattle.rules.helpers import (
-    assignment_leaf_pairs,
+    AssignmentAliasTracker,
     dotted_name,
-    latest_assignment_node,
     optional_setting_text,
     qualified_names_for_reaching_binding,
     setting_fields,
@@ -101,7 +100,7 @@ class ForbiddenCall(LintRule):
         super().__init__()
 
         self._forbidden_calls_by_symbol: dict[str, ForbiddenCallEntry] = {}
-        self._aliases_by_assignment_node: dict[cst.CSTNode, str | None] = {}
+        self._aliases = AssignmentAliasTracker[str](self)
         self._star_import_modules: set[str] = set()
 
     def should_lint_file(self, source: bytes, path: Path) -> bool:
@@ -119,18 +118,18 @@ class ForbiddenCall(LintRule):
             entry.symbol: entry
             for entry in _parse_forbidden_calls_setting(self.setting("forbidden_calls", list[str]))
         }
-        self._aliases_by_assignment_node = {}
+        self._aliases.reset()
         self._star_import_modules = set()
 
     def leave_Module(self, original_node: cst.Module) -> None:
         del original_node
 
         self._forbidden_calls_by_symbol = {}
-        self._aliases_by_assignment_node = {}
+        self._aliases.reset()
         self._star_import_modules = set()
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
-        if not isinstance(node.names, cst.ImportStar):
+        if node.relative or not isinstance(node.names, cst.ImportStar):
             return
 
         module_name = dotted_name(node.module)
@@ -168,25 +167,38 @@ class ForbiddenCall(LintRule):
         return self._forbidden_symbol_for_expression(node.func)
 
     def _alias_symbol_for_name(self, node: cst.Name) -> str | None:
-        assignment_node = latest_assignment_node(self, node)
-        if assignment_node is None:
-            return None
-        return self._aliases_by_assignment_node.get(assignment_node)
+        symbol = self._aliases.resolve(node)
+        return symbol if symbol in self._forbidden_calls_by_symbol else None
 
     def _record_alias(
         self,
         target: cst.BaseExpression,
         value: cst.BaseExpression,
     ) -> None:
-        for leaf_target, leaf_value in assignment_leaf_pairs(target, value):
-            if not isinstance(leaf_target, cst.Name):
-                continue
+        self._aliases.record(target, value, self._alias_value)
 
-            forbidden_symbol = self._forbidden_symbol_for_expression(leaf_value)
-            if forbidden_symbol is None and isinstance(leaf_value, cst.Name):
-                forbidden_symbol = self._alias_symbol_for_name(leaf_value)
+    def _alias_value(self, expression: cst.BaseExpression) -> str | None:
+        qualified_names = qualified_names_for_reaching_binding(self, expression)
+        imported_names = {
+            name.name
+            for name in qualified_names
+            if name.source in {QualifiedNameSource.IMPORT, QualifiedNameSource.BUILTIN}
+        }
+        if len(imported_names) == 1:
+            return imported_names.pop()
 
-            self._aliases_by_assignment_node[leaf_target] = forbidden_symbol
+        if isinstance(expression, cst.Name):
+            return self._aliases.resolve(expression)
+        if isinstance(expression, cst.Attribute):
+            root: cst.BaseExpression = expression
+            attributes: list[str] = []
+            while isinstance(root, cst.Attribute):
+                attributes.append(root.attr.value)
+                root = root.value
+            root_symbol = self._aliases.resolve(root)
+            if root_symbol is not None:
+                return ".".join((root_symbol, *reversed(attributes)))
+        return None
 
     def _star_import_symbol_for_call_name(self, node: cst.Name) -> str | None:
         if not self._star_import_modules:
@@ -205,6 +217,9 @@ class ForbiddenCall(LintRule):
 
     def _forbidden_symbol_for_expression(self, node: cst.BaseExpression) -> str | None:
         forbidden_symbols = set(self._forbidden_calls_by_symbol)
+        alias_symbol = self._alias_value(node)
+        if alias_symbol in forbidden_symbols:
+            return alias_symbol
         qualified_names = qualified_names_for_reaching_binding(self, node)
         if any(
             qualified_name.source is QualifiedNameSource.LOCAL for qualified_name in qualified_names

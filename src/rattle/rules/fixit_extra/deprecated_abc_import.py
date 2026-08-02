@@ -58,6 +58,7 @@ class DeprecatedABCImport(LintRule):
     NAME = "use-collections-abc"
 
     MESSAGE = "Import abstract base classes from `collections.abc`."
+    AUTOFIX_MAY_REPAIR_EXECUTION = True
     PYTHON_VERSION = ">= 3.3"
     METADATA_DEPENDENCIES = (ParentNodeProvider,)
 

@@ -11,6 +11,7 @@ import libcst.matchers as m
 from libcst.metadata import ParentNodeProvider, ScopeProvider
 
 from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rules.helpers import has_comments
 
 USE_FSTRING_SIMPLE_EXPRESSION_MAX_LENGTH = 30
 
@@ -252,10 +253,18 @@ class UseFstring(LintRule):
         if isinstance(expression, cst.Call) and isinstance(expression.func, cst.Name):
             assignments = self._reference_assignments(expression.func)
             return bool(assignments) and all(
-                isinstance(getattr(assignment, "node", None), cst.ClassDef)
+                self._plain_class_returns_instance(getattr(assignment, "node", None))
                 for assignment in assignments
             )
         return False
+
+    def _plain_class_returns_instance(self, node: object) -> bool:
+        if not isinstance(node, cst.ClassDef) or node.bases or node.keywords or node.decorators:
+            return False
+        return not any(
+            isinstance(statement, cst.FunctionDef) and statement.name.value == "__new__"
+            for statement in node.body.body
+        )
 
     def _reference_assignments(self, name: cst.Name) -> list[object]:
         scope = self.get_metadata(ScopeProvider, name, None)
@@ -288,6 +297,8 @@ class UseFstring(LintRule):
         placeholder_count: int,
         codegen: Callable[[cst.CSTNode], str],
     ) -> bool:
+        if has_comments(original_expression):
+            return False
         if (
             placeholder_count == 1
             and not isinstance(original_expression, cst.Tuple)

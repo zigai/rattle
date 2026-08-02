@@ -10,6 +10,7 @@ import libcst.matchers as m
 from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import has_comments
 
 UNNECESSARY_LITERAL: str = "Replace this {func}() call with the equivalent collection literal."
 UNNCESSARY_CALL: str = "Replace {func}() with the equivalent empty collection literal."
@@ -113,7 +114,7 @@ class RewriteToLiteral(LintRule):
             self.report(
                 node,
                 message_formatter.format(func=call_name),
-                replacement=node.deep_replace(node, new_node),
+                replacement=None if has_comments(node) else node.deep_replace(node, new_node),
             )
 
     def _has_plain_positional_argument(self, argument: cst.Arg) -> bool:

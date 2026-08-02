@@ -9,7 +9,6 @@ import libcst as cst
 from libcst.metadata import FilePathProvider, ParentNodeProvider, PositionProvider
 
 from rattle import CodePosition, LintRule, RuleSetting
-from rattle.rules.helpers import matches_exact_path, matches_path
 
 _SETTING_NAMES = frozenset({"max_file_lines", "max_function_lines", "max_method_lines"})
 
@@ -241,15 +240,15 @@ class LineCountLimit(LintRule):
         return limits
 
     def _matches_glob_path(self, path_pattern: str, file_path: Path) -> bool:
-        if matches_path(path_pattern, file_path):
-            return True
-
         if Path(path_pattern).is_absolute():
-            return False
+            return fnmatch.fnmatchcase(
+                file_path.resolve().as_posix(), Path(path_pattern).as_posix()
+            )
 
-        normalized_path = file_path.as_posix()
-        normalized_pattern = Path(path_pattern).as_posix()
-        return fnmatch.fnmatchcase(normalized_path, f"*/{normalized_pattern}")
+        relative_path = self._repo_relative_path(file_path)
+        return relative_path is not None and fnmatch.fnmatchcase(
+            relative_path.as_posix(), Path(path_pattern).as_posix()
+        )
 
     def _is_class_member(self, node: cst.FunctionDef) -> bool:
         current: cst.CSTNode = node
@@ -262,11 +261,15 @@ class LineCountLimit(LintRule):
         return False
 
     def _matches_per_file_path(self, path_pattern: str, file_path: Path) -> bool:
-        if matches_exact_path(path_pattern, file_path):
-            return True
+        configured_path = Path(path_pattern)
+        if configured_path.is_absolute():
+            return file_path.resolve() == configured_path.resolve()
 
-        normalized_path = file_path.as_posix()
-        normalized_pattern = Path(path_pattern).as_posix()
-        return normalized_path == normalized_pattern or normalized_path.endswith(
-            f"/{normalized_pattern}"
-        )
+        relative_path = self._repo_relative_path(file_path)
+        return relative_path is not None and relative_path.as_posix() == configured_path.as_posix()
+
+    def _repo_relative_path(self, file_path: Path) -> Path | None:
+        try:
+            return file_path.resolve().relative_to(self._config_root.resolve())
+        except ValueError:
+            return None

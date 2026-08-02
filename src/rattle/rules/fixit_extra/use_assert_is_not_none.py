@@ -11,7 +11,7 @@ from libcst.helpers import ensure_type
 from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import enclosing_class_defines_method
+from rattle.rules.helpers import enclosing_class_defines_method, has_comments
 
 
 class UseAssertIsNotNone(LintRule):
@@ -154,13 +154,19 @@ class UseAssertIsNotNone(LintRule):
                 negations_seen += 1
 
             new_attr = "assertIsNone" if negations_seen % 2 == 0 else "assertIsNotNone"
+            if enclosing_class_defines_method(self, node, new_attr):
+                return
             new_call = node.with_changes(
                 func=cst.Attribute(value=cst.Name("self"), attr=cst.Name(new_attr)),
                 args=[cst.Arg(assertion_argument)],
             )
 
             if new_call is not node:
-                self.report(node, self.MESSAGE, replacement=new_call)
+                self.report(
+                    node,
+                    self.MESSAGE,
+                    replacement=None if has_comments(node.args[0]) else new_call,
+                )
 
 
 __all__ = [

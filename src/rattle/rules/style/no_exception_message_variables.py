@@ -7,7 +7,9 @@ from libcst.metadata.scope_provider import Assignment
 from rattle import Invalid, LintRule, Valid
 from rattle.rules.helpers import (
     callable_dotted_name,
+    has_comments,
     has_name_declaration,
+    is_static_literal_expression,
     single_small_statement,
 )
 
@@ -134,7 +136,7 @@ def _updated_raise_line(
 
 def _suite_replacement(
     suite: SuiteNode,
-) -> tuple[SuiteNode, cst.Name, cst.Name] | None:
+) -> tuple[SuiteNode | None, cst.Name, cst.Name] | None:
     body = suite.body
     for index, statement in enumerate(body[:-1]):
         assignment = _message_assignment(statement)
@@ -151,7 +153,11 @@ def _suite_replacement(
             continue
         updated_raise, replaced_name = updated_raise_and_name
 
-        replacement = suite.with_changes(body=(*body[:index], updated_raise, *body[index + 2 :]))
+        replacement = None
+        if is_static_literal_expression(value) and not has_comments(statement):
+            replacement = suite.with_changes(
+                body=(*body[:index], updated_raise, *body[index + 2 :])
+            )
         return replacement, target, replaced_name
 
     return None
@@ -202,9 +208,6 @@ class NoExceptionMessageVariables(LintRule):
             message = build_message()
             raise ValueError(message)
             """,
-            expected_replacement="""
-            raise ValueError(build_message())
-            """,
         ),
         Invalid(
             """
@@ -239,9 +242,6 @@ class NoExceptionMessageVariables(LintRule):
             """
             message = f"invalid value: {value}"
             raise RuntimeError(message) from exc
-            """,
-            expected_replacement="""
-            raise RuntimeError(f"invalid value: {value}") from exc
             """,
         ),
         Invalid(

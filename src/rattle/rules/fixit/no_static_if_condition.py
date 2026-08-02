@@ -212,7 +212,7 @@ class NoStaticIfCondition(LintRule):
         elif m.matches(node, m.Name("False") | m.Name("None")):
             truthiness = False
         elif isinstance(node, cst.Integer):
-            truthiness = int(node.value.replace("_", ""), 0) != 0
+            truthiness = NoStaticIfCondition._integer_literal_truthiness(node)
         elif isinstance(node, cst.Float):
             truthiness = float(node.value.replace("_", "")) != 0.0
         elif isinstance(node, cst.Imaginary):
@@ -227,6 +227,14 @@ class NoStaticIfCondition(LintRule):
             truthiness = True
 
         return truthiness
+
+    @staticmethod
+    def _integer_literal_truthiness(node: cst.Integer) -> bool:
+        normalized = node.value.replace("_", "").lower()
+        prefix = next(
+            (prefix for prefix in ("0b", "0o", "0x") if normalized.startswith(prefix)), ""
+        )
+        return any(character != "0" for character in normalized.removeprefix(prefix))
 
     @classmethod
     def _string_literal_truthiness(

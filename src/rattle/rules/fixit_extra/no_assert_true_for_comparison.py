@@ -8,7 +8,7 @@ import libcst.matchers as m
 from libcst.metadata import ParentNodeProvider
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import enclosing_class_defines_method
+from rattle.rules.helpers import enclosing_class_defines_method, has_comments
 
 
 class NoAssertTrueForComparisons(LintRule):
@@ -68,8 +68,7 @@ class NoAssertTrueForComparisons(LintRule):
             return
 
         is_negated = isinstance(first_arg.value, cst.UnaryOperation)
-        has_comment = "#" in cst.Module([]).code_for_node(first_arg)
-        if is_negated or has_comment:
+        if is_negated or has_comments(first_arg):
             self.report(node, self.MESSAGE)
             return
 

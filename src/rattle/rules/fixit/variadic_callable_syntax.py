@@ -6,6 +6,7 @@
 import libcst as cst
 import libcst.matchers as m
 from libcst.metadata import (
+    PositionProvider,
     QualifiedName,
     QualifiedNameProvider,
     QualifiedNameSource,
@@ -13,7 +14,11 @@ from libcst.metadata import (
 )
 
 from rattle import Invalid, LintRule, Valid
-from rattle.rules.helpers import attribute_root_is_imported_module, dotted_name
+from rattle.rules.helpers import (
+    AssignmentAliasTracker,
+    attribute_root_is_imported_module,
+    dotted_name,
+)
 
 
 class VariadicCallableSyntax(LintRule):
@@ -22,7 +27,7 @@ class VariadicCallableSyntax(LintRule):
     NAME = "use-callable-ellipsis"
     MESSAGE = "Use Callable[..., T] instead of Callable[[...], T]."
 
-    METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider)
+    METADATA_DEPENDENCIES = (QualifiedNameProvider, ScopeProvider, PositionProvider)
     SOURCE_PATTERNS = ("Callable",)
     VALID = [
         Valid(
@@ -187,19 +192,19 @@ class VariadicCallableSyntax(LintRule):
     def __init__(self) -> None:
         super().__init__()
 
-        self._callable_alias_nodes: set[cst.CSTNode] = set()
+        self._callable_aliases = AssignmentAliasTracker[bool](self)
         self._star_import_modules: set[str] = set()
 
     def visit_Module(self, node: cst.Module) -> None:
         del node
 
-        self._callable_alias_nodes = set()
+        self._callable_aliases.reset()
         self._star_import_modules = set()
 
     def leave_Module(self, original_node: cst.Module) -> None:
         del original_node
 
-        self._callable_alias_nodes = set()
+        self._callable_aliases.reset()
         self._star_import_modules = set()
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
@@ -211,21 +216,18 @@ class VariadicCallableSyntax(LintRule):
             self._star_import_modules.add(module_name)
 
     def visit_Assign(self, node: cst.Assign) -> None:
-        if self._is_callable_annotation(node.value):
-            for assign_target in node.targets:
-                if isinstance(assign_target.target, cst.Name):
-                    self._callable_alias_nodes.add(assign_target.target)
-        else:
-            for assign_target in node.targets:
-                if isinstance(assign_target.target, cst.Name):
-                    self._callable_alias_nodes.discard(assign_target.target)
+        for assign_target in node.targets:
+            self._callable_aliases.record(
+                assign_target.target, node.value, self._callable_alias_value
+            )
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
-        if not isinstance(node.target, cst.Name) or node.value is None:
+        if node.value is None:
             return
+        self._callable_aliases.record(node.target, node.value, self._callable_alias_value)
 
-        if self._is_callable_annotation(node.value):
-            self._callable_alias_nodes.add(node.target)
+    def visit_NamedExpr(self, node: cst.NamedExpr) -> None:
+        self._callable_aliases.record(node.target, node.value, self._callable_alias_value)
 
     def visit_Subscript(self, node: cst.Subscript) -> None:
         if not self._is_callable_annotation(node.value):
@@ -269,28 +271,12 @@ class VariadicCallableSyntax(LintRule):
         return attribute_root_is_imported_module(self, expression, module_names)
 
     def _is_callable_alias(self, expression: cst.BaseExpression) -> bool:
-        if not isinstance(expression, cst.Name):
-            return False
+        return self._callable_aliases.resolve(expression) is True
 
-        scope = self.get_metadata(ScopeProvider, expression, None)
-        if scope is None:
-            return False
-
-        try:
-            assignments = scope[expression.value]
-        except KeyError:
-            return False
-
-        reference_assignments = [
-            assignment
-            for assignment in assignments
-            if any(access.node is expression for access in assignment.references)
-        ]
-        return bool(reference_assignments) and all(
-            (assignment_node := getattr(assignment, "node", None)) is not None
-            and assignment_node in self._callable_alias_nodes
-            for assignment in reference_assignments
-        )
+    def _callable_alias_value(self, expression: cst.BaseExpression) -> bool | None:
+        if self._is_imported_callable(expression):
+            return True
+        return self._callable_aliases.resolve(expression)
 
     def _is_star_imported_callable(self, expression: cst.BaseExpression) -> bool:
         if not self._star_import_modules:

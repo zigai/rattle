@@ -5,9 +5,15 @@
 
 
 import libcst
-from libcst.metadata import ParentNodeProvider, QualifiedNameProvider, ScopeProvider
+from libcst.metadata import (
+    ParentNodeProvider,
+    PositionProvider,
+    QualifiedNameProvider,
+    ScopeProvider,
+)
 
 from rattle import Invalid, LintRule, Valid
+from rattle.rules.helpers import AssignmentAliasTracker
 
 REPLACE_BUILTIN_TYPE_ANNOTATION: str = (
     "Python 3.8 does not support `{builtin_type}[...]` annotations; "
@@ -32,6 +38,7 @@ class UseTypesFromTyping(LintRule):
         QualifiedNameProvider,
         ScopeProvider,
         ParentNodeProvider,
+        PositionProvider,
     )
     VALID = [
         Valid(
@@ -159,14 +166,14 @@ class UseTypesFromTyping(LintRule):
     def __init__(self) -> None:
         super().__init__()
         self.annotation_counter: int = 0
-        self.builtin_type_aliases_by_node: dict[libcst.CSTNode, str] = {}
+        self._builtin_type_aliases = AssignmentAliasTracker[str](self)
         self.has_unknown_star_import = False
 
     def visit_Module(self, node: libcst.Module) -> None:
         del node
 
         self.annotation_counter = 0
-        self.builtin_type_aliases_by_node = {}
+        self._builtin_type_aliases.reset()
         self.has_unknown_star_import = False
 
     def visit_ImportFrom(self, node: libcst.ImportFrom) -> None:
@@ -176,23 +183,18 @@ class UseTypesFromTyping(LintRule):
                 self.has_unknown_star_import = True
 
     def visit_Assign(self, node: libcst.Assign) -> None:
-        builtin_type = self._builtin_type_name(node.value)
         for assign_target in node.targets:
-            target = assign_target.target
-            if not isinstance(target, libcst.Name):
-                continue
-            if builtin_type is None:
-                self.builtin_type_aliases_by_node.pop(target, None)
-            else:
-                self.builtin_type_aliases_by_node[target] = builtin_type
+            self._builtin_type_aliases.record(
+                assign_target.target, node.value, self._builtin_type_name
+            )
 
     def visit_AnnAssign(self, node: libcst.AnnAssign) -> None:
-        if not isinstance(node.target, libcst.Name) or node.value is None:
+        if node.value is None:
             return
+        self._builtin_type_aliases.record(node.target, node.value, self._builtin_type_name)
 
-        builtin_type = self._builtin_type_name(node.value)
-        if builtin_type is not None:
-            self.builtin_type_aliases_by_node[node.target] = builtin_type
+    def visit_NamedExpr(self, node: libcst.NamedExpr) -> None:
+        self._builtin_type_aliases.record(node.target, node.value, self._builtin_type_name)
 
     def visit_Annotation(self, node: libcst.Annotation) -> None:
         del node
@@ -251,34 +253,7 @@ class UseTypesFromTyping(LintRule):
         return first_name.rsplit(".", 1)[-1]
 
     def _alias_builtin_type_name(self, node: libcst.Name) -> str | None:
-        scope = self.get_metadata(ScopeProvider, node, None)
-        if scope is None:
-            return None
-
-        try:
-            assignments = scope[node.value]
-        except KeyError:
-            return None
-
-        reference_assignments = [
-            assignment
-            for assignment in assignments
-            if any(access.node is node for access in assignment.references)
-        ]
-        alias_types = [
-            self.builtin_type_aliases_by_node.get(assignment_node)
-            if (assignment_node := getattr(assignment, "node", None)) is not None
-            else None
-            for assignment in reference_assignments
-        ]
-        if not alias_types or any(alias_type is None for alias_type in alias_types):
-            return None
-
-        unique_alias_types = {alias_type for alias_type in alias_types if alias_type is not None}
-        if len(unique_alias_types) != 1:
-            return None
-
-        return unique_alias_types.pop()
+        return self._builtin_type_aliases.resolve(node)
 
     def _typing_type_is_unambiguously_available(
         self,
