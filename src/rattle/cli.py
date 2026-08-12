@@ -14,10 +14,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from interfacy import ExecutableFlag, Interfacy
-from interfacy.naming import AbbreviationGenerator
-from interfacy.plugins import InterfacyPlugin, PluginContext
-from interfacy.schema.schema import ArgumentKind, ParserSchema
+from interfacy import ExecutableFlag, Interfacy, Param
+from interfacy.naming import NoAbbreviations
 from stdl.st import colored
 
 from rattle.__version__ import __version__
@@ -61,46 +59,20 @@ TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 MAX_AUTOFIX_PASSES = 10
 
 
-class RattleAbbreviationGenerator(AbbreviationGenerator):
-    SHORT_FLAGS = {
-        "config": "c",
-        "diff": "d",
-        "exclude": "e",
-        "extend-exclude": "ee",
-        "interactive": "i",
-        "jobs": "j",
-        "quiet": "q",
-        "rules": "r",
-    }
-
-    def generate(self, value: str, taken: list[str]) -> str | None:
-        flag = self.SHORT_FLAGS.get(value)
-        if flag is None or flag in taken:
-            return None
-        taken.append(flag)
-        return flag
-
-
-class ValidateConfigPositionalPlugin(InterfacyPlugin):
-    def transform_schema(
-        self,
-        _context: PluginContext,
-        schema: ParserSchema,
-    ) -> ParserSchema:
-        validate_command = schema.commands.get("validate")
-        if validate_command is None or not validate_command.parameters:
-            return schema
-
-        config_argument = validate_command.parameters[0]
-        if config_argument.name != "config":
-            return schema
-
-        config_argument.kind = ArgumentKind.POSITIONAL
-        config_argument.flags = ("config",)
-        config_argument.required = False
-        config_argument.nargs = "?"
-        config_argument.metavar = "CONFIG"
-        return schema
+CONFIG_PARAM = Param(short="c")
+LINT_PARAMS = {
+    "config": CONFIG_PARAM,
+    "diff": Param(short="d"),
+    "exclude": Param(short="e"),
+    "extend_exclude": Param(short="ee"),
+    "jobs": Param(short="j"),
+    "quiet": Param(short="q"),
+    "rules": Param(short="r"),
+}
+FIX_PARAMS = {
+    **LINT_PARAMS,
+    "interactive": Param(short="i"),
+}
 
 
 def _display_path(path: Path) -> Path:
@@ -1076,10 +1048,9 @@ def validate_command(config: Path | None = None) -> None:
 def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
     app = Interfacy(
         sys_exit_enabled=sys_exit_enabled,
-        abbreviation_gen=RattleAbbreviationGenerator(),
+        abbreviation_gen=NoAbbreviations(),
         bool_negative_prefix=None,
         help_flags=("-h", "--help"),
-        plugins=[ValidateConfigPositionalPlugin()],
         executable_flags=[
             ExecutableFlag(
                 ("-V", "--version"),
@@ -1088,12 +1059,24 @@ def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
             )
         ],
     )
-    app.add_command(lint)
-    app.add_command(fix)
-    app.add_command(lsp)
-    app.add_command(explain_command, name="explain")
-    app.add_command(rules_command, name="rules")
-    app.add_command(validate_command, name="validate")
+    app.add_command(lint, parameter_settings=LINT_PARAMS)
+    app.add_command(fix, parameter_settings=FIX_PARAMS)
+    app.add_command(lsp, parameter_settings={"config": CONFIG_PARAM})
+    app.add_command(
+        explain_command,
+        name="explain",
+        parameter_settings={"config": CONFIG_PARAM},
+    )
+    app.add_command(
+        rules_command,
+        name="rules",
+        parameter_settings={"config": CONFIG_PARAM},
+    )
+    app.add_command(
+        validate_command,
+        name="validate",
+        parameter_settings={"config": Param(kind="positional", metavar="CONFIG")},
+    )
     return app
 
 
