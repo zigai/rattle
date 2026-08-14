@@ -1,0 +1,91 @@
+from collections.abc import Callable
+from pathlib import Path
+
+from libcst import Name
+
+from rattle.api import rattle_bytes
+from rattle.config.models import Config
+from rattle.diagnostics import Result
+from rattle.execution.parallel import (
+    ConfiguredPathBatch,
+    ConfiguredPathBatchResult,
+)
+from rattle.rendering.results import render_console_result
+from rattle.rule import LintRule
+from rattle.util import capture
+
+
+class RecordingTrailrunner:
+    calls: list[tuple[int, list[ConfiguredPathBatch]]] = []
+
+    def __init__(self, *, concurrency: int = 0, **_: object) -> None:
+        self.concurrency = concurrency
+
+    def run_iter(
+        self,
+        paths: list[ConfiguredPathBatch],
+        func: Callable[[ConfiguredPathBatch], object],
+    ) -> object:
+        batches: list[ConfiguredPathBatch] = list(paths)
+        type(self).calls.append((self.concurrency, batches))
+        for batch in batches:
+            yield batch, func(batch)
+
+
+def clean_batch_result(batch: ConfiguredPathBatch) -> ConfiguredPathBatchResult:
+    return ConfiguredPathBatchResult(
+        results=[Result(path, violation=None) for path, _config, _explicit in batch],
+        deferred_format_paths=[],
+    )
+
+
+class TestApi:
+    def test_rattle_bytes_redacts_unexpected_exception_details(self) -> None:
+        class ExplodingRule(LintRule):
+            def visit_Module(self, node: object) -> None:
+                del node
+                raise ValueError("api_token=TOP-SECRET")
+
+        path = Path("secret.py")
+        results = list(
+            rattle_bytes(
+                path,
+                b"value = 1\n",
+                config=Config(path=path),
+                rules=[ExplodingRule()],
+            )
+        )
+
+        assert len(results) == 1
+        rendered = render_console_result(results[0], path=path)
+        assert rendered is not None
+        assert "TOP-SECRET" not in rendered
+        assert "ValueError" in rendered
+
+    def test_rattle_bytes_automatic_diff_is_aggregate(self) -> None:
+        class RenameXRule(LintRule):
+            def visit_Name(self, node: Name) -> None:
+                if node.value == "x":
+                    self.report(node, "rename x", replacement=Name("y"))
+
+        runner = capture(
+            rattle_bytes(
+                Path("rename.py"),
+                b"x = x\nz = x\n",
+                config=Config(path=Path("rename.py")),
+                autofix=True,
+                include_diff=True,
+                rules=[RenameXRule()],
+            )
+        )
+
+        results = list(runner)
+
+        assert runner.result == b"y = y\nz = y\n"
+        diffs = [result.violation.diff for result in results if result.violation]
+        assert len(diffs) == 3
+        assert diffs[0].count("-x = x") == 1
+        assert diffs[0].count("+y = y") == 1
+        assert diffs[0].count("-z = x") == 1
+        assert diffs[0].count("+z = y") == 1
+        assert diffs[1:] == ["", ""]
