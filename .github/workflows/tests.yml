@@ -23,6 +23,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
       - name: Install
-        run: uv sync --inexact --extra dev --extra lsp
+        run: uv sync --inexact --group test --extra lsp
       - name: Run pytest
-        run: uv run --extra dev --extra lsp pytest
+        run: uv run --group test --extra lsp pytest

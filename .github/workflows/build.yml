@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
           activate-environment: true
       - name: Install
-        run: uv sync --inexact --extra dev
+        run: uv sync --inexact --group dev
       - name: Build
         run: uv build
       - name: Upload build artifact

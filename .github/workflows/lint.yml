@@ -16,10 +16,10 @@ jobs:
           python-version: "3.12"
           activate-environment: true
       - name: Install
-        run: uv sync --inexact --extra dev
+        run: uv sync --inexact --group dev
       - name: Check formatting with Ruff
-        run: uv run --extra dev ruff format --check src/rattle scripts examples docs/conf.py
+        run: uv run --group dev ruff format --check src/rattle scripts examples docs/conf.py
       - name: Run Ruff lint
-        run: uv run --extra dev ruff check src/rattle scripts examples docs/conf.py
+        run: uv run --group dev ruff check src/rattle scripts examples docs/conf.py
       - name: Run Rattle lint
-        run: uv run --extra dev python -m rattle lint src/rattle
+        run: uv run --group dev python -m rattle lint src/rattle
