@@ -8,7 +8,7 @@ from __future__ import annotations
 import functools
 import re
 from collections.abc import Callable, Collection, Generator, Mapping, Sequence
-from contextlib import suppress
+from contextlib import AbstractContextManager, suppress
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -42,22 +42,60 @@ from libcst.metadata import (
     ProviderT,
 )
 
-from rattle.ftypes import (
-    FileContent,
-    Invalid,
-    LintViolation,
-    NodeReplacement,
-    RuleOptionValue,
-    Valid,
-    VisitHook,
-    VisitorMethod,
-    is_rule_option_value,
-    parse_lint_ignore_comment,
-)
+from rattle.diagnostics import FileContent, LintViolation, NodeReplacement
+from rattle.selectors import RuleOptions, RuleOptionValue, is_rule_option_value
 
 SourcePattern = str | bytes
 RuleReference = str | tuple[str, str]
 T = TypeVar("T")
+VisitorMethod = Callable[[CSTNode], None]
+VisitHook = Callable[[str], AbstractContextManager[None]]
+
+
+@dataclass(frozen=True)
+class Invalid:
+    code: str
+    range: CodeRange | None = None
+    expected_message: str | None = None
+    expected_replacement: str | None = None
+    options: RuleOptions | None = None
+
+
+@dataclass(frozen=True)
+class Valid:
+    code: str
+    options: RuleOptions | None = None
+
+
+_LINT_IGNORE_REGEX = re.compile(
+    r"""
+    \#\s*
+    rattle:\s*ignore
+    (?:
+        \s*\[
+            (?P<rattle_names>
+                [a-z][a-z0-9]*(?:-[a-z0-9]+)*
+                (?:,\s*[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*
+            )
+        \]
+        |
+        (?!\w)(?!\s+\w)(?!\s*\[)
+    )
+    """,
+    re.VERBOSE,
+)
+
+
+@dataclass(frozen=True)
+class LintIgnoreDirective:
+    names: str | None
+
+
+def parse_lint_ignore_comment(comment: str) -> LintIgnoreDirective | None:
+    match = _LINT_IGNORE_REGEX.search(comment)
+    if match is None:
+        return None
+    return LintIgnoreDirective(names=match.group("rattle_names"))
 
 
 def rule_name_from_class_name(class_name: str) -> str:
@@ -678,8 +716,10 @@ class LintRule(BatchableCSTVisitor):
 
 
 __all__ = [
+    "Invalid",
     "LintRule",
     "RuleConfigurationError",
     "RuleReference",
     "RuleSetting",
+    "Valid",
 ]

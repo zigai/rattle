@@ -23,8 +23,8 @@ from interfacy import Interfacy
 from jinja2 import Template
 
 from rattle.config import BUILTIN_RULE_COLLECTIONS, find_rules
-from rattle.ftypes import Invalid, QualifiedRule, RuleOptionValue, Valid
-from rattle.rule import LintRule, RuleReference, RuleSetting
+from rattle.rule import Invalid, LintRule, RuleReference, RuleSetting, Valid
+from rattle.selectors import QualifiedRule, RuleOptionValue
 
 PROJECT_ROOT = Path(__file__).parent.parent
 DOCS_DIR = PROJECT_ROOT / "docs"
@@ -39,8 +39,8 @@ T = TypeVar("T")
 CATEGORY_TITLES = {
     "blank-lines": "Blank Lines",
     "exports": "Exports",
-    "fixit": "Fixit",
-    "fixit-extra": "Fixit Extra",
+    "modernization": "Modernization",
+    "legacy": "Legacy",
     "policy": "Policy",
     "style": "Style",
     "typing": "Typing",
@@ -48,8 +48,8 @@ CATEGORY_TITLES = {
 CATEGORY_DESCRIPTIONS = {
     "blank-lines": "Whitespace and statement-separation rules.",
     "exports": "Rules for explicit module export surfaces.",
-    "fixit": "Core lint rules inherited from Fixit.",
-    "fixit-extra": "Additional Fixit-derived rules that can be enabled separately.",
+    "modernization": "Rules for safer, clearer Python constructs.",
+    "legacy": "Fixit-derived rules superseded by Ruff and retained only for migration.",
     "policy": "Configurable policy rules for architecture and naming boundaries.",
     "style": "Rules for code style and structure.",
     "typing": "Rules for type annotations and modern typing syntax.",
@@ -60,8 +60,8 @@ CATEGORY_ORDER = (
     "policy",
     "style",
     "typing",
-    "fixit",
-    "fixit-extra",
+    "modernization",
+    "legacy",
 )
 
 INDEX_TPL = Template(

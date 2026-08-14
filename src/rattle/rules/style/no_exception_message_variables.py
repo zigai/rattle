@@ -4,7 +4,7 @@ import libcst as cst
 from libcst.metadata import PositionProvider, ScopeProvider
 from libcst.metadata.scope_provider import Assignment
 
-from rattle import Invalid, LintRule, Valid
+from rattle.rule import Invalid, LintRule, Valid
 from rattle.rules.helpers import (
     callable_dotted_name,
     has_comments,

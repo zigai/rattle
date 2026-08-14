@@ -1159,20 +1159,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-dev = [
-    { name = "attribution" },
-    { name = "black" },
-    { name = "build" },
-    { name = "codespell" },
-    { name = "coverage" },
-    { name = "pre-commit" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "ruff" },
-    { name = "tomli" },
-    { name = "ufmt" },
-    { name = "usort" },
-]
 docs = [
     { name = "furo" },
     { name = "jinja2" },
@@ -1228,11 +1214,6 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "attribution", marker = "extra == 'dev'", specifier = "==1.8.0" },
-    { name = "black", marker = "extra == 'dev'", specifier = "==26.5.1" },
-    { name = "build", marker = "extra == 'dev'", specifier = ">1" },
-    { name = "codespell", marker = "extra == 'dev'", specifier = ">=2.4.2" },
-    { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.14.1" },
     { name = "furo", marker = "extra == 'docs'" },
     { name = "interfacy", specifier = ">=0.7.0" },
     { name = "jinja2", marker = "extra == 'docs'", specifier = "==3.1.6" },
@@ -1242,21 +1223,14 @@ requires-dist = [
     { name = "myst-parser", marker = "extra == 'docs'", specifier = "==4.0.1" },
     { name = "packaging", specifier = ">=21" },
     { name = "platformdirs", specifier = ">=4,<5" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.6.0" },
     { name = "pygls", extras = ["ws"], marker = "extra == 'lsp'", specifier = ">=2.0,<2.2" },
-    { name = "pyright", marker = "extra == 'dev'" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
     { name = "rich", marker = "extra == 'pretty'", specifier = ">=12.6.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.16.1" },
     { name = "sphinx", marker = "extra == 'docs'", specifier = "==8.0.2" },
     { name = "sphinx-copybutton", marker = "extra == 'docs'" },
     { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0" },
-    { name = "tomli", marker = "extra == 'dev'" },
     { name = "trailrunner", specifier = ">=1.2" },
-    { name = "ufmt", marker = "extra == 'dev'", specifier = "==2.9.1" },
-    { name = "usort", marker = "extra == 'dev'", specifier = "==1.1.3" },
 ]
-provides-extras = ["dev", "docs", "lsp", "pretty"]
+provides-extras = ["docs", "lsp", "pretty"]
 
 [package.metadata.requires-dev]
 dev = [

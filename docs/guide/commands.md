@@ -44,7 +44,7 @@ This takes a comma-separated list of rule selectors, with the same accepted
 forms as {attr}`enable <rattle.Config.enable>` and
 {attr}`disable <rattle.Config.disable>`:
 
-- import selectors such as `rattle.rules.fixit_extra:use-f-string`
+- import selectors such as `rattle.rules.legacy:use-f-string`
 - built-in rule collections such as `blank-lines`, `policy`, or `style`
 - exact built-in rule names such as `use-f-string`
 - exact local rule names such as `my-custom-rule`, when the local rule module is
@@ -55,7 +55,7 @@ For example:
 ```console
 $ rattle lint --rules "use-f-string" path/to/file.py
 $ rattle lint --rules "my-custom-rule" path/to/file.py
-$ rattle lint --rules "fixit,fixit-extra" path/to/file.py
+$ rattle lint --rules "fixit,legacy" path/to/file.py
 ```
 
 ### `--jobs / -j JOBS`

@@ -27,8 +27,11 @@ enable = ["blank-lines"]
 | --- | --- | --- | :---: |
 | [blank-line-after-control-block](rules/blank-line-after-control-block.md) | Add a blank line after this multiline control-flow block. | Any | Yes |
 | [blank-line-after-terminal-control-block](rules/blank-line-after-terminal-control-block.md) | Add a blank line after this early-exit control-flow block. | Any | Yes |
+| [blank-line-before-assignment](rules/blank-line-before-assignment.md) | Missing blank line before assignment statement that follows a non-assignment statement. | Any | Yes |
 | [blank-line-before-branch](rules/blank-line-before-branch.md) | Add a blank line before this branch statement in a larger code block. | Any | Yes |
 | [blank-line-before-unrelated-block](rules/blank-line-before-unrelated-block.md) | Add a blank line before this block; the preceding statements do not prepare values used by it. | Any | Yes |
+| [block-header-cuddle-strict](rules/block-header-cuddle-strict.md) | Add a blank line before this block; only an immediately preceding assignment used by the block may remain attached. | Any | Yes |
+| [match-case-separation](rules/match-case-separation.md) | Missing separator between match cases after a large case body. | Any | No |
 | [no-suite-leading-trailing-blank-lines](rules/no-suite-leading-trailing-blank-lines.md) | Remove blank lines at the beginning or end of a code block. | Any | Yes |
 
 ## Exports
@@ -83,6 +86,7 @@ enable = ["style"]
 | [no-str-exception-translation](rules/no-str-exception-translation.md) | Use a fixed message when translating an exception, and preserve the cause with `raise ... from exc`. | Any | No |
 | [no-underscore-class](rules/no-underscore-class.md) | Class names must not start with an underscore prefix. | Any | No |
 | [public-method-order](rules/public-method-order.md) | Define public methods before underscore-prefixed helper methods. | Any | No |
+| [sorted-attributes](rules/sorted-attributes.md) | Class assignments under @sorted-attributes are not sorted; sorting them can change right-hand-side side-effect order. | Any | Yes |
 
 ## Typing
 
@@ -97,15 +101,17 @@ enable = ["typing"]
 | Rule | Message | Python | Autofix |
 | --- | --- | --- | :---: |
 | [no-bare-object-annotations](rules/no-bare-object-annotations.md) | Replace this bare `object` annotation with a type that describes the value. | Any | No |
+| [use-callable-ellipsis](rules/use-callable-ellipsis.md) | Use Callable[..., T] instead of Callable[[...], T]. | Any | Yes |
+| [use-types-from-typing](rules/use-types-from-typing.md) | Python 3.8 does not support `{builtin_type}[...]` annotations; use `typing.{correct_type}` instead. | `< 3.9` | Yes |
 
-## Fixit
+## Modernization
 
-Core lint rules inherited from Fixit.
+Rules for safer, clearer Python constructs.
 
 Enable with:
 
 ```toml
-enable = ["fixit"]
+enable = ["modernization"]
 ```
 
 | Rule | Message | Python | Autofix |
@@ -113,19 +119,16 @@ enable = ["fixit"]
 | [explicit-frozen-dataclass](rules/explicit-frozen-dataclass.md) | Dataclass mutability must be explicit. Add `frozen=True` for immutable value objects or `frozen=False` when instances are intentionally mutable. | Any | No |
 | [no-named-tuple](rules/no-named-tuple.md) | NamedTuple can often be replaced with @dataclass, but dataclasses are not tuple-compatible; check callers before converting. | Any | No |
 | [no-static-if-condition](rules/no-static-if-condition.md) | This `if` condition appears constant; verify the logic and remove any temporary debug clause. | Any | No |
-| [sorted-attributes](rules/sorted-attributes.md) | Class assignments under @sorted-attributes are not sorted; sorting them can change right-hand-side side-effect order. | Any | Yes |
-| [use-callable-ellipsis](rules/use-callable-ellipsis.md) | Use Callable[..., T] instead of Callable[[...], T]. | Any | Yes |
 | [use-rattle-ignore-comment](rules/use-rattle-ignore-comment.md) | Use `rattle: ignore[rule-name]`; Rattle does not support `noqa`. | Any | No |
-| [use-types-from-typing](rules/use-types-from-typing.md) | Python 3.8 does not support `{builtin_type}[...]` annotations; use `typing.{correct_type}` instead. | `< 3.9` | Yes |
 
-## Fixit Extra
+## Legacy
 
-Additional Fixit-derived rules that can be enabled separately.
+Fixit-derived rules superseded by Ruff and retained only for migration.
 
 Enable with:
 
 ```toml
-enable = ["fixit-extra"]
+enable = ["legacy"]
 ```
 
 | Rule | Message | Python | Autofix |
@@ -161,6 +164,6 @@ rule-collections/exports
 rule-collections/policy
 rule-collections/style
 rule-collections/typing
-rule-collections/fixit
-rule-collections/fixit-extra
+rule-collections/modernization
+rule-collections/legacy
 ```

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import libcst as cst
 
-from rattle import Invalid, LintRule, Valid
+from rattle.rule import Invalid, LintRule, Valid
 
 
 class NoUnderscoreImportAliases(LintRule):

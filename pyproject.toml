@@ -41,20 +41,6 @@ docs = [
     "sphinx == 8.0.2",
     "sphinx-copybutton",
 ]
-dev = [
-    "attribution == 1.8.0",
-    "black == 26.5.1",
-    "build > 1",
-    "codespell>=2.4.2",
-    "coverage>=7.14.1",
-    "pre-commit>=4.6.0",
-    "pytest>=9.0.3",
-    "pyright",
-    "tomli",
-    "ufmt == 2.9.1",
-    "usort == 1.1.3",
-    "ruff==0.16.1",
-]
 lsp = ["pygls[ws] >= 2.0,<2.2"]
 pretty = ["rich >= 12.6.0"]
 
@@ -81,16 +67,11 @@ docs = [
 dev = [
     { include-group = "test" },
     "attribution == 1.8.0",
-    "black == 26.5.1",
     "build > 1",
     "codespell>=2.4.2",
     "coverage>=7.14.1",
     "pre-commit>=4.6.0",
     "pyright",
-    "tomli",
-    "ufmt == 2.9.1",
-    "usort == 1.1.3",
-    "ruff==0.16.1",
 ]
 lsp = ["pygls[ws] >= 2.0,<2.2"]
 pretty = ["rich >= 12.6.0"]
@@ -191,6 +172,34 @@ disable = [
     "use-types-from-typing",
 ]
 
+[[tool.rattle.overrides]]
+path = "tests"
+disable = [
+    "blank-line-after-control-block",
+    "blank-line-after-terminal-control-block",
+    "blank-line-before-branch",
+    "blank-line-before-unrelated-block",
+    "no-suite-leading-trailing-blank-lines",
+    "module-all-at-bottom",
+    "no-underscore-all-exports",
+    "forbidden-call",
+    "no-relative-imports",
+    "no-underscore-import-aliases",
+    "no-unsafe-tempfile-factories",
+    "no-annotated-self",
+    "no-exception-message-variables",
+    "no-str-exception-translation",
+    "no-underscore-class",
+    "public-method-order",
+    "no-bare-object-annotations",
+    "no-named-tuple",
+    "no-static-if-condition",
+    "sorted-attributes",
+    "use-callable-ellipsis",
+    "use-rattle-ignore-comment",
+    "use-types-from-typing",
+]
+
 [tool.hatch.version]
 source = "vcs"
 
@@ -215,16 +224,8 @@ skip = ".git,.venv,uv.lock,html,htmlcov,build,dist,docs/_build,*.egg-info,__pyca
 ignore-words-list = "implementors,NotIn"
 
 [tool.pytest.ini_options]
-testpaths = ["src/rattle/tests"]
-python_files = [
-    "test_*.py",
-    "cli.py",
-    "config.py",
-    "engine.py",
-    "ftypes.py",
-    "rule.py",
-    "smoke.py",
-]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
 
 [tool.coverage.run]
 omit = ["/tmp/*", "*/tmp/*"]
@@ -305,7 +306,7 @@ exclude = ["build"]
 "examples/*.py" = ["INP001"]
 "examples/**/*.py" = ["INP001"]
 "scripts/*.py" = ["INP001"]
-"src/rattle/tests/*.py" = [
+"tests/*.py" = [
     "A002",
     "A004",
     "ANN001",
@@ -331,7 +332,7 @@ exclude = ["build"]
     "UP035",
     "UP045",
 ]
-"src/rattle/tests/**/*.py" = [
+"tests/**/*.py" = [
     "A002",
     "A004",
     "ANN001",

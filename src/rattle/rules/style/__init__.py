@@ -1,10 +1,11 @@
-"""Opinionated style rules that are not inherited from Fixit."""
+"""Opinionated code-style and structural rules."""
 
 from rattle.rules.style.no_annotated_self import NoAnnotatedSelf
 from rattle.rules.style.no_exception_message_variables import NoExceptionMessageVariables
 from rattle.rules.style.no_str_exception_translation import NoStrExceptionTranslation
 from rattle.rules.style.no_underscore_class import NoUnderscoreClass
 from rattle.rules.style.public_method_order import PublicMethodOrder
+from rattle.rules.style.sorted_attributes import SortedAttributes
 
 __all__ = [
     "NoAnnotatedSelf",
@@ -12,4 +13,5 @@ __all__ = [
     "NoStrExceptionTranslation",
     "NoUnderscoreClass",
     "PublicMethodOrder",
+    "SortedAttributes",
 ]

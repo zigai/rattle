@@ -1,0 +1,125 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+import libcst as cst
+
+from rattle.rule import Invalid, LintRule, Valid
+
+
+class ComparePrimitivesByEqual(LintRule):
+    """Require equality operators when comparing primitive values."""
+
+    NAME = "use-eq-for-primitives"
+
+    MESSAGE = "Use `==` or `!=` for numeric and string values; `is` tests object identity."
+    REFERENCES = (
+        ("object.__eq__", "https://docs.python.org/3/reference/datamodel.html#object.__eq__"),
+        ("is operator", "https://docs.python.org/3/reference/expressions.html#is"),
+    )
+    VALID = [
+        Valid("a == 1"),
+        Valid("a == '1'"),
+        Valid("a != '1'"),
+        Valid("'3' == '1'"),
+        Valid("3 == '1'"),
+        Valid("3 > 2 > 1"),
+        Valid("3 > 2 > '1'"),
+        Valid("a is b > 1"),
+        Valid("a is b is c"),
+        Valid("1 > b is c"),
+        Valid("1 is True"),
+        Valid("True is 1"),
+        Valid("1 is not False"),
+    ]
+    INVALID = [
+        Invalid("a is 1", expected_replacement="a == 1"),
+        Invalid("a is '1'", expected_replacement="a == '1'"),
+        Invalid(
+            "a is f'1{b}'",
+            expected_replacement="a == f'1{b}'",
+        ),
+        Invalid(
+            "a is not f'1{d}'",
+            expected_replacement="a != f'1{d}'",
+        ),
+        Invalid("1 is a", expected_replacement="1 == a"),
+        Invalid(
+            "'2' > '1' is a",
+            expected_replacement="'2' > '1' == a",
+        ),
+        Invalid(
+            "3 > a is 2",
+            expected_replacement="3 > a == 2",
+        ),
+        Invalid(
+            "1  is   2",
+            expected_replacement="1  ==   2",
+        ),
+    ]
+    PRIMITIVES = (cst.BaseNumber, cst.BaseString)
+
+    def is_bool_singleton_number_comparison(
+        self, left: cst.BaseExpression, right: cst.BaseExpression
+    ) -> bool:
+        return (
+            isinstance(left, cst.Name)
+            and left.value in {"True", "False"}
+            and isinstance(right, cst.BaseNumber)
+        ) or (
+            isinstance(right, cst.Name)
+            and right.value in {"True", "False"}
+            and isinstance(left, cst.BaseNumber)
+        )
+
+    def visit_Comparison(self, node: cst.Comparison) -> None:
+        prev_comparator = node.left
+        for target in node.comparisons:
+            op, comparator = target.operator, target.comparator
+            if self.is_bool_singleton_number_comparison(prev_comparator, comparator):
+                prev_comparator = comparator
+                continue
+            if isinstance(op, (cst.Is, cst.IsNot)) and (
+                isinstance(prev_comparator, self.PRIMITIVES)
+                or isinstance(comparator, self.PRIMITIVES)
+            ):
+                self.report(node, self.MESSAGE, replacement=self.replace_operators(node))
+                return
+            prev_comparator = comparator
+
+    def replace_operators(self, node: cst.Comparison) -> cst.Comparison:
+        prev_comparator = node.left
+        comparisons = []
+        for target in node.comparisons:
+            op, comparator = target.operator, target.comparator
+            if self.is_bool_singleton_number_comparison(prev_comparator, comparator):
+                comparisons.append(target)
+                prev_comparator = comparator
+                continue
+            if isinstance(op, (cst.Is, cst.IsNot)) and (
+                isinstance(prev_comparator, self.PRIMITIVES)
+                or isinstance(comparator, self.PRIMITIVES)
+            ):
+                target = target.with_changes(
+                    operator=(
+                        cst.Equal(
+                            whitespace_before=op.whitespace_before,
+                            whitespace_after=op.whitespace_after,
+                        )
+                        if isinstance(op, cst.Is)
+                        else cst.NotEqual(
+                            whitespace_before=op.whitespace_before,
+                            whitespace_after=op.whitespace_after,
+                        )
+                    )
+                )
+            comparisons.append(target)
+            prev_comparator = comparator
+
+        return node.with_changes(comparisons=comparisons)
+
+
+__all__ = [
+    "ComparePrimitivesByEqual",
+]

@@ -5,7 +5,7 @@ from collections.abc import Sequence
 import libcst as cst
 from libcst.metadata import QualifiedNameProvider, QualifiedNameSource
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rule import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import callable_dotted_name, matches_any_pattern
 
 _DEFAULT_CLASS_NAME_PATTERNS = ["*"]

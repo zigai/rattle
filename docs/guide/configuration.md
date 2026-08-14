@@ -38,7 +38,7 @@ Rules from parent configs are inherited and this list adds to them.
 
 Rattle accepts three selector forms:
 
-- built-in rule collections, such as `blank-lines`, `exports`, `fixit`, `fixit-extra`,
+- built-in rule collections, such as `blank-lines`, `exports`, `modernization`, `legacy`,
   `policy`, `style`, and `typing`
 - import selectors, using Python module syntax, for packages, modules, or one
   concrete rule (`module:rule-name`)
@@ -51,7 +51,7 @@ built-in rule name:
 
 ```toml
 enable = [
-    "fixit",
+    "modernization",
 ]
 ```
 
@@ -59,9 +59,9 @@ Multiple collections and individual rules can be combined:
 
 ```toml
 enable = [
-    "fixit",
-    "fixit-extra",
-    "rattle.rules.fixit_extra:use-f-string",
+    "modernization",
+    "legacy",
+    "rattle.rules.legacy:use-f-string",
     "use-f-string",
 ]
 ```
@@ -89,7 +89,7 @@ Rattle enables no rules by default. Most projects should start with:
 
 ```toml
 [tool.rattle]
-enable = ["fixit"]
+enable = ["modernization"]
 ```
 
 ## `disable`
@@ -239,7 +239,7 @@ For rules with a larger number of options, the rule name may instead be part of
 the table name:
 
 ```toml
-[tool.rattle.options."rattle.rules.fixit_extra:example-rule"]
+[tool.rattle.options."rattle.rules.legacy:example-rule"]
 greeting = "hello world"
 answer = 42
 entries = [
@@ -267,8 +267,8 @@ defining the subpath it applies to along with any values from the main table.
 ```toml
 [[tool.rattle.overrides]]
 path = "foo/bar"
-disable = ["rattle.rules.fixit_extra:example-rule"]
-options = {"rattle.rules.fixit_extra:story" = {closing = "goodnight moon"}}
+disable = ["rattle.rules.legacy:example-rule"]
+options = {"rattle.rules.legacy:story" = {closing = "goodnight moon"}}
 
 [[tool.rattle.overrides]]
 path = "fizz/buzz"
@@ -315,12 +315,12 @@ These tables are applied after the base config and any matching
 
 ```toml
 [tool.rattle.per-file-enable]
-"tests/**/*.py" = ["rattle.rules.fixit_extra:use-f-string"]
+"tests/**/*.py" = ["rattle.rules.legacy:use-f-string"]
 "scripts/**/*.py" = ["no-static-if-condition"]
 
 [tool.rattle.per-file-disable]
-"tests/generated.py" = ["rattle.rules.fixit_extra:use-f-string"]
-"scripts/*.py" = ["fixit"]
+"tests/generated.py" = ["rattle.rules.legacy:use-f-string"]
+"scripts/*.py" = ["modernization"]
 "fixtures/**/*.py" = ["use-f-string"]
 ```
 

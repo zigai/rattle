@@ -8,7 +8,7 @@ from libcst.metadata import (
     QualifiedNameSource,
 )
 
-from rattle import Invalid, LintRule, Valid
+from rattle.rule import Invalid, LintRule, Valid
 
 
 def _first_parameter(parameters: cst.Parameters) -> cst.Param | None:

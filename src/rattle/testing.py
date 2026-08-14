@@ -18,9 +18,9 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Protocol
 
+from rattle.config.models import Config
 from rattle.engine import LintRunner, diff_violation
-from rattle.ftypes import Config, Invalid, Valid
-from rattle.rule import LintRule
+from rattle.rule import Invalid, LintRule, Valid
 
 
 class Patch(Protocol):

@@ -5,7 +5,7 @@ from collections.abc import Sequence
 import libcst as cst
 from libcst.metadata import ParentNodeProvider
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rule import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.blank_lines.base import BaseBlankLinesRule, validate_non_negative_int
 from rattle.rules.blank_lines.utils import (
     assigned_names,

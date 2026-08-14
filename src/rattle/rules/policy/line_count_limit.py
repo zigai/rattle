@@ -8,7 +8,8 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import FilePathProvider, ParentNodeProvider, PositionProvider
 
-from rattle import CodePosition, LintRule, RuleSetting
+from rattle.diagnostics import CodePosition
+from rattle.rule import LintRule, RuleSetting
 
 _SETTING_NAMES = frozenset({"max_file_lines", "max_function_lines", "max_method_lines"})
 

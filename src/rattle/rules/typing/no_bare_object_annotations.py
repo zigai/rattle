@@ -10,7 +10,7 @@ from libcst.metadata import (
     ScopeProvider,
 )
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rule import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import (
     callable_dotted_name,
     is_excluded_path,

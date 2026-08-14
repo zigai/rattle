@@ -15,7 +15,7 @@ By default, Rattle runs with no enabled lint rules. Enable rule collections in
 
 ```toml
 [tool.rattle]
-enable = ["fixit"]
+enable = ["modernization"]
 ```
 
 If you want to customize the enabled rules, add new rules, or disable specific
@@ -56,7 +56,7 @@ from typing import Callable
 handler: Callable[[...], int]
 ```
 
-With `fixit` enabled, running Rattle shows the rule violation:
+With `modernization` enabled, running Rattle shows the rule violation:
 
 ```console
 $ rattle lint handlers.py

@@ -8,22 +8,11 @@
 from rattle.__version__ import __version__
 from rattle.api import print_result, rattle_bytes, rattle_file, rattle_paths
 from rattle.ast import AstContext, AstParseError, AstProvider
-from rattle.format import Formatter
-from rattle.ftypes import (
-    CodePosition,
-    CodeRange,
-    Config,
-    FileContent,
-    Invalid,
-    LintViolation,
-    Options,
-    QualifiedRule,
-    Result,
-    RuleNameSelector,
-    Tags,
-    Valid,
-)
-from rattle.rule import LintRule, RuleReference, RuleSetting
+from rattle.config.models import Config, Options
+from rattle.diagnostics import CodePosition, CodeRange, FileContent, LintViolation, Result
+from rattle.formatting import Formatter
+from rattle.rule import Invalid, LintRule, RuleReference, RuleSetting, Valid
+from rattle.selectors import QualifiedRule, RuleNameSelector, Tags
 
 __all__ = [
     "AstContext",

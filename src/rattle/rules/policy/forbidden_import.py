@@ -5,7 +5,7 @@ from pathlib import Path
 
 import libcst as cst
 
-from rattle import LintRule, RuleSetting
+from rattle.rule import LintRule, RuleSetting
 from rattle.rules.helpers import optional_setting_text, setting_fields
 
 _CODEGEN_MODULE = cst.Module(body=[])

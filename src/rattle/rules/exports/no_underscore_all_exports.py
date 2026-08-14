@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import libcst as cst
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rule import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import alias_name, is_name, target_names
 
 

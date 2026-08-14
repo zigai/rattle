@@ -12,7 +12,7 @@ from libcst.metadata import (
     ScopeProvider,
 )
 
-from rattle import LintRule, RuleSetting
+from rattle.rule import LintRule, RuleSetting
 from rattle.rules.helpers import (
     AssignmentAliasTracker,
     dotted_name,

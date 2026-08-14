@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 import libcst as cst
 
-from rattle import Invalid, LintRule, Valid
+from rattle.rule import Invalid, LintRule, Valid
 from rattle.rules.helpers import is_name, ordinary_parameters, single_small_statement
 
 

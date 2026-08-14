@@ -8,7 +8,7 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import ParentNodeProvider
 
-from rattle import LintRule, RuleSetting
+from rattle.rule import LintRule, RuleSetting
 from rattle.rules.helpers import optional_setting_text, setting_fields, target_names
 
 _ENTRY_PATTERN = re.compile(

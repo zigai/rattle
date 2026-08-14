@@ -12,7 +12,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 # use-collections-abc
 
 <p class="rule-metadata">
-  <span>Collection: <code>fixit-extra</code></span>
+  <span>Collection: <code>legacy</code></span>
   <span>Autofix: Yes</span>
   <span>Python: `>= 3.3`</span>
 </p>

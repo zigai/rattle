@@ -6,7 +6,7 @@
 import logging
 import time
 from collections import defaultdict
-from collections.abc import Collection, Generator, Iterator, Mapping
+from collections.abc import Callable, Collection, Generator, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -23,17 +23,13 @@ from libcst.metadata import (
 from moreorless import unified_diff
 
 from rattle.ast import AstParseError
+from rattle.config.models import Config
+from rattle.diagnostics import CodeRange, FileContent, LintViolation, NodeReplacement
 from rattle.errors import RattleRuleExecutionError
-from rattle.ftypes import (
-    CodeRange,
-    Config,
-    FileContent,
-    LintViolation,
-    Metrics,
-    MetricsHook,
-    NodeReplacement,
-)
 from rattle.rule import LintRule
+
+Metrics = dict[str, int]
+MetricsHook = Callable[[Metrics], None]
 
 LOG = logging.getLogger(__name__)
 _RULE_SOURCE_FILTERS: dict[type[LintRule], tuple[bytes, ...] | None] = {}

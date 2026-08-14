@@ -12,7 +12,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 # no-redundant-arguments-super
 
 <p class="rule-metadata">
-  <span>Collection: <code>fixit-extra</code></span>
+  <span>Collection: <code>legacy</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>

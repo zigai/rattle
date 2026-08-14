@@ -12,7 +12,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 # use-types-from-typing
 
 <p class="rule-metadata">
-  <span>Collection: <code>fixit</code></span>
+  <span>Collection: <code>typing</code></span>
   <span>Autofix: Yes</span>
   <span>Python: `< 3.9`</span>
 </p>

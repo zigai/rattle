@@ -30,8 +30,9 @@ from pygls.workspace.text_document import TextDocument
 from rattle.__version__ import __version__
 from rattle.api import rattle_bytes
 from rattle.config import generate_config, locate_configs
+from rattle.config.models import Config, LSPOptions, Options
+from rattle.diagnostics import FileContent, Result
 from rattle.errors import RattleExecutionError
-from rattle.ftypes import Config, FileContent, LSPOptions, Options, Result
 from rattle.util import capture
 
 

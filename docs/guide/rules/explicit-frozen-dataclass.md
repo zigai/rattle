@@ -12,7 +12,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 # explicit-frozen-dataclass
 
 <p class="rule-metadata">
-  <span>Collection: <code>fixit</code></span>
+  <span>Collection: <code>modernization</code></span>
   <span>Autofix: No</span>
   <span>Python: Any</span>
 </p>

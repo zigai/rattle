@@ -3,7 +3,7 @@ from __future__ import annotations
 import libcst as cst
 from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameSource
 
-from rattle import Invalid, LintRule, Valid
+from rattle.rule import Invalid, LintRule, Valid
 from rattle.rules.helpers import alias_name, target_names
 
 

@@ -12,7 +12,7 @@ Run `just docs` or `python scripts/document_rules.py` to regenerate this file.
 # sorted-attributes
 
 <p class="rule-metadata">
-  <span>Collection: <code>fixit</code></span>
+  <span>Collection: <code>style</code></span>
   <span>Autofix: Yes</span>
   <span>Python: Any</span>
 </p>

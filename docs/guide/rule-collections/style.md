@@ -26,3 +26,4 @@ enable = ["style"]
 | [no-str-exception-translation](../rules/no-str-exception-translation.md) | Use a fixed message when translating an exception, and preserve the cause with `raise ... from exc`. | Any | No |
 | [no-underscore-class](../rules/no-underscore-class.md) | Class names must not start with an underscore prefix. | Any | No |
 | [public-method-order](../rules/public-method-order.md) | Define public methods before underscore-prefixed helper methods. | Any | No |
+| [sorted-attributes](../rules/sorted-attributes.md) | Class assignments under @sorted-attributes are not sorted; sorting them can change right-hand-side side-effect order. | Any | Yes |

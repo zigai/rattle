@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 import libcst as cst
 
-from rattle import Invalid, LintRule, RuleSetting, Valid
+from rattle.rule import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.blank_lines.base import BaseBlockHeaderCuddleRule, validate_non_negative_int
 
 
