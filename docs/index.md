@@ -7,7 +7,7 @@
 [![Downloads](https://static.pepy.tech/badge/rattle-lint)](https://pepy.tech/project/rattle-lint)
 [![License: MIT](https://img.shields.io/badge/license-MIT-4b5563.svg)](https://github.com/zigai/rattle/blob/main/LICENSE)
 
-Rattle is a Python linting framework built on [LibCST](https://libcst.readthedocs.io) with support for autofixes, custom in-repo lint rules, and hierarchical configuration. It is designed to run alongside [Ruff](https://docs.astral.sh/ruff/): use Ruff for its built-in checks and Rattle for project-specific policies and LibCST rules Ruff does not provide.
+Rattle is a Python linting framework built on [LibCST](https://libcst.readthedocs.io) with support for autofixes, custom in-repo lint rules, and hierarchical configuration. It is meant to be used alongside [Ruff](https://docs.astral.sh/ruff/). Outside the opt-in `legacy` collection, Rattle intentionally avoids rules that duplicate Ruff checks, so use a comprehensive Ruff configuration for those checks; Ruff is considerably faster.
 
 Rattle is a fork of [Fixit](https://github.com/Instagram/Fixit). The opt-in `legacy` collection contains Fixit-derived rules now covered by Ruff; it exists for migration and is not recommended for new configurations.
 
