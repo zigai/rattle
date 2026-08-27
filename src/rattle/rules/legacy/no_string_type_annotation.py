@@ -10,6 +10,7 @@ from libcst.metadata import ParentNodeProvider
 
 from rattle.diagnostics import CodePosition, CodeRange
 from rattle.rule import Invalid, LintRule, Valid
+from rattle.rules.helpers import parse_string_expression
 
 
 class NoStringTypeAnnotation(LintRule):
@@ -351,7 +352,7 @@ class NoStringTypeAnnotation(LintRule):
         if isinstance(parent, cst.ConcatenatedString):
             return
         if self.in_annotation and not self.in_literal and not self._is_annotated_metadata(node):
-            self._report_string(node, node.evaluated_value)
+            self._report_string(node)
 
     def visit_ConcatenatedString(self, node: cst.ConcatenatedString) -> None:
         if not self.has_future_annotations_import:
@@ -359,20 +360,14 @@ class NoStringTypeAnnotation(LintRule):
         if isinstance(self.get_metadata(ParentNodeProvider, node, None), cst.ConcatenatedString):
             return
         if self.in_annotation and not self.in_literal and not self._is_annotated_metadata(node):
-            self._report_string(node, node.evaluated_value)
+            self._report_string(node)
 
-    def _report_string(self, node: cst.BaseString, value: str | bytes | None) -> None:
-        if value is None:
+    def _report_string(self, node: cst.BaseString) -> None:
+        replacement = parse_string_expression(node)
+        if replacement is None:
             self.report(node, self.MESSAGE)
             return
-        if isinstance(value, bytes):
-            self.report(node, self.MESSAGE)
-            return
-        try:
-            repl = cst.parse_expression(value)
-            self.report(node, self.MESSAGE, replacement=repl)
-        except cst.ParserSyntaxError:
-            self.report(node, self.MESSAGE)
+        self.report(node, self.MESSAGE, replacement=replacement)
 
     def _is_annotated_metadata(self, node: cst.BaseString) -> bool:
         if not self.in_annotated:

@@ -16,6 +16,7 @@ from rattle.rules.helpers import (
     is_excluded_path,
     is_name,
     ordinary_parameters,
+    parse_string_expression,
 )
 
 
@@ -42,12 +43,8 @@ def _is_syntactic_object_annotation(expression: cst.BaseExpression) -> bool:
 def _is_bare_object_string_annotation(
     expression: cst.ConcatenatedString | cst.SimpleString,
 ) -> bool:
-    value = expression.evaluated_value
-    if not isinstance(value, str):
-        return False
-    try:
-        parsed_expression = cst.parse_expression(value)
-    except cst.ParserSyntaxError:
+    parsed_expression = parse_string_expression(expression)
+    if parsed_expression is None:
         return False
 
     return _is_bare_object_annotation(parsed_expression)
@@ -315,12 +312,8 @@ class NoBareObjectAnnotations(LintRule):
         self,
         expression: cst.ConcatenatedString | cst.SimpleString,
     ) -> bool:
-        value = expression.evaluated_value
-        if not isinstance(value, str):
-            return False
-        try:
-            parsed_expression = cst.parse_expression(value)
-        except cst.ParserSyntaxError:
+        parsed_expression = parse_string_expression(expression)
+        if parsed_expression is None:
             return False
 
         if isinstance(parsed_expression, cst.Name) and self._is_object_type_alias_name(

@@ -9,6 +9,19 @@ from libcst import MaybeSentinel
 DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
 AliasValue = TypeVar("AliasValue")
 
+TRANSPARENT_ANNOTATION_ARGUMENTS: dict[str, tuple[int, ...] | None] = {
+    "typing.Annotated": (0,),
+    "typing.NotRequired": (0,),
+    "typing.Optional": (0,),
+    "typing.ReadOnly": (0,),
+    "typing.Required": (0,),
+    "typing.Union": None,
+    "typing_extensions.Annotated": (0,),
+    "typing_extensions.NotRequired": (0,),
+    "typing_extensions.ReadOnly": (0,),
+    "typing_extensions.Required": (0,),
+}
+
 
 class _CommentVisitor(cst.CSTVisitor):
     def __init__(self) -> None:
@@ -114,6 +127,33 @@ def callable_dotted_name(node: cst.CSTNode | None) -> str | None:
         return callable_dotted_name(node.value)
 
     return None
+
+
+def parse_string_expression(
+    expression: cst.BaseExpression,
+) -> cst.BaseExpression | None:
+    if not isinstance(expression, cst.ConcatenatedString | cst.SimpleString):
+        return None
+    value = expression.evaluated_value
+    if not isinstance(value, str):
+        return None
+    try:
+        return cst.parse_expression(value)
+    except cst.ParserSyntaxError:
+        return None
+
+
+def subscript_arguments(
+    expression: cst.Subscript,
+) -> list[cst.BaseExpression] | None:
+    arguments: list[cst.BaseExpression] = []
+    for element in expression.slice:
+        if not isinstance(element.slice, cst.Index) or not isinstance(
+            element.slice.value, cst.BaseExpression
+        ):
+            return None
+        arguments.append(element.slice.value)
+    return arguments
 
 
 def alias_name(alias: cst.AsName | None, default: str) -> str:

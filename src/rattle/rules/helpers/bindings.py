@@ -156,6 +156,27 @@ def latest_assignment_node(rule: LintRule, expression: cst.BaseExpression) -> cs
     return assignment.node if isinstance(assignment, Assignment) else None
 
 
+def single_assignment_node(
+    rule: LintRule,
+    name: cst.Name,
+    *,
+    context: cst.CSTNode | None = None,
+) -> cst.CSTNode | None:
+    scope = rule.get_metadata(ScopeProvider, name, None)
+    if scope is None and context is not None:
+        scope = rule.get_metadata(ScopeProvider, context, None)
+    if scope is None:
+        return None
+    try:
+        assignments = tuple(scope[name.value])
+    except KeyError:
+        return None
+    if len(assignments) != 1:
+        return None
+    assignment_node = getattr(assignments[0], "node", None)
+    return assignment_node if isinstance(assignment_node, cst.CSTNode) else None
+
+
 def qualified_names_for_reaching_binding(
     rule: LintRule,
     expression: cst.BaseExpression,
