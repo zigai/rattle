@@ -9,9 +9,9 @@
 
 Rattle is a Python linting framework built on [LibCST](https://libcst.readthedocs.io) with support for autofixes, custom in-repo lint rules, and hierarchical configuration.
 
-It is meant to be used alongside [Ruff](https://docs.astral.sh/ruff/). Outside the opt-in `legacy` collection, Rattle intentionally avoids rules that duplicate Ruff checks, so use a comprehensive Ruff configuration for those checks; Ruff is considerably faster.
+Rattle is a fork of [Fixit](https://github.com/Instagram/Fixit) designed to complement [Ruff](https://docs.astral.sh/ruff/). It intentionally omits rules that duplicate Ruff checks, so pair it with a comprehensive Ruff configuration; Ruff is considerably faster for those checks.
 
-Rattle is a fork of [Fixit](https://github.com/Instagram/Fixit). The opt-in `legacy` collection contains Fixit-derived rules now covered by Ruff; it exists for migration and is not recommended for new configurations.
+For migration from Fixit, overlapping Fixit-derived rules remain available in the opt-in `legacy` collection. This collection is not recommended for new configurations.
 
 ## Features
 
