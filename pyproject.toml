@@ -52,7 +52,7 @@ test = [
     "pytest>=9.0.3",
     "pygls[ws] >= 2.0,<2.2",
     "black == 26.5.1",
-    "ruff==0.16.1",
+    "ruff==0.16.5",
     "tomli",
     "ufmt == 2.9.1",
     "usort == 1.1.3",
