@@ -330,11 +330,6 @@ class ModuleAllAtBottom(LintRule):
     ]
 
     def visit_Module(self, node: cst.Module) -> None:
-        replacement = _build_safe_replacement(node)
-        if replacement is not None:
-            self.report(node, self.MESSAGE, replacement=replacement)
-            return
-
         collector = ModuleStatementCollector()
         node.visit(collector)
         last_non_all_index = max(
@@ -345,6 +340,23 @@ class ModuleAllAtBottom(LintRule):
             ),
             default=-1,
         )
-        for index, (statement, is_all_statement) in enumerate(collector.entries):
-            if is_all_statement and index < last_non_all_index:
-                self.report(statement, self.MESSAGE)
+        misplaced_statements = [
+            statement
+            for index, (statement, is_all_statement) in enumerate(collector.entries)
+            if is_all_statement and index < last_non_all_index
+        ]
+        if not misplaced_statements:
+            return
+
+        replacement = _build_safe_replacement(node)
+        if replacement is not None:
+            self.report(
+                node,
+                self.MESSAGE,
+                replacement=replacement,
+                position_node=misplaced_statements[0],
+            )
+            return
+
+        for statement in misplaced_statements:
+            self.report(statement, self.MESSAGE)

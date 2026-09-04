@@ -296,8 +296,10 @@ class NoNamedTuple(LintRule):
         self._aliases.record(node.target, node.value, self._alias_value)
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        if any(self._is_namedtuple_expression(base.value) for base in node.bases):
-            self.report(node, self.MESSAGE)
+        for base in node.bases:
+            if self._is_namedtuple_expression(base.value):
+                self.report(node, self.MESSAGE, position_node=base.value)
+                return
 
     def visit_Call(self, node: cst.Call) -> None:
         if self._is_collections_namedtuple_factory(node.func) or self._is_namedtuple_expression(

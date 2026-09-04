@@ -291,15 +291,20 @@ class UseClsInClassmethod(LintRule):
             return  # All good.
 
         replacement = self._renamed_classmethod(node, p0_name)
-        self.report(node, self.MESSAGE, replacement=replacement)
+        self.report(node, self.MESSAGE, replacement=replacement, position_node=p0_name)
 
     def _report_missing_positional_parameter(self, node: cst.FunctionDef) -> None:
         if any(param.name.value == CLS for param in ordinary_parameters(node.params)):
-            self.report(node, self.MESSAGE)
+            self.report(node, self.MESSAGE, position_node=node.name)
             return
 
         new_params = node.params.with_changes(params=(cst.Param(name=cst.Name(value=CLS)),))
-        self.report(node, self.MESSAGE, replacement=node.with_changes(params=new_params))
+        self.report(
+            node,
+            self.MESSAGE,
+            replacement=node.with_changes(params=new_params),
+            position_node=node.name,
+        )
 
     def _renamed_classmethod(
         self, node: cst.FunctionDef, p0_name: cst.Name

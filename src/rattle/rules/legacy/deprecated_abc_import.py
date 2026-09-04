@@ -338,6 +338,7 @@ class DeprecatedABCImport(LintRule):
                             for base in node.bases
                         ]
                     ),
+                    position_node=base,
                 )
 
 

@@ -194,6 +194,7 @@ class SortedAttributes(LintRule):
             original_node,
             self.MESSAGE,
             replacement=replacement,
+            position_node=original_node.name,
         )
 
     @staticmethod

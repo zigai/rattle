@@ -271,7 +271,7 @@ class NoExceptionMessageVariables(LintRule):
         if not self._is_only_reference(target, reference):
             return
 
-        self.report(node, self.MESSAGE, replacement=replacement)
+        self.report(node, self.MESSAGE, replacement=replacement, position_node=target)
 
     def _is_only_reference(self, target: cst.Name, reference: cst.Name) -> bool:
         scope = self.get_metadata(ScopeProvider, target, None)
