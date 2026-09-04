@@ -315,9 +315,11 @@ def _render_block(
     for line_number in range(first_context_line, last_context_line + 1):
         source_line = source_lines[line_number - 1]
         rendered_source = source_line.expandtabs()
-        lines.append(
-            f"{_line_no_style(f'{line_number:>{gutter_width}} |', color=color)} {rendered_source}"
-        )
+        line_prefix = _line_no_style(f"{line_number:>{gutter_width}} |", color=color)
+        if rendered_source:
+            lines.append(f"{line_prefix} {rendered_source}")
+        else:
+            lines.append(line_prefix)
         if code_range.start.line <= line_number <= code_range.end.line:
             underline = _render_underline(
                 source_line=source_line,
@@ -325,8 +327,8 @@ def _render_block(
                 code_range=code_range,
                 color=color,
             )
-            lines.append(f"{blank_gutter} {underline}")
-
+            if underline:
+                lines.append(f"{blank_gutter} {underline}")
     lines.append(blank_gutter)
     if help_message:
         lines.append(f"{_help_style('help', color=color)}: {help_message}")
@@ -350,13 +352,19 @@ def _render_underline(
         width = max(1, len(displayed_line) - start_display)
         return f"{' ' * start_display}{_secondary_code_style('^' * width, color=color)}"
 
+    if not displayed_line.strip():
+        return ""
+
+    leading_indent = len(displayed_line) - len(displayed_line.lstrip())
+
     if line_number == code_range.end.line:
         end_display = _to_display_column(source_line, code_range.end.column)
-        width = max(1, end_display)
-        return _secondary_code_style("^" * width, color=color)
+        start_display = min(leading_indent, end_display)
+        width = max(1, end_display - start_display)
+        return f"{' ' * start_display}{_secondary_code_style('^' * width, color=color)}"
 
-    width = max(1, len(displayed_line))
-    return _secondary_code_style("^" * width, color=color)
+    width = max(1, len(displayed_line) - leading_indent)
+    return f"{' ' * leading_indent}{_secondary_code_style('^' * width, color=color)}"
 
 
 def _decode_source_lines(source: FileContent | None) -> list[str]:

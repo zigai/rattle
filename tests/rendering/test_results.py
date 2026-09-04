@@ -93,6 +93,43 @@ class OutputTest(TestCase):
             == rendered
         )
 
+    def test_render_rattle_multiline_violation_with_indentation_and_blank_lines(self) -> None:
+        source = b"def foo():\n    first = 1\n\n    second = 2\n"
+        violation = LintViolation(
+            rule_name="test-rule",
+            range=CodeRange(
+                start=CodePosition(line=1, column=0),
+                end=CodePosition(line=4, column=14),
+            ),
+            message="Multi-line body issue",
+            node=libcst.Name("foo"),
+            replacement=None,
+        )
+
+        rendered = render_rattle_result(
+            Result(Path("example.py"), violation=violation, source=source),
+            path=Path("example.py"),
+        )
+
+        assert (
+            dedent(
+                """\
+                test-rule Multi-line body issue
+                 --> example.py:1:1
+                  |
+                1 | def foo():
+                  | ^^^^^^^^^^
+                2 |     first = 1
+                  |     ^^^^^^^^^
+                3 |
+                4 |     second = 2
+                  |     ^^^^^^^^^^
+                  |
+                """
+            ).rstrip()
+            == rendered
+        )
+
     def test_render_rattle_brief_violation(self) -> None:
         violation = LintViolation(
             rule_name="no-redundant-f-string",
