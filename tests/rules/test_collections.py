@@ -6,24 +6,16 @@
 from rattle.config import collect_rules
 from rattle.config.models import Config
 from rattle.selectors import QualifiedRule
-from rattle.testing import generate_lint_rule_test_cases
 
-for generated_case in generate_lint_rule_test_cases(
-    collect_rules(
-        Config(
-            enable=[
-                QualifiedRule("rattle.rules.exports"),
-                QualifiedRule("rattle.rules.modernization"),
-                QualifiedRule("rattle.rules.legacy"),
-                QualifiedRule("rattle.rules.policy"),
-                QualifiedRule("rattle.rules.style"),
-                QualifiedRule("rattle.rules.typing"),
-            ],
-            python_version=None,
-        )
-    )
-):
-    globals()[f"Test{generated_case.__name__}"] = generated_case
 
-if "generated_case" in globals():
-    del globals()["generated_case"]
+def test_builtin_collections_resolve_rules() -> None:
+    for collection in [
+        "rattle.rules.exports",
+        "rattle.rules.modernization",
+        "rattle.rules.legacy",
+        "rattle.rules.policy",
+        "rattle.rules.style",
+        "rattle.rules.typing",
+    ]:
+        rules = collect_rules(Config(enable=[QualifiedRule(collection)], python_version=None))
+        assert len(rules) > 0, f"Collection {collection} resolved 0 rules"

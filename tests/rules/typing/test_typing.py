@@ -20,11 +20,6 @@ def _reports(
     return runner, list(runner.collect_violations([rule], Config(path=path)))
 
 
-def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
-    runner, reports = _reports(rule, source)
-    return reports, runner.apply_replacements(reports).code
-
-
 @pytest.mark.parametrize(
     "source",
     [

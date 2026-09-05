@@ -1302,7 +1302,20 @@ def test_bl400_fix_inserts_one_case_separator_and_converges() -> None:
 
     assert len(reports) == 1
     fixed_code = runner.apply_replacements(reports).code
-    assert "        third = 3\n\n        case _:" in fixed_code
+    expected = _dedent(
+        """
+        def f(value: int) -> int:
+            match value:
+                case 1:
+                    first = 1
+                    second = 2
+                    third = 3
+
+                case _:
+                    return 0
+        """
+    )
+    assert fixed_code == expected
     _, fixed_reports = _run_rule(MatchCaseSeparation, fixed_code)
     assert fixed_reports == []
 

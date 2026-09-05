@@ -17,11 +17,6 @@ def _reports(rule: LintRule, source: str) -> tuple[LintRunner, list[LintViolatio
     return runner, list(runner.collect_violations([rule], Config(path=path)))
 
 
-def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
-    runner, reports = _reports(rule, source)
-    return reports, runner.apply_replacements(reports).code
-
-
 @pytest.mark.parametrize(
     "annotation",
     ["list", "dict", "tuple", "set", "Annotated[str, list]"],
@@ -114,7 +109,7 @@ def test_variadic_callable_syntax_detects_active_callable_bindings(source: str) 
     runner, reports = _reports(VariadicCallableSyntax(), source)
 
     assert len(reports) == 1
-    assert "[[...]," not in runner.apply_replacements(reports).code
+    assert "[..., int]" in runner.apply_replacements(reports).code
 
 
 def test_variadic_callable_syntax_ignores_rebound_typing_module() -> None:
