@@ -16,19 +16,11 @@ from collections.abc import Collection, Iterator, Mapping
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from rattle.config.models import Config
 from rattle.engine import LintRunner, diff_violation
 from rattle.rule import Invalid, LintRule, Valid
-
-
-class Patch(Protocol):
-    def apply(self, source: str) -> str: ...
-
-
-class Report(Protocol):
-    patch: Patch | None
 
 
 class _ExecutionProbe:
@@ -99,38 +91,6 @@ def _comments(source: str) -> Counter[str]:
     )
 
 
-def get_fixture_path(fixture_top_dir: Path, rule_module: str, rules_package: str) -> Path:
-    subpackage: str = rule_module.split(f"{rules_package}.", 1)[-1]
-    fixture_subdir = subpackage.replace(".", "/")
-    return fixture_top_dir / fixture_subdir
-
-
-def validate_patch(report: Report, test_case: Invalid) -> None:
-    patch = report.patch
-    expected_replacement = test_case.expected_replacement
-
-    if patch is None:
-        if expected_replacement is not None:
-            raise AssertionError(
-                "The rule for this test case has no auto-fix, but expected source was specified."
-            )
-        return
-
-    if expected_replacement is None:
-        raise AssertionError(
-            "The rule for this test case has an auto-fix, but no expected source was specified."
-        )
-
-    expected_replacement = _dedent(expected_replacement)
-    patched_code = patch.apply(_dedent(test_case.code))
-    if patched_code != expected_replacement:
-        raise AssertionError(
-            "Auto-fix did not produce expected result.\n"
-            f"Expected:\n{expected_replacement}\n"
-            f"But found:\n{patched_code}"
-        )
-
-
 @dataclass(frozen=True)
 class TestCasePrecursor:
     rule: LintRule
@@ -138,7 +98,6 @@ class TestCasePrecursor:
         str,
         Valid | Invalid,
     ]
-    fixture_paths: Mapping[str, Path]
 
 
 class LintRuleTestCase(unittest.TestCase):
@@ -218,7 +177,6 @@ def gen_test_methods_for_rule(rule: LintRule) -> TestCasePrecursor:
     """
     valid_tcs = {}
     invalid_tcs = {}
-    fixture_paths: dict[str, Path] = {}
     for idx, test_case_or_str in enumerate(rule.VALID):
         name = f"test_VALID_{idx}"
         valid_test_case = (
@@ -237,7 +195,6 @@ def gen_test_methods_for_rule(rule: LintRule) -> TestCasePrecursor:
     return TestCasePrecursor(
         rule=rule,
         test_methods={**valid_tcs, **invalid_tcs},
-        fixture_paths=fixture_paths,
     )
 
 
@@ -316,12 +273,8 @@ def add_lint_rule_tests_to_module(
 
 __all__ = [
     "LintRuleTestCase",
-    "Patch",
-    "Report",
     "TestCasePrecursor",
     "add_lint_rule_tests_to_module",
     "gen_test_methods_for_rule",
     "generate_lint_rule_test_cases",
-    "get_fixture_path",
-    "validate_patch",
 ]
