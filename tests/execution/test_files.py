@@ -1,5 +1,5 @@
 import os
-from collections.abc import Callable, Collection, Generator
+from collections.abc import Collection, Generator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,36 +19,8 @@ from rattle.cache.store import _prune_cache
 from rattle.config.models import Config
 from rattle.diagnostics import CodePosition, CodeRange, FileContent, LintViolation, Result
 from rattle.engine import LintRunner
-from rattle.execution.parallel import (
-    ConfiguredPathBatch,
-    ConfiguredPathBatchResult,
-)
 from rattle.rule import LintRule
 from rattle.selectors import QualifiedRule
-
-
-class RecordingTrailrunner:
-    calls: list[tuple[int, list[ConfiguredPathBatch]]] = []
-
-    def __init__(self, *, concurrency: int = 0, **_: object) -> None:
-        self.concurrency = concurrency
-
-    def run_iter(
-        self,
-        paths: list[ConfiguredPathBatch],
-        func: Callable[[ConfiguredPathBatch], object],
-    ) -> object:
-        batches: list[ConfiguredPathBatch] = list(paths)
-        type(self).calls.append((self.concurrency, batches))
-        for batch in batches:
-            yield batch, func(batch)
-
-
-def clean_batch_result(batch: ConfiguredPathBatch) -> ConfiguredPathBatchResult:
-    return ConfiguredPathBatchResult(
-        results=[Result(path, violation=None) for path, _config, _explicit in batch],
-        deferred_format_paths=[],
-    )
 
 
 class TestApi:
@@ -284,6 +256,51 @@ class TestApi:
         )
 
         assert _decode_cached_source(entry) is None
+
+    def test_cached_violations_are_read_from_cache(self, tmp_path: Path) -> None:
+        path = tmp_path / "dirty.py"
+        source = b"x = 1\n"
+        path.write_bytes(source)
+        stat = path.stat()
+        config = Config(path=path, root=tmp_path)
+        cache = ResultCache(tmp_path / "cache")
+        cache_key = cache.result_key(path.resolve(), stat, config, include_diff=False)
+        violations = [
+            LintViolation(
+                rule_name="some-rule",
+                range=CodeRange(start=CodePosition(1, 0), end=CodePosition(1, 1)),
+                message="bad",
+                node=Name("x"),
+                replacement=None,
+            ),
+            LintViolation(
+                rule_name="fixable-rule",
+                range=CodeRange(start=CodePosition(1, 4), end=CodePosition(1, 5)),
+                message="replace me",
+                node=Name("y"),
+                replacement=Name("z"),
+                diff="-y\n+z\n",
+            ),
+        ]
+        cache.write_result(
+            cache_key,
+            stat,
+            source=source,
+            violations=violations,
+            rules=(),
+        )
+        cached_results = cache._read_result(cache_key, stat, path=path, config=config, rules=())
+        assert cached_results is not None
+        assert len(cached_results) == 2
+        assert cached_results[0].violation is not None
+        assert cached_results[0].violation.rule_name == "some-rule"
+        assert not cached_results[0].violation.autofixable
+        assert cached_results[0].source == source
+        assert cached_results[1].violation is not None
+        assert cached_results[1].violation.rule_name == "fixable-rule"
+        assert cached_results[1].violation.autofixable
+        assert cached_results[1].violation.diff == "-y\n+z\n"
+        assert cached_results[1].source == source
 
     def test_cache_pruning_deletes_entries_until_target(self, tmp_path: Path) -> None:
         cache_root = tmp_path / "cache"

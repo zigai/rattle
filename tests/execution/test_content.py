@@ -1,42 +1,12 @@
-from collections.abc import Callable
 from pathlib import Path
 
 from libcst import Name
 
 from rattle.api import rattle_bytes
 from rattle.config.models import Config
-from rattle.diagnostics import Result
-from rattle.execution.parallel import (
-    ConfiguredPathBatch,
-    ConfiguredPathBatchResult,
-)
 from rattle.rendering.results import render_console_result
 from rattle.rule import LintRule
 from rattle.util import capture
-
-
-class RecordingTrailrunner:
-    calls: list[tuple[int, list[ConfiguredPathBatch]]] = []
-
-    def __init__(self, *, concurrency: int = 0, **_: object) -> None:
-        self.concurrency = concurrency
-
-    def run_iter(
-        self,
-        paths: list[ConfiguredPathBatch],
-        func: Callable[[ConfiguredPathBatch], object],
-    ) -> object:
-        batches: list[ConfiguredPathBatch] = list(paths)
-        type(self).calls.append((self.concurrency, batches))
-        for batch in batches:
-            yield batch, func(batch)
-
-
-def clean_batch_result(batch: ConfiguredPathBatch) -> ConfiguredPathBatchResult:
-    return ConfiguredPathBatchResult(
-        results=[Result(path, violation=None) for path, _config, _explicit in batch],
-        deferred_format_paths=[],
-    )
 
 
 class TestApi:
