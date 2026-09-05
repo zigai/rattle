@@ -2,12 +2,6 @@ from __future__ import annotations
 
 import fnmatch
 from pathlib import Path
-from typing import TypeVar
-
-import libcst as cst
-
-DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
-AliasValue = TypeVar("AliasValue")
 
 
 def matches_any_pattern(patterns: list[str], value: str) -> bool:

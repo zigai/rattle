@@ -129,7 +129,6 @@ class UseAsyncSleepInAsyncDef(LintRule):
 
     def visit_Module(self, node: cst.Module) -> None:
         del node
-
         self._time_sleep_aliases.reset()
         self._has_time_star_import = False
 
@@ -152,8 +151,7 @@ class UseAsyncSleepInAsyncDef(LintRule):
     def visit_NamedExpr(self, node: cst.NamedExpr) -> None:
         self._time_sleep_aliases.record(node.target, node.value, self._time_sleep_alias_value)
 
-    def should_lint_file(self, source: FileContent, path: Path) -> bool:
-        del path
+    def should_lint_file(self, source: FileContent, _path: Path) -> bool:
         return b"sleep" in source and b"async" in source
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
@@ -183,7 +181,7 @@ class UseAsyncSleepInAsyncDef(LintRule):
         if not isinstance(expression, cst.Name):
             return False
 
-        if self._is_time_sleep_alias_name(expression):
+        if self._time_sleep_aliases.resolve(expression) is True:
             return True
 
         return (
@@ -191,9 +189,6 @@ class UseAsyncSleepInAsyncDef(LintRule):
             and self._has_time_star_import
             and self._is_unbound_name(expression)
         )
-
-    def _is_time_sleep_alias_name(self, expression: cst.Name) -> bool:
-        return self._time_sleep_aliases.resolve(expression) is True
 
     def _time_sleep_alias_value(self, expression: cst.BaseExpression) -> bool | None:
         if QualifiedNameProvider.has_name(

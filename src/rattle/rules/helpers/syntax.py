@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from typing import TypeVar
 
 import libcst as cst
 from libcst import MaybeSentinel
 
 DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
-AliasValue = TypeVar("AliasValue")
 
 
 class _CommentVisitor(cst.CSTVisitor):

@@ -9,10 +9,6 @@ from rattle.rule import Invalid, LintRule, RuleSetting, Valid
 from rattle.rules.helpers import alias_name, is_name, target_names
 
 
-def _is_all_target(target: cst.BaseAssignTargetExpression) -> bool:
-    return is_name(target, "__all__")
-
-
 def _string_value(expression: cst.BaseExpression) -> str | None:
     if not isinstance(expression, cst.ConcatenatedString | cst.SimpleString):
         return None
@@ -409,7 +405,7 @@ class NoUnderscoreAllExports(LintRule):
         if not self._is_module_level():
             return
 
-        if any(_is_all_target(target.target) for target in node.targets):
+        if any(is_name(target.target, "__all__") for target in node.targets):
             self._report_exported_names(node.value)
 
         for target in node.targets:
@@ -420,7 +416,7 @@ class NoUnderscoreAllExports(LintRule):
         if not self._is_module_level():
             return
 
-        if _is_all_target(node.target):
+        if is_name(node.target, "__all__"):
             if node.value is not None:
                 self._report_exported_names(node.value)
             return
@@ -435,7 +431,7 @@ class NoUnderscoreAllExports(LintRule):
         if not self._is_module_level():
             return
 
-        if isinstance(node.operator, cst.AddAssign) and _is_all_target(node.target):
+        if isinstance(node.operator, cst.AddAssign) and is_name(node.target, "__all__"):
             self._report_exported_names(node.value)
 
         if isinstance(node.target, cst.Name) and isinstance(node.operator, cst.AddAssign):

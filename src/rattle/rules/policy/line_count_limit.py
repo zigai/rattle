@@ -69,10 +69,6 @@ def _apply_limits(
     )
 
 
-def _line_span(range_start_line: int, range_end_line: int) -> int:
-    return range_end_line - range_start_line + 1
-
-
 def _glob_specificity(pattern: str) -> tuple[int, int, int]:
     wildcard_count = sum(pattern.count(character) for character in "*?[")
     literal_count = len(pattern) - wildcard_count
@@ -194,7 +190,7 @@ class LineCountLimit(LintRule):
         if code_range is None or definition_range is None:
             return
 
-        line_count = _line_span(code_range.start.line, definition_range.end.line)
+        line_count = definition_range.end.line - code_range.start.line + 1
         if line_count <= max_lines:
             return
 

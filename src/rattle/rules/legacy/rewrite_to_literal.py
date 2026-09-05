@@ -82,8 +82,8 @@ class RewriteToLiteral(LintRule):
 
     def visit_Call(self, node: cst.Call) -> None:
         if self._matches_literal_call(node):
-            exp = cst.ensure_type(node, cst.Call)
-            if exp.args and not self._has_plain_positional_argument(exp.args[0]):
+            exp = node
+            if exp.args and (exp.args[0].keyword is not None or exp.args[0].star):
                 return
             call_name = cst.ensure_type(exp.func, cst.Name).value
             if not QualifiedNameProvider.has_name(
@@ -116,9 +116,6 @@ class RewriteToLiteral(LintRule):
                 message_formatter.format(func=call_name),
                 replacement=None if has_comments(node) else node.deep_replace(node, new_node),
             )
-
-    def _has_plain_positional_argument(self, argument: cst.Arg) -> bool:
-        return argument.keyword is None and not argument.star
 
     def _literal_replacement(
         self,

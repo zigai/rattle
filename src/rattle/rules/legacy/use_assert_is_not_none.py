@@ -161,12 +161,11 @@ class UseAssertIsNotNone(LintRule):
                 args=[cst.Arg(assertion_argument)],
             )
 
-            if new_call is not node:
-                self.report(
-                    node,
-                    self.MESSAGE,
-                    replacement=None if has_comments(node.args[0]) else new_call,
-                )
+            self.report(
+                node,
+                self.MESSAGE,
+                replacement=None if has_comments(node.args[0]) else new_call,
+            )
 
 
 __all__ = [

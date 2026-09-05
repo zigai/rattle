@@ -460,7 +460,7 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
         suite_parent: cst.CSTNode | None,
     ) -> bool:
         previous_statement = body[index - 1]
-        previous_is_compact_guard = index > 0 and is_compact_guard_if(previous_statement)
+        previous_is_compact_guard = is_compact_guard_if(previous_statement)
         related_use = has_nontrivial_related_use(
             body,
             index,

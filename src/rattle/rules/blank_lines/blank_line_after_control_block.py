@@ -271,7 +271,6 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             or self._is_compact_guard_assignment(current_statement, next_statement)
             or is_same_subject_simple_if_chain(current_statement, next_statement)
             or has_separator(next_statement)
-            or self._is_pytest_raises_cluster(current_statement, next_statement)
             or self._is_compact_guard_transition(current_statement, next_statement)
             or self._is_related_simple_fallthrough(current_statement, next_statement)
             or self._is_with_immediate_inspection(current_statement, next_statement)
@@ -298,17 +297,6 @@ class BlankLineAfterControlBlock(BaseBlankLinesRule, LintRule):
             return self._allow_compact_guard_ladders()
 
         return True
-
-    def _is_pytest_raises_cluster(
-        self,
-        current_statement: cst.BaseStatement,
-        next_statement: cst.BaseStatement,
-    ) -> bool:
-        return (
-            self._allow_pytest_raises_clusters()
-            and is_pytest_raises_with(current_statement)
-            and is_pytest_raises_with(next_statement)
-        )
 
     def _is_compact_guard_assignment(
         self,

@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-from typing import TypeVar
-
-import libcst as cst
-
-DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
-AliasValue = TypeVar("AliasValue")
-
 
 def setting_fields(entry: str, field_count: int) -> tuple[str, ...]:
     parts = entry.split("|", field_count - 1)

@@ -159,8 +159,6 @@ class ForbiddenImport(LintRule):
             self.report(imported_alias, self._message_for_boundary(boundary))
 
     def _report_moduleless_relative_import(self, node: cst.ImportFrom) -> None:
-        if not node.relative:
-            return
         if isinstance(node.names, cst.ImportStar):
             boundary = self._forbidden_boundary_for_import_name(
                 "", relative_level=len(node.relative)

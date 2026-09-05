@@ -51,9 +51,6 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
 
     _source_lines_cache: list[str]
 
-    def __init_subclass__(cls) -> None:
-        super().__init_subclass__()
-
     if TYPE_CHECKING:
 
         def report(

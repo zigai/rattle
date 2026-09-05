@@ -5,7 +5,6 @@ from rattle.rules.helpers.bindings import (
     enclosing_class_defines_method,
     has_name_declaration,
     latest_assignment,
-    latest_assignment_node,
     qualified_names_for_reaching_binding,
     target_names,
 )
@@ -51,7 +50,6 @@ __all__ = [
     "is_name",
     "is_static_literal_expression",
     "latest_assignment",
-    "latest_assignment_node",
     "matches_any_pattern",
     "matches_exact_path",
     "matches_path",

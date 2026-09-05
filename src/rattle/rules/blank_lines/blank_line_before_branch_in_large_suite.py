@@ -345,10 +345,6 @@ class BlankLineBeforeBranchInLargeSuite(BaseBlankLinesRule, LintRule):
             or is_compact_loop_exit_tail(body, index)
             or self._is_immediate_assignment_branch_tail(body, index, statement)
             or (self._allow_related_return_tails() and self._is_compact_related_tail(body, index))
-            or (
-                self._allow_guard_ladder_final_branch()
-                and is_compact_guard_ladder_tail(body, index)
-            )
         )
 
     def _should_remove_branch_separator(

@@ -47,22 +47,17 @@ def _gen_match_simple_expression(
     return _match_simple_expression
 
 
-def _require_base_expression(value: object) -> cst.BaseExpression:
-    if not isinstance(value, cst.BaseExpression):
-        raise TypeError(f"expected a LibCST expression, got {type(value).__name__}")
-    return value
-
-
 class EscapeStringQuote(cst.CSTTransformer):
     def __init__(self, quote: str) -> None:
         self.quote = quote
         super().__init__()
 
-    def _leave_simple_string(
+    def leave_SimpleString(
         self,
         original_node: cst.SimpleString,
-        _updated_node: cst.SimpleString,
+        updated_node: cst.SimpleString,
     ) -> cst.SimpleString:
+        del updated_node
         if self.quote == original_node.quote:
             for quo in ["'", '"', "'''", '"""']:
                 if quo != original_node.quote and quo not in original_node.raw_value:
@@ -78,13 +73,6 @@ class EscapeStringQuote(cst.CSTTransformer):
                 f"Cannot find a good quote for escaping the SimpleString: {original_node.value}"
             )
         return original_node
-
-    def leave_SimpleString(
-        self,
-        original_node: cst.SimpleString,
-        updated_node: cst.SimpleString,
-    ) -> cst.SimpleString:
-        return self._leave_simple_string(original_node, updated_node)
 
 
 class UseFstring(LintRule):
@@ -177,7 +165,7 @@ class UseFstring(LintRule):
         )
 
         if extracts:
-            expr = _require_base_expression(extracts[expr_key])
+            expr = cst.ensure_type(extracts[expr_key], cst.BaseExpression)
             parts: list[cst.BaseFormattedStringContent] = []
             simple_string = cst.ensure_type(node.left, cst.SimpleString)
             innards = simple_string.raw_value.replace("{", "{{").replace("}", "}}")

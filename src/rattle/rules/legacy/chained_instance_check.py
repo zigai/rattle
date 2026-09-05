@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass
 
 import libcst as cst
 import libcst.matchers as m
@@ -18,12 +17,6 @@ _ISINSTANCE_NAMES = (
     QualifiedName(name="builtins.isinstance", source=QualifiedNameSource.BUILTIN),
     QualifiedName(name="builtins.isinstance", source=QualifiedNameSource.IMPORT),
 )
-
-
-@dataclass
-class IsinstanceTargetInfo:
-    func: cst.BaseExpression
-    matches: list[cst.BaseExpression]
 
 
 class CollapseIsinstanceChecks(LintRule):
@@ -111,7 +104,7 @@ class CollapseIsinstanceChecks(LintRule):
             return None
 
         stack = tuple(self.unwrap(node))
-        operands, _targets = self.collect_targets(stack)
+        operands = self.collect_targets(stack)
 
         # If nothing gets collapsed, just exit from this short-path
         if len(operands) == len(stack):
@@ -120,19 +113,17 @@ class CollapseIsinstanceChecks(LintRule):
         self.report(node, self.MESSAGE)
 
     def unwrap(self, node: cst.BaseExpression) -> Iterator[cst.BaseExpression]:
-        if m.matches(node, m.BooleanOperation(operator=m.Or())):
-            bool_op = cst.ensure_type(node, cst.BooleanOperation)
+        if isinstance(node, cst.BooleanOperation) and isinstance(node.operator, cst.Or):
+            bool_op = node
             self.seen_boolean_operations.add(bool_op)
             yield from self.unwrap(bool_op.left)
             yield bool_op.right
         else:
             yield node
 
-    def collect_targets(
-        self, stack: tuple[cst.BaseExpression, ...]
-    ) -> tuple[list[cst.BaseExpression], dict[cst.BaseExpression, IsinstanceTargetInfo]]:
-        targets: dict[cst.BaseExpression, IsinstanceTargetInfo] = {}
-        operands = []
+    def collect_targets(self, stack: tuple[cst.BaseExpression, ...]) -> list[cst.BaseExpression]:
+        seen_targets: list[cst.BaseExpression] = []
+        operands: list[cst.BaseExpression] = []
 
         for operand in stack:
             if m.matches(operand, m.Call(func=m.DoNotCare(), args=[m.Arg(), m.Arg(~m.Tuple())])):
@@ -144,22 +135,20 @@ class CollapseIsinstanceChecks(LintRule):
                     operands.append(operand)
                     continue
 
-                target, match = call.args[0].value, call.args[1].value
+                target = call.args[0].value
                 if not self.is_safe_target(target):
                     operands.append(operand)
                     continue
 
-                for possible_target, matches in targets.items():
-                    if target.deep_equals(possible_target):
-                        matches.matches.append(match)
-                        break
-                else:
-                    operands.append(target)
-                    targets[target] = IsinstanceTargetInfo(func=call.func, matches=[match])
+                if any(target.deep_equals(possible) for possible in seen_targets):
+                    continue
+
+                operands.append(target)
+                seen_targets.append(target)
             else:
                 operands.append(operand)
 
-        return operands, targets
+        return operands
 
     def is_safe_target(self, target: cst.BaseExpression) -> bool:
         # Re-evaluating arbitrary expressions can change semantics. Restrict collapsing

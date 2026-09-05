@@ -248,14 +248,6 @@ def last_assigned_name(statement: cst.BaseStatement) -> str | None:
     return names[-1]
 
 
-def last_assigned_target_expression(statement: cst.BaseStatement) -> cst.BaseExpression | None:
-    expressions = ordered_assigned_target_expressions(statement)
-    if not expressions:
-        return None
-
-    return expressions[-1]
-
-
 def assignment_reference_names(statement: cst.BaseStatement) -> set[str]:
     assignment = assignment_small_statement(statement)
     if assignment is None:
@@ -688,14 +680,6 @@ def block_body_bound_names(statement: cst.BaseStatement) -> set[str]:
     return set()
 
 
-def flat_body_assigned_names(statement: cst.BaseStatement) -> set[str]:
-    names: set[str] = set()
-    for body_statement in primary_body_statements(statement):
-        names.update(assigned_names(body_statement))
-
-    return names
-
-
 def flat_control_block_assigned_names(statement: cst.BaseStatement) -> set[str]:
     names: set[str] = set()
     for group in control_block_statement_groups(statement):
@@ -793,7 +777,7 @@ def is_compact_guard_ladder_tail(
     if assignment_small_statement(run[0]) is not None:
         run = run[1:]
 
-    if len(run) < 2 or not is_branch_statement(run[-1]):
+    if len(run) < 2:
         return False
 
     return all(is_compact_guard_if(statement) for statement in run[:-1])
@@ -864,24 +848,6 @@ def next_control_block_consumes_assignment(
             limit=limit,
         ).intersection(assigned)
     )
-
-
-def previous_block_assigns_current_target(
-    body: Sequence[cst.BaseStatement],
-    assignment_index: int,
-) -> bool:
-    if assignment_index <= 0 or assignment_index >= len(body):
-        return False
-
-    current_names = assigned_names(body[assignment_index])
-    if not current_names:
-        return False
-
-    previous_statement = body[assignment_index - 1]
-    if not is_control_block_statement(previous_statement):
-        return False
-
-    return bool(flat_body_assigned_names(previous_statement).intersection(current_names))
 
 
 def control_block_ends_with_continue(statement: cst.BaseStatement) -> bool:
@@ -974,12 +940,11 @@ def count_non_empty_lines(source_lines: list[str], start_line: int, end_line: in
     if safe_end < safe_start:
         return 0
 
-    count = 0
-    for line_number in range(safe_start, safe_end + 1):
-        if source_lines[line_number - 1].strip():
-            count += 1
-
-    return count
+    return sum(
+        1
+        for line_number in range(safe_start, safe_end + 1)
+        if source_lines[line_number - 1].strip()
+    )
 
 
 __all__ = [
@@ -1009,7 +974,6 @@ __all__ = [
     "extract_target_names",
     "first_statement_in_block",
     "first_statement_in_suite",
-    "flat_body_assigned_names",
     "flat_control_block_assigned_names",
     "has_blank_line_separator",
     "has_nontrivial_related_use",
@@ -1033,7 +997,6 @@ __all__ = [
     "next_statement_inspects_with_assignment",
     "ordered_assigned_names",
     "prepend_blank_line",
-    "previous_block_assigns_current_target",
     "primary_body_statements",
     "remove_blank_leading_lines",
     "starts_compact_guard_ladder",

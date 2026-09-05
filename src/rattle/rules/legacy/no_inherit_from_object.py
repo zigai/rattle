@@ -8,6 +8,7 @@ from libcst.metadata import QualifiedName, QualifiedNameProvider, QualifiedNameS
 
 from rattle.diagnostics import CodePosition, CodeRange
 from rattle.rule import Invalid, LintRule, Valid
+from rattle.rules.helpers import has_comments
 
 
 class NoInheritFromObject(LintRule):
@@ -72,11 +73,7 @@ class NoInheritFromObject(LintRule):
         )
 
         if tuple(node.bases) != new_bases:
-            can_fix = (
-                len(node.bases) == 1
-                and not node.keywords
-                and "#" not in cst.Module([]).code_for_node(node)
-            )
+            can_fix = len(node.bases) == 1 and not node.keywords and not has_comments(node)
             if not can_fix:
                 self.report(node, self.MESSAGE)
                 return

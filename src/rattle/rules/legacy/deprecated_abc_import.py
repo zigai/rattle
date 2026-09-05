@@ -174,9 +174,6 @@ class DeprecatedABCImport(LintRule):
         ),
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
-
     def is_import_error_except_block(self, node: cst.CSTNode) -> bool:
         """
         Check if the node is in an ImportError except block.

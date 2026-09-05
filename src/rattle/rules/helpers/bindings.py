@@ -18,7 +18,6 @@ from rattle.rules.helpers.syntax import assignment_leaf_pairs, dotted_name
 if TYPE_CHECKING:
     from rattle.rule import LintRule
 
-DOCSTRING_VALUE_NODES = (cst.ConcatenatedString, cst.SimpleString)
 AliasValue = TypeVar("AliasValue")
 
 
@@ -147,13 +146,6 @@ def latest_assignment(
     if not preceding_assignments:
         return None
     return max(preceding_assignments, key=lambda item: item[:2])[2]
-
-
-def latest_assignment_node(rule: LintRule, expression: cst.BaseExpression) -> cst.CSTNode | None:
-    if not isinstance(expression, cst.Name):
-        return None
-    assignment = latest_assignment(rule, expression)
-    return assignment.node if isinstance(assignment, Assignment) else None
 
 
 def qualified_names_for_reaching_binding(

@@ -98,13 +98,15 @@ class RewriteToComprehension(LintRule):
             ):
                 return
 
-            exp: cst.GeneratorExp | cst.ListComp
-            if m.matches(node.args[0].value, m.GeneratorExp()):
-                exp = cst.ensure_type(node.args[0].value, cst.GeneratorExp)
+            arg_val = node.args[0].value
+            if isinstance(arg_val, cst.GeneratorExp):
+                exp = arg_val
                 message_formatter = UNNECESSARY_GENERATOR
-            else:
-                exp = cst.ensure_type(node.args[0].value, cst.ListComp)
+            elif isinstance(arg_val, cst.ListComp):
+                exp = arg_val
                 message_formatter = UNNECESSARY_LIST_COMPREHENSION
+            else:
+                return
 
             if call_name == "dict" and not m.matches(
                 exp.elt,

@@ -66,15 +66,11 @@ def _base_name(base: cst.Arg) -> str | None:
     return name.rsplit(".", maxsplit=1)[-1]
 
 
-def _decorator_name(decorator: cst.Decorator) -> str | None:
-    return callable_dotted_name(decorator.decorator)
-
-
 def _decorator_names(decorators: Sequence[cst.Decorator]) -> tuple[str, ...]:
     return tuple(
-        decorator_name
+        name
         for decorator in decorators
-        if (decorator_name := _decorator_name(decorator)) is not None
+        if (name := callable_dotted_name(decorator.decorator)) is not None
     )
 
 
@@ -101,12 +97,6 @@ def _is_order_sensitive_registration(method: cst.FunctionDef) -> bool:
     )
 
 
-def _is_overload_declaration(method: cst.FunctionDef) -> bool:
-    decorator_names = _decorator_names(method.decorators)
-
-    return any(decorator_name in _OVERLOAD_DECORATOR_NAMES for decorator_name in decorator_names)
-
-
 def _has_order_sensitive_base(node: cst.ClassDef) -> bool:
     return any(
         base_name in _ORDER_SENSITIVE_BASE_NAMES
@@ -122,52 +112,8 @@ def _has_order_sensitive_decorator(node: cst.ClassDef) -> bool:
     )
 
 
-def _should_check_class(
-    node: cst.ClassDef,
-    class_name_patterns: list[str],
-    excluded_class_name_patterns: list[str],
-) -> bool:
-    class_name = node.name.value
-    if not matches_any_pattern(class_name_patterns, class_name):
-        return False
-    if matches_any_pattern(excluded_class_name_patterns, class_name):
-        return False
-
-    return not (_has_order_sensitive_base(node) or _has_order_sensitive_decorator(node))
-
-
-def _ordered_methods(node: cst.ClassDef) -> list[cst.FunctionDef] | None:
+def _ordered_methods(node: cst.ClassDef) -> list[cst.FunctionDef]:
     return [statement for statement in node.body.body if isinstance(statement, cst.FunctionDef)]
-
-
-def _first_order_violation(
-    methods: list[cst.FunctionDef],
-) -> tuple[cst.FunctionDef, str] | None:
-    first_private_helper_name: str | None = None
-    overload_names = {method.name.value for method in methods if _is_overload_declaration(method)}
-    for method in methods:
-        method_name = method.name.value
-        if _is_dunder(method_name):
-            continue
-        if method_name in overload_names:
-            continue
-        if _is_public_accessor(method):
-            continue
-        if _is_overload_declaration(method):
-            continue
-        if _is_order_sensitive_registration(method):
-            continue
-
-        if method_name.startswith("_"):
-            if first_private_helper_name is None:
-                first_private_helper_name = method_name
-
-            continue
-
-        if first_private_helper_name is not None:
-            return method, first_private_helper_name
-
-    return None
 
 
 class PublicMethodOrder(LintRule):
@@ -431,8 +377,6 @@ class PublicMethodOrder(LintRule):
             return
 
         methods = _ordered_methods(node)
-        if methods is None:
-            return
 
         violation = self._first_order_violation(methods)
         if violation is None:

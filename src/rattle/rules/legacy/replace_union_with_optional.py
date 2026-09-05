@@ -69,8 +69,7 @@ class ReplaceUnionWithOptional(LintRule):
         ),
     ]
 
-    def should_lint_file(self, source: FileContent, path: Path) -> bool:
-        del path
+    def should_lint_file(self, source: FileContent, _path: Path) -> bool:
         return b"Union" in source and b"None" in source
 
     def leave_Annotation(self, original_node: cst.Annotation) -> None:
