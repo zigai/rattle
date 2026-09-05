@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NoReturn
 
 from rattle.cli.environment import DEBUG_ENV, METRICS_ENV, _configure_logging, _env_flag
 from rattle.config import (
@@ -13,13 +14,13 @@ from rattle.selectors import RuleSelector
 STDIN = Path("-")
 
 
-def usage_error(message: str) -> None:
+def usage_error(message: str) -> NoReturn:
     echo(message, err=True)
     raise SystemExit(2)
 
 
 def require_existing_file(path: Path, *, option: str) -> Path:
-    if not path.exists() or not path.is_file():
+    if not path.is_file():
         usage_error(f"{option} must be an existing file: {path}")
     return path
 

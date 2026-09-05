@@ -77,6 +77,3 @@ def _reexec_with_uv(args: list[str]) -> None:
     env = os.environ.copy()
     env[UV_REEXEC_ENV] = "1"
     os.execve(uv_path, [uv_path, "run", "rattle", *args], env)  # noqa: S606
-
-
-__all__ = []

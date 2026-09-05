@@ -22,7 +22,6 @@ def _parse_explain_selector(selector: str, config_path: Path) -> RuleSelector:
         return parse_rule(selector, config_path)
     except ConfigError as e:
         usage_error(str(e))
-        raise AssertionError("unreachable") from e
 
 
 def explain_command(
