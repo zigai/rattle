@@ -5,8 +5,6 @@
 
 from collections.abc import Sequence
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from textwrap import dedent
 from unittest import TestCase
 
 from packaging.version import Version
@@ -19,69 +17,8 @@ from rattle.selectors import RuleNameSelector
 class ConfigTest(TestCase):
     maxDiff = None
 
-    def setUp(self) -> None:
-        self.td = TemporaryDirectory()
-        self.tdp = Path(self.td.name).resolve()
-
-        self.noise = self.tdp / "noise"
-        self.outer = self.tdp / "outer"
-        self.inner = self.tdp / "outer" / "inner"
-        self.noise.mkdir()
-        self.inner.mkdir(parents=True)
-
-        (self.tdp / "pyproject.toml").write_text(
-            dedent(
-                """
-                [tool.rattle]
-                root = true
-                enable-root-import = true
-                enable = ["more.rules"]
-                disable = ["rattle.rules.something_specific"]
-                python-version = "3.8"
-
-                [[tool.rattle.overrides]]
-                path = "other"
-                enable = ["other.stuff", ".globalrules"]
-                disable = ["modernization"]
-                options = {"other.stuff:whatever"={key="value"}}
-                python-version = "3.10"
-                """
-            )
-        )
-        (self.outer / "pyproject.toml").write_text(
-            dedent(
-                """
-                [tool.rattle]
-                enable = [".localrules"]
-                disable = ["modernization"]
-                """
-            )
-        )
-        (self.noise / "pyproject.toml").write_text(
-            dedent(
-                """
-                [tool.fuzzball]
-                something = "whatever"
-                """
-            )
-        )
-        (self.inner / "pyproject.toml").write_text(
-            dedent(
-                """
-                [tool.rattle]
-                root = true
-                enable = ["fake8", "make8"]
-                disable = ["foo.bar"]
-                unknown = "hello"
-                """
-            )
-        )
-
-    def tearDown(self) -> None:
-        self.td.cleanup()
-
     def test_config_merger(self) -> None:
-        root = self.tdp
+        root = Path("/test/root")
         target = root / "a" / "b" / "c" / "foo.py"
 
         params: Sequence[tuple[str, list[RawConfig], Config]] = (
