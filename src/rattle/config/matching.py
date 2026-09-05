@@ -5,7 +5,11 @@ from pathlib import Path, PurePosixPath
 
 from rattle.config.errors import ConfigError
 from rattle.config.models import Options, RawConfig
-from rattle.config.parsing import ConfigModelError, parse_ruff_config
+from rattle.config.parsing import (
+    ConfigModelError,
+    parse_exact_rule_target,
+    parse_ruff_config,
+)
 from rattle.pyproject import load_pyproject
 from rattle.selectors import RuleOptionsTable, is_rule_option_value, is_sequence
 
@@ -156,7 +160,6 @@ def get_sequence(
 def get_options(  # noqa: C901 - option parsing and normalization
     config: RawConfig, key: str, *, data: dict[str, object] | None = None
 ) -> RuleOptionsTable:
-    from rattle.config.merge import parse_exact_rule_target
 
     mapping = data.pop(key, {}) if data else config.data.pop(key, {})
 

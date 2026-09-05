@@ -21,12 +21,11 @@ from rattle.config.matching import (
     get_sequence,
 )
 from rattle.config.models import Config, Options, RawConfig
+from rattle.config.parsing import parse_exact_rule_target, parse_rule
 from rattle.formatting import FORMAT_STYLES
 from rattle.rendering.models import OutputFormat
 from rattle.rule_loading import BUILTIN_RULE_COLLECTIONS, _builtin_rule_types
 from rattle.selectors import (
-    QUALIFIED_RULE_REGEX,
-    RULE_NAME_SELECTOR_REGEX,
     QualifiedRule,
     RuleNameSelector,
     RuleOptionsTable,
@@ -34,47 +33,6 @@ from rattle.selectors import (
 )
 
 LOG = logging.getLogger(__name__)
-
-
-def parse_rule(rule: str, root: Path, config: RawConfig | None = None) -> RuleSelector:
-    """Given a raw rule string, parse and return a rule selector object."""
-    if module := BUILTIN_RULE_COLLECTIONS.get(rule):
-        return QualifiedRule(module)
-
-    if "." not in rule and ":" not in rule:
-        if RULE_NAME_SELECTOR_REGEX.fullmatch(rule):
-            return RuleNameSelector(rule)
-        raise ConfigError(f"invalid rule name {rule!r}", config=config)
-
-    if not (match := QUALIFIED_RULE_REGEX.match(rule)):
-        raise ConfigError(f"invalid rule name {rule!r}", config=config)
-
-    group = match.groupdict()
-    module = group["module"]
-    name = group["name"]
-    local = group["local"]
-
-    if local:
-        return QualifiedRule(module, name, local, root)
-    return QualifiedRule(module, name)
-
-
-def parse_exact_rule_target(
-    rule: str,
-    root: Path,
-    config: RawConfig | None = None,
-) -> RuleSelector:
-    selector = parse_rule(rule, root, config)
-
-    if isinstance(selector, QualifiedRule):
-        if selector.name is None:
-            raise ConfigError(
-                f"rule target {rule!r} must reference one concrete rule (`module:rule-name`)",
-                config=config,
-            )
-        return selector
-
-    return selector
 
 
 def _needs_configured_rule_imports(selectors: Sequence[RuleSelector]) -> bool:
