@@ -4,6 +4,7 @@ import contextlib
 import io
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from types import TracebackType
 from typing import Protocol, TextIO
 
@@ -134,3 +135,24 @@ class CliRunner:
             stderr=stderr.getvalue(),
             exception=exception,
         )
+
+
+def dedent_source(source: str) -> str:
+    import re
+    import textwrap
+
+    return textwrap.dedent(re.sub(r"\A\n", "", source))
+
+
+def run_rule(
+    rule: object,
+    source: str,
+    *,
+    path: Path | None = None,
+) -> tuple[object, list[object]]:
+    from rattle.config.models import Config
+    from rattle.engine import LintRunner
+
+    rule_path = path or Path("sample.py")
+    runner = LintRunner(rule_path, dedent_source(source).encode())
+    return runner, list(runner.collect_violations([rule], Config(path=rule_path)))  # type: ignore[list-item]

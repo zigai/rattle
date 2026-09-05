@@ -12,12 +12,6 @@ def _dedent(source: str) -> str:
     return textwrap.dedent(re.sub(r"\A\n", "", source))
 
 
-def _invalid_case(value: str | Invalid) -> Invalid:
-    if isinstance(value, str):
-        return Invalid(code=value)
-    return value
-
-
 def test_source_patterns_match_all_invalid_builtin_fixtures() -> None:
     rules = collect_rules(
         Config(
@@ -39,7 +33,7 @@ def test_source_patterns_match_all_invalid_builtin_fixtures() -> None:
             continue
 
         for index, raw_case in enumerate(rule.INVALID):
-            case = _invalid_case(raw_case)
+            case = Invalid(code=raw_case) if isinstance(raw_case, str) else raw_case
             source = _dedent(case.code).encode()
             if not rule.should_lint_file(source, Path("invalid.py")):
                 failures.append(f"{rule.name}.INVALID[{index}]")

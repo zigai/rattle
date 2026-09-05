@@ -13,7 +13,6 @@ import pytest
 from libcst.metadata import CodePosition, CodeRange
 
 from rattle.config.models import Config
-from rattle.diagnostics import LintViolation
 from rattle.engine import LintRunner
 from rattle.rule import LintRule, RuleSetting, rule_name_from_class_name
 
@@ -180,23 +179,17 @@ class RuleTest(TestCase):
         # Since the "pass" code is part of a Module and ExerciseReportRule() visit's the Module
         # 2 violations are collected.
         module_violation, pass_violation = list(runner.collect_violations(self.rules, Config()))
+        assert module_violation.rule_name == "exercise-report-rule"
+        assert module_violation.message == "Module"
+        assert module_violation.range == CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0))
+        assert module_violation.replacement is None
         assert isinstance(module_violation.node, cst.Module)
-        assert isinstance(pass_violation.node, cst.Pass)
 
-        assert module_violation == LintViolation(
-            "exercise-report-rule",
-            CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0)),
-            "Module",
-            module_violation.node,
-            None,
-        )
-        assert pass_violation == LintViolation(
-            "exercise-report-rule",
-            CodeRange(start=CodePosition(1, 0), end=CodePosition(1, 4)),
-            "I pass",
-            pass_violation.node,
-            None,
-        )
+        assert pass_violation.rule_name == "exercise-report-rule"
+        assert pass_violation.message == "I pass"
+        assert pass_violation.range == CodeRange(start=CodePosition(1, 0), end=CodePosition(1, 4))
+        assert pass_violation.replacement is None
+        assert isinstance(pass_violation.node, cst.Pass)
 
     def test_ellipsis_position_override(self) -> None:
         runner = LintRunner(Path("fake.py"), b"...")
@@ -204,23 +197,19 @@ class RuleTest(TestCase):
         # Since the "..." code is part of a Module and ExerciseReportRule() visit's the Module
         # 2 violations are collected.
         module_violation, ellipses_violation = list(runner.collect_violations(self.rules, Config()))
+        assert module_violation.rule_name == "exercise-report-rule"
+        assert module_violation.message == "Module"
+        assert module_violation.range == CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0))
+        assert module_violation.replacement is None
         assert isinstance(module_violation.node, cst.Module)
-        assert isinstance(ellipses_violation.node, cst.Ellipsis)
 
-        assert module_violation == LintViolation(
-            "exercise-report-rule",
-            CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0)),
-            "Module",
-            module_violation.node,
-            None,
+        assert ellipses_violation.rule_name == "exercise-report-rule"
+        assert ellipses_violation.message == "I ellipse"
+        assert ellipses_violation.range == CodeRange(
+            start=CodePosition(1, 1), end=CodePosition(2, 0)
         )
-        assert ellipses_violation == LintViolation(
-            "exercise-report-rule",
-            CodeRange(start=CodePosition(1, 1), end=CodePosition(2, 0)),
-            "I ellipse",
-            ellipses_violation.node,
-            None,
-        )
+        assert ellipses_violation.replacement is None
+        assert isinstance(ellipses_violation.node, cst.Ellipsis)
 
     def test_del_uses_class_message(self) -> None:
         runner = LintRunner(Path("fake.py"), b"del foo")
@@ -228,25 +217,19 @@ class RuleTest(TestCase):
         # Since the "del foo" code is part of a Module and ExerciseReportRule() visit's the Module
         # 2 violations are collected.
         violations = list(runner.collect_violations(self.rules, Config()))
-        module_violation, del_violation = violations
         assert len(violations) == 2
+        module_violation, del_violation = violations
+        assert module_violation.rule_name == "exercise-report-rule"
+        assert module_violation.message == "Module"
+        assert module_violation.range == CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0))
+        assert module_violation.replacement is None
         assert isinstance(module_violation.node, cst.Module)
-        assert isinstance(del_violation.node, cst.Del)
 
-        assert module_violation == LintViolation(
-            "exercise-report-rule",
-            CodeRange(start=CodePosition(1, 0), end=CodePosition(2, 0)),
-            "Module",
-            module_violation.node,
-            None,
-        )
-        assert del_violation == LintViolation(
-            "exercise-report-rule",
-            CodeRange(start=CodePosition(1, 0), end=CodePosition(1, 7)),
-            "message on the class",
-            del_violation.node,
-            None,
-        )
+        assert del_violation.rule_name == "exercise-report-rule"
+        assert del_violation.message == "message on the class"
+        assert del_violation.range == CodeRange(start=CodePosition(1, 0), end=CodePosition(1, 7))
+        assert del_violation.replacement is None
+        assert isinstance(del_violation.node, cst.Del)
 
     def test_report_requires_message(self) -> None:
         with pytest.raises(TypeError):
