@@ -23,7 +23,14 @@ from interfacy import Interfacy
 from jinja2 import Template
 
 from rattle.config import BUILTIN_RULE_COLLECTIONS, find_rules
-from rattle.rule import Invalid, LintRule, RuleReference, RuleSetting, Valid
+from rattle.rule import (
+    Invalid,
+    LintRule,
+    RuleReference,
+    RuleSetting,
+    Valid,
+    rule_name_from_class_name,
+)
 from rattle.selectors import QualifiedRule, RuleOptionValue
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -407,8 +414,7 @@ def rule_doc(rule: type[object]) -> str:
 
 
 def slugify(value: str) -> str:
-    words = re.sub(r"(?<!^)(?=[A-Z])", "-", value).lower()
-    return re.sub(r"[^a-z0-9]+", "-", words).strip("-")
+    return rule_name_from_class_name(value)
 
 
 def markdown_table_cell(value: str) -> str:
