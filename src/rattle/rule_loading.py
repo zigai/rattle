@@ -36,7 +36,7 @@ BUILTIN_RULE_COLLECTIONS = {
 BUILTIN_RULE_COLLECTION_MODULES = tuple(BUILTIN_RULE_COLLECTIONS.values())
 RATTLE_LOCAL_MODULE = "rattle.local"
 LOG = logging.getLogger(__name__)
-_logged_rule_load_failures: set[tuple[Path, Path | None, str, str, str]] = set()
+_logged_rule_load_failures: set[tuple[Path, Path | None, str, str]] = set()
 _rule_plan_cache: dict[tuple[object, ...], tuple[RulePlanEntry, ...]] = {}
 
 
@@ -338,7 +338,6 @@ def _log_rule_load_failure_once(
         import_root.resolve() if import_root is not None else None,
         str(selector),
         error.__class__.__name__,
-        "",
     )
     if key in _logged_rule_load_failures:
         return

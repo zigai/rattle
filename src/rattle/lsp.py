@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import threading
+from collections import deque
 from collections.abc import Callable, Generator
 from functools import partial
 from pathlib import Path
@@ -160,8 +161,7 @@ class LSP:
             return None
 
         captured = capture(generator)
-        for _ in captured:
-            pass
+        deque(captured, maxlen=0)
         formatted_content = captured.result
         if not formatted_content:
             return None

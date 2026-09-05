@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import textwrap
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -246,7 +247,7 @@ def _emit_section(title: str, lines: Sequence[str]) -> None:
 
 
 def _indent_lines(value: str, prefix: str) -> list[str]:
-    return [f"{prefix}{line}" for line in value.splitlines()]
+    return textwrap.indent(value, prefix).splitlines()
 
 
 def _render_console_examples(info: RuleInfo) -> list[str]:

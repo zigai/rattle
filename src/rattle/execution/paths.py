@@ -73,10 +73,6 @@ class PathLintRun:
 
         yield from self.run_parallel()
 
-    def run_configured_group(self, group: list[ConfiguredPath]) -> Generator[Result, bool, None]:
-        self.included_paths = group
-        yield from self.run_parallel()
-
     def run_serial(self) -> Generator[Result, bool, None]:
         for path, config, explicit_path in self.included_paths:
             yield from rattle_configured_file(

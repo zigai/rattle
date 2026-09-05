@@ -368,14 +368,14 @@ class RuleSetting(Generic[T]):
         setting_name: str,
         rule_name: str,
     ) -> object:
-        if not self._has_valid_type(
-            value,
-            setting_name=setting_name,
-            rule_name=rule_name,
+        if (
+            self._has_valid_type(
+                value,
+                setting_name=setting_name,
+                rule_name=rule_name,
+            )
+            and self.validator
         ):
-            raise AssertionError("validated setting type was not retained")
-
-        if self.validator:
             try:
                 validator_result = self.validator(value)
             except (TypeError, ValueError) as e:

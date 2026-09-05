@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Container, Iterable, Mapping, Sequence
+from collections.abc import Collection, Container, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypeGuard
@@ -41,10 +41,6 @@ def is_rule_option_value(value: object) -> TypeGuard[RuleOptionValue]:
             isinstance(key, str) and is_rule_option_value(item) for key, item in value.items()
         )
     return False
-
-
-def is_collection(value: object) -> TypeGuard[Iterable[object]]:
-    return isinstance(value, Iterable) and not isinstance(value, (str, bytes))
 
 
 @dataclass(frozen=True)
@@ -127,7 +123,6 @@ __all__ = [
     "RuleOptionsTable",
     "RuleSelector",
     "Tags",
-    "is_collection",
     "is_rule_option_value",
     "is_sequence",
 ]

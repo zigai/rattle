@@ -142,9 +142,6 @@ def _rule_source_filter(rule_type: type[LintRule]) -> tuple[bytes, ...] | None:
 
 def _rule_may_match_source(rule: LintRule, source: FileContent) -> bool:
     source_filter = _rule_source_filter(type(rule))
-    if source_filter is None:
-        return True
-
     if not source_filter:
         return True
 
