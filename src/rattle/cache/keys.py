@@ -11,13 +11,11 @@ from collections.abc import Collection
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from rattle.cache.models import ResultCacheEntry, SerializedViolationCacheEntry
+from rattle.cache.models import CACHE_VERSION, ResultCacheEntry
 from rattle.config.discovery import locate_configs
 from rattle.config.models import Config, Options
-from rattle.diagnostics import FileContent, LintViolation, Result
+from rattle.diagnostics import FileContent
 from rattle.rule import LintRule
-
-CACHE_VERSION = "results-v1"
 
 
 def _jsonable_option_value(value: object) -> object:
@@ -238,10 +236,8 @@ def _cached_rule_fingerprints_match(
     raw_fingerprints: object,
     raw_fingerprint_hash: object,
 ) -> bool:
-    fingerprint_hash = raw_fingerprint_hash if isinstance(raw_fingerprint_hash, str) else None
-    if fingerprint_hash is None:
-        fingerprint_hash = _rule_fingerprint_hash(raw_fingerprints)
-    if fingerprint_hash is None:
+    del raw_fingerprint_hash
+    if not isinstance(raw_fingerprints, list):
         return False
     return _rule_fingerprints_match(raw_fingerprints)
 
@@ -279,14 +275,6 @@ def _decode_cached_source(entry: ResultCacheEntry) -> FileContent | None:
         return base64.b64decode(entry.source, validate=True)
     except (ValueError, binascii.Error):
         return None
-
-
-def _cached_clean_results(path: Path, config: Config) -> list[Result] | None:
-    return [Result(path, violation=None, config=config)]
-
-
-def _serialize_violation(violation: LintViolation) -> SerializedViolationCacheEntry:
-    return SerializedViolationCacheEntry.from_violation(violation)
 
 
 __all__ = ["rule_cache_fingerprint"]

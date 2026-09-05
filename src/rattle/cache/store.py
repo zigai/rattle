@@ -13,7 +13,6 @@ from msgspec.json import encode as encode_json
 from platformdirs import user_cache_path
 
 from rattle.cache.keys import (
-    _cached_clean_results,
     _cached_result_entry_matches_current_rules,
     _cached_rule_fingerprints_match,
     _clean_cache_key,
@@ -21,22 +20,22 @@ from rattle.cache.keys import (
     _config_path_fingerprints,
     _decode_cached_source,
     _rule_fingerprint_hash,
-    _serialize_violation,
     rule_cache_fingerprint,
 )
 from rattle.cache.models import (
+    CACHE_VERSION,
     CLEAN_STATUS_CACHE_DECODER,
     RESULT_CACHE_DECODER,
     CleanStatusCacheEntry,
     PendingPathCollection,
     ResultCacheEntry,
+    SerializedViolationCacheEntry,
 )
 from rattle.config.models import Config, Options
 from rattle.diagnostics import FileContent, LintViolation, Result
 from rattle.rule import LintRule
 
 LOG = logging.getLogger(__name__)
-CACHE_VERSION = "results-v1"
 CLEAN_STATUS_PRECHECK_MIN_PATHS = 20
 CACHE_MAX_BYTES = 250 * 1024 * 1024
 CACHE_PRUNE_TARGET_BYTES = 200 * 1024 * 1024
@@ -127,7 +126,7 @@ class ResultCache:
                 rule_fingerprints=rule_fingerprints,
                 rule_fingerprint_hash=_rule_fingerprint_hash(rule_fingerprints),
                 source=base64.b64encode(source).decode("ascii"),
-                violations=[_serialize_violation(violation) for violation in violations],
+                violations=[SerializedViolationCacheEntry.from_violation(v) for v in violations],
             )
         else:
             entry = ResultCacheEntry(
@@ -225,9 +224,8 @@ class ResultCache:
             or not _cached_result_entry_matches_current_rules(entry, rules)
         ):
             return None
-
         if entry.status == "clean":
-            return _cached_clean_results(path, config)
+            return [Result(path, violation=None, config=config)]
 
         source = _decode_cached_source(entry)
         if source is None:
