@@ -83,6 +83,7 @@ class ForbiddenImport(LintRule):
         super().__init__()
 
         self._messages_by_boundary: dict[str, str | None] = {}
+        self._ordered_boundaries: list[str] | None = None
         self._current_file_path: Path | None = None
 
     def should_lint_file(self, source: bytes, path: Path) -> bool:
@@ -114,11 +115,13 @@ class ForbiddenImport(LintRule):
                 self.setting("forbidden_imports", list[str])
             )
         }
+        self._ordered_boundaries = None
 
     def leave_Module(self, original_node: cst.Module) -> None:
         del original_node
 
         self._messages_by_boundary = {}
+        self._ordered_boundaries = None
         self._current_file_path = None
 
     def visit_Import(self, node: cst.Import) -> None:
@@ -188,11 +191,13 @@ class ForbiddenImport(LintRule):
             if relative_level
             else (imported_name,)
         )
-        for boundary in sorted(
-            self._messages_by_boundary,
-            key=lambda value: (value.count("."), len(value)),
-            reverse=True,
-        ):
+        if self._ordered_boundaries is None:
+            self._ordered_boundaries = sorted(
+                self._messages_by_boundary,
+                key=lambda value: (value.count("."), len(value)),
+                reverse=True,
+            )
+        for boundary in self._ordered_boundaries:
             if any(_matches_import_boundary(candidate, boundary) for candidate in candidates):
                 return boundary
 

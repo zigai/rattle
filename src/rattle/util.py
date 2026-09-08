@@ -93,8 +93,10 @@ def append_sys_path(path: Path) -> Generator[None, None, None]:
     # not there: append to path, and remove it when leaving the context
     if path_str not in sys.path:
         sys.path.append(path_str)
-        yield
-        sys.path.remove(path_str)
+        try:
+            yield
+        finally:
+            sys.path.remove(path_str)
 
     # already there: do nothing, and don't remove it later
     else:

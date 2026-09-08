@@ -190,8 +190,15 @@ class LSP:
         """Cancel and join all pending diagnostic callbacks."""
         debouncers = tuple(self._validate_uri.values())
         self._validate_uri.clear()
+        first_error: RattleExecutionError | None = None
         for debouncer in debouncers:
-            debouncer.close()
+            try:
+                debouncer.close()
+            except RattleExecutionError as e:  # noqa: PERF203 - later timers must still be closed
+                if first_error is None:
+                    first_error = e
+        if first_error is not None:
+            raise first_error
 
 
 P = ParamSpec("P")

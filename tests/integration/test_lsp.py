@@ -5,6 +5,8 @@
 
 import os
 import threading
+import traceback
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -110,3 +112,63 @@ def test_debouncer_surfaces_sanitized_background_failures() -> None:
 
     with pytest.raises(RattleExecutionError, match=r"Debounced callback failed \(ValueError\)"):
         debouncer.close()
+
+
+def test_lsp_close_cleans_all_uris_before_raising_first_callback_failure() -> None:
+    first_uri = "file:///tmp/first.py"
+    second_uri = "file:///tmp/second.py"
+    pending_uri = "file:///tmp/pending.py"
+    first_started = threading.Event()
+    second_started = threading.Event()
+    pending_called = threading.Event()
+
+    class FailingLSP(LSP):
+        def _validate(self, uri: str, version: int) -> None:
+            del version
+            if uri == first_uri:
+                first_started.set()
+                raise ValueError("api_token=FIRST-SECRET")
+            if uri == second_uri:
+                second_started.set()
+                raise TypeError("api_token=SECOND-SECRET")
+            pending_called.set()
+
+    lsp = FailingLSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0.001))
+    timers: list[threading.Timer] = []
+    try:
+        for uri, started in ((first_uri, first_started), (second_uri, second_started)):
+            lsp.validate(uri, 1)
+            timer = lsp._validate_uri[uri]._timer
+            assert timer is not None
+            timers.append(timer)
+            assert started.wait(timeout=1)
+            timer.join(timeout=1)
+            assert not timer.is_alive()
+
+        lsp.lsp_options.debounce_interval = 60
+        lsp.validate(pending_uri, 1)
+        pending_timer = lsp._validate_uri[pending_uri]._timer
+        assert pending_timer is not None
+        timers.append(pending_timer)
+        assert pending_timer.is_alive()
+        debouncers = tuple(lsp._validate_uri.values())
+
+        with pytest.raises(RattleExecutionError) as caught:
+            lsp.close()
+
+        assert str(caught.value) == "Debounced callback failed (ValueError)"
+        diagnostic = "".join(traceback.format_exception(caught.type, caught.value, caught.tb))
+        assert "FIRST-SECRET" not in diagnostic
+        assert "SECOND-SECRET" not in diagnostic
+        assert not pending_called.is_set()
+        assert pending_timer.finished.is_set()
+        assert all(not timer.is_alive() for timer in timers)
+        assert all(debouncer._timer is None for debouncer in debouncers)
+        assert lsp._validate_uri == {}
+        lsp.close()
+    finally:
+        with suppress(RattleExecutionError):
+            lsp.close()
+        for timer in timers:
+            timer.cancel()
+            timer.join(timeout=1)

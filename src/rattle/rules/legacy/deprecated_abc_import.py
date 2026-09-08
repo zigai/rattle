@@ -292,51 +292,41 @@ class DeprecatedABCImport(LintRule):
             )
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
-        # Iterate over inherited Classes and search for `collections.<ABC>`
+        if not node.bases:
+            return
+
+        matching_bases: list[cst.Arg] = []
+        updated_bases: list[cst.Arg] = []
+        matcher = m.Arg(
+            value=m.Attribute(
+                value=m.Name("collections"),
+                attr=m.OneOf(*[m.Name(abc) for abc in ABCS]),
+            )
+        )
         for base in node.bases:
-            if m.matches(
-                base,
-                m.Arg(
-                    value=m.Attribute(
-                        value=m.Name("collections"),
-                        attr=m.OneOf(*[m.Name(abc) for abc in ABCS]),
-                    )
-                ),
-            ):
-                # Report + replace `collections.<ABC>` with `collections.abc.<ABC>`
-                # while keeping the remaining classes.
-                self.report(
-                    node,
-                    self.MESSAGE,
-                    replacement=node.with_changes(
-                        bases=[
-                            (
-                                cst.Arg(
-                                    value=cst.Attribute(
-                                        value=cst.Attribute(
-                                            value=cst.Name("collections"),
-                                            attr=cst.Name("abc"),
-                                        ),
-                                        attr=base.value.attr,
-                                    ),
-                                )
-                                if m.matches(
-                                    base,
-                                    m.Arg(
-                                        value=m.Attribute(
-                                            value=m.Name("collections"),
-                                            attr=m.OneOf(*[m.Name(abc) for abc in ABCS]),
-                                        )
-                                    ),
-                                )
-                                and isinstance(base.value, cst.Attribute)
-                                else base
-                            )
-                            for base in node.bases
-                        ]
+            if not m.matches(base, matcher):
+                updated_bases.append(base)
+                continue
+
+            matching_bases.append(base)
+            updated_bases.append(
+                cst.Arg(
+                    value=cst.Attribute(
+                        value=cst.Attribute(
+                            value=cst.Name("collections"),
+                            attr=cst.Name("abc"),
+                        ),
+                        attr=cst.ensure_type(base.value, cst.Attribute).attr,
                     ),
-                    position_node=base,
                 )
+            )
+
+        if not matching_bases:
+            return
+
+        replacement = node.with_changes(bases=updated_bases)
+        for base in matching_bases:
+            self.report(node, self.MESSAGE, replacement=replacement, position_node=base)
 
 
 __all__ = [

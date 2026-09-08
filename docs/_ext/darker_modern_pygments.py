@@ -46,7 +46,8 @@ def is_whitespace(token: Token, value: str) -> bool:
 
 
 def next_significant(tokens: list[TokenItem], start: int) -> TokenItem | None:
-    for item in tokens[start:]:
+    for index in range(start, len(tokens)):
+        item = tokens[index]
         if not is_whitespace(item[1], item[2]):
             return item
 

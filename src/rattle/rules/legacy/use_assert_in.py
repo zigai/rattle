@@ -11,6 +11,13 @@ from libcst.metadata import ParentNodeProvider
 from rattle.rule import Invalid, LintRule, Valid
 from rattle.rules.helpers import enclosing_class_defines_method, has_comments
 
+_MEMBERSHIP_ASSERTIONS = {
+    ("assertTrue", "in", False): "assertIn",
+    ("assertTrue", "in", True): "assertNotIn",
+    ("assertTrue", "not in", False): "assertNotIn",
+    ("assertFalse", "in", False): "assertNotIn",
+}
+
 
 class UseAssertIn(LintRule):
     """Prefer ``assertIn`` and ``assertNotIn`` for unittest membership checks."""
@@ -76,118 +83,50 @@ class UseAssertIn(LintRule):
         ),
     ]
 
-    def visit_Call(  # noqa: C901 - normalizes the unittest membership polarity matrix
-        self, node: cst.Call
-    ) -> None:
-        # Todo: Make use of single extract instead of having several
-        # if else statements to make the code more robust and readable.
-        if m.matches(
+    def visit_Call(self, node: cst.Call) -> None:
+        if not m.matches(
             node,
             m.Call(
-                func=m.Attribute(value=m.Name("self"), attr=m.Name("assertTrue")),
-                args=[m.Arg(m.Comparison(comparisons=[m.ComparisonTarget(operator=m.In())]))],
+                func=m.Attribute(
+                    value=m.Name("self"),
+                    attr=m.OneOf(m.Name("assertTrue"), m.Name("assertFalse")),
+                ),
+                args=[m.Arg()],
             ),
         ):
-            if enclosing_class_defines_method(self, node, "assertTrue"):
-                return
-            if enclosing_class_defines_method(self, node, "assertIn"):
-                return
+            return
 
-            # self.assertTrue(a in b) -> self.assertIn(a, b)
-            new_call = node.with_changes(
-                func=cst.Attribute(value=cst.Name("self"), attr=cst.Name("assertIn")),
-                args=[
-                    cst.Arg(ensure_type(node.args[0].value, cst.Comparison).left),
-                    cst.Arg(
-                        ensure_type(node.args[0].value, cst.Comparison).comparisons[0].comparator
-                    ),
-                ],
-            )
-            self.report(
-                node,
-                self.MESSAGE,
-                replacement=None if has_comments(node.args[0]) else new_call,
-            )
-        else:
-            # ... -> self.assertNotIn(a, b)
-            matched, arg1, arg2 = False, None, None
-            if m.matches(
-                node,
-                m.Call(
-                    func=m.Attribute(value=m.Name("self"), attr=m.Name("assertTrue")),
-                    args=[
-                        m.Arg(
-                            m.UnaryOperation(
-                                operator=m.Not(),
-                                expression=m.Comparison(
-                                    comparisons=[m.ComparisonTarget(operator=m.In())]
-                                ),
-                            )
-                        )
-                    ],
-                ),
-            ):
-                # self.assertTrue(not a in b) -> self.assertNotIn(a, b)
-                if enclosing_class_defines_method(self, node, "assertTrue"):
-                    return
-                matched = True
-                arg1 = cst.Arg(
-                    ensure_type(
-                        ensure_type(node.args[0].value, cst.UnaryOperation).expression,
-                        cst.Comparison,
-                    ).left
-                )
-                arg2 = cst.Arg(
-                    ensure_type(
-                        ensure_type(node.args[0].value, cst.UnaryOperation).expression,
-                        cst.Comparison,
-                    )
-                    .comparisons[0]
-                    .comparator
-                )
-            elif m.matches(
-                node,
-                m.Call(
-                    func=m.Attribute(value=m.Name("self"), attr=m.Name("assertTrue")),
-                    args=[m.Arg(m.Comparison(comparisons=[m.ComparisonTarget(m.NotIn())]))],
-                ),
-            ):
-                # self.assertTrue(a not in b) -> self.assertNotIn(a, b)
-                if enclosing_class_defines_method(self, node, "assertTrue"):
-                    return
-                matched = True
-                arg1 = cst.Arg(ensure_type(node.args[0].value, cst.Comparison).left)
-                arg2 = cst.Arg(
-                    ensure_type(node.args[0].value, cst.Comparison).comparisons[0].comparator
-                )
-            elif m.matches(
-                node,
-                m.Call(
-                    func=m.Attribute(value=m.Name("self"), attr=m.Name("assertFalse")),
-                    args=[m.Arg(m.Comparison(comparisons=[m.ComparisonTarget(m.In())]))],
-                ),
-            ):
-                # self.assertFalse(a in b) -> self.assertNotIn(a, b)
-                if enclosing_class_defines_method(self, node, "assertFalse"):
-                    return
-                matched = True
-                arg1 = cst.Arg(ensure_type(node.args[0].value, cst.Comparison).left)
-                arg2 = cst.Arg(
-                    ensure_type(node.args[0].value, cst.Comparison).comparisons[0].comparator
-                )
+        assertion_name = ensure_type(node.func, cst.Attribute).attr.value
+        comparison = node.args[0].value
+        negated = isinstance(comparison, cst.UnaryOperation) and isinstance(
+            comparison.operator, cst.Not
+        )
+        if negated:
+            comparison = ensure_type(comparison, cst.UnaryOperation).expression
+        if not isinstance(comparison, cst.Comparison) or len(comparison.comparisons) != 1:
+            return
 
-            if matched:
-                if enclosing_class_defines_method(self, node, "assertNotIn"):
-                    return
-                new_call = node.with_changes(
-                    func=cst.Attribute(value=cst.Name("self"), attr=cst.Name("assertNotIn")),
-                    args=[arg1, arg2],
-                )
-                self.report(
-                    node,
-                    self.MESSAGE,
-                    replacement=None if has_comments(node.args[0]) else new_call,
-                )
+        target = comparison.comparisons[0]
+        if not isinstance(target.operator, (cst.In, cst.NotIn)):
+            return
+        operator = "not in" if isinstance(target.operator, cst.NotIn) else "in"
+        new_attr = _MEMBERSHIP_ASSERTIONS.get((assertion_name, operator, negated))
+        if new_attr is None:
+            return
+        if enclosing_class_defines_method(
+            self, node, assertion_name
+        ) or enclosing_class_defines_method(self, node, new_attr):
+            return
+
+        new_call = node.with_changes(
+            func=cst.Attribute(value=cst.Name("self"), attr=cst.Name(new_attr)),
+            args=[cst.Arg(comparison.left), cst.Arg(target.comparator)],
+        )
+        self.report(
+            node,
+            self.MESSAGE,
+            replacement=None if has_comments(node.args[0]) else new_call,
+        )
 
 
 __all__ = [

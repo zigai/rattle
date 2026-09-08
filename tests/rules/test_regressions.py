@@ -1,7 +1,9 @@
 from pathlib import Path
 from textwrap import dedent
 
+import libcst as cst
 import pytest
+from libcst.metadata import CodePosition, CodeRange
 
 from rattle.config.models import Config
 from rattle.diagnostics import LintViolation
@@ -907,3 +909,144 @@ def test_or_in_except_detects_star_and_nested_forms(source: str) -> None:
     _runner, reports = _reports(AvoidOrInExcept(), source)
 
     assert len(reports) == 1
+
+
+@pytest.mark.parametrize(
+    ("assertion", "condition", "replacement"),
+    [
+        ("assertTrue", "a in b", "assertIn"),
+        ("assertTrue", "not a in b", "assertNotIn"),
+        ("assertTrue", "a not in b", "assertNotIn"),
+        ("assertTrue", "not a not in b", None),
+        ("assertFalse", "a in b", "assertNotIn"),
+        ("assertFalse", "not a in b", None),
+        ("assertFalse", "a not in b", None),
+        ("assertFalse", "not a not in b", None),
+    ],
+)
+def test_membership_assertion_preserves_supported_polarities(
+    assertion: str,
+    condition: str,
+    replacement: str | None,
+) -> None:
+    source = f"self.{assertion}({condition})\n"
+    reports, fixed = _fixed(UseAssertIn(), source)
+
+    if replacement is None:
+        assert reports == []
+        assert fixed == source
+    else:
+        assert len(reports) == 1
+        assert reports[0].message == UseAssertIn.MESSAGE
+        assert reports[0].range == CodeRange(CodePosition(1, 0), CodePosition(1, len(source) - 1))
+        assert fixed == f"self.{replacement}(a, b)\n"
+
+
+@pytest.mark.parametrize("prefix", ["", "expr=", "*", "**"])
+def test_membership_assertion_preserves_single_argument_matcher_semantics(prefix: str) -> None:
+    reports, fixed = _fixed(UseAssertIn(), f"self.assertTrue({prefix}(a in b))\n")
+
+    assert len(reports) == 1
+    assert fixed == "self.assertIn(a, b)\n"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "self.assertTrue()\n",
+        'self.assertTrue(a in b, "message")\n',
+        "other.assertTrue(a in b)\n",
+        "self.assertTrue(a in b in c)\n",
+        "self.assertTrue(a == b)\n",
+        "self.assertTrue(not not a in b)\n",
+        "self.assertTrue(+(a in b))\n",
+    ],
+)
+def test_membership_assertion_preserves_unsupported_call_shapes(source: str) -> None:
+    reports, fixed = _fixed(UseAssertIn(), source)
+
+    assert reports == []
+    assert fixed == source
+
+
+@pytest.mark.parametrize(
+    ("assertion", "condition", "replacement"),
+    [
+        ("assertTrue", "a in b", "assertIn"),
+        ("assertTrue", "not a in b", "assertNotIn"),
+        ("assertTrue", "a not in b", "assertNotIn"),
+        ("assertFalse", "a in b", "assertNotIn"),
+    ],
+)
+@pytest.mark.parametrize("override_source", [True, False])
+def test_membership_assertion_preserves_source_and_destination_overrides(
+    assertion: str,
+    condition: str,
+    replacement: str,
+    override_source: bool,
+) -> None:
+    overridden = assertion if override_source else replacement
+    source = (
+        "class Checker:\n"
+        f"    def {overridden}(self, *args):\n"
+        "        pass\n"
+        "    def check(self, a, b):\n"
+        f"        self.{assertion}({condition})\n"
+    )
+    reports, fixed = _fixed(UseAssertIn(), source)
+
+    assert reports == []
+    assert fixed == source
+
+
+@pytest.mark.parametrize(
+    ("assertion", "condition"),
+    [
+        ("assertTrue", "a in b"),
+        ("assertTrue", "not a in b"),
+        ("assertTrue", "a not in b"),
+        ("assertFalse", "a in b"),
+    ],
+)
+def test_membership_assertion_preserves_comments_for_every_supported_form(
+    assertion: str, condition: str
+) -> None:
+    source = f"self.{assertion}(\n    {condition}  # preserve rationale\n)\n"
+    reports, fixed = _fixed(UseAssertIn(), source)
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+    assert fixed == source
+
+
+def test_abc_class_rewrite_preserves_each_base_diagnostic_and_complete_replacement() -> None:
+    source = (
+        "class Example(Keep,\tcollections.Mapping ,  collections.Sequence, metaclass=Meta):\n"
+        "    pass\n"
+    )
+    expected = (
+        "class Example(Keep,\tcollections.abc.Mapping, collections.abc.Sequence, metaclass=Meta):\n"
+        "    pass\n"
+    )
+    runner, reports = _reports(DeprecatedABCImport(), source)
+    original_class = cst.ensure_type(runner.module.body[0], cst.ClassDef)
+
+    assert len(reports) == 2
+    assert reports[0].replacement is reports[1].replacement
+    for report, base, spelling in zip(
+        reports,
+        original_class.bases[1:],
+        ("collections.Mapping", "collections.Sequence"),
+        strict=True,
+    ):
+        assert report.node is original_class
+        assert report.position_node is base
+        assert report.message == DeprecatedABCImport.MESSAGE
+        start = source.index(spelling)
+        assert report.range == CodeRange(
+            CodePosition(1, start), CodePosition(1, start + len(spelling))
+        )
+        assert runner.apply_replacements([report]).code == expected
+
+    assert runner.apply_replacements(reports).code == expected
+    assert runner.module.code == source

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import rattle.rules.policy.forbidden_import as forbidden_import_module
 from rattle import Config, LintRule
 from rattle.diagnostics import LintViolation
 from rattle.engine import LintRunner
@@ -596,6 +597,66 @@ def test_forbidden_import_accepts_unicode_module_identifier() -> None:
     reports = _run_forbidden_import("import café", ["café"])
 
     assert len(reports) == 1
+
+
+def test_forbidden_import_rebuilds_boundary_order_when_rule_is_reconfigured() -> None:
+    rule = ForbiddenImport()
+    rule.configure({"forbidden_imports": ["alpha.internal"]})
+    assert _run_rule(rule, "import alpha.public") == []
+
+    rule.configure({"forbidden_imports": ["alpha|updated policy"]})
+    reports = _run_rule(rule, "import alpha.public")
+
+    assert [report.message for report in reports] == ["updated policy"]
+
+
+@pytest.mark.parametrize(
+    ("boundaries", "expected_message"),
+    [
+        (["aa|original", "bb|other", "aa|updated"], "updated"),
+        (["bb|other", "aa|original", "aa|updated"], "other"),
+    ],
+)
+def test_forbidden_import_preserves_tied_precedence_and_last_duplicate_message(
+    boundaries: list[str], expected_message: str
+) -> None:
+    reports = _run_forbidden_import("from . import *", boundaries, path=Path("aa/bb/module.py"))
+
+    assert [report.message for report in reports] == [expected_message]
+
+
+@pytest.mark.parametrize(
+    ("source", "boundaries", "expected_sorts", "expected_messages"),
+    [
+        ('marker = "alpha"', ["alpha"], 0, []),
+        ("from . import first, second", [], 1, []),
+        (
+            "import alpha, alpha.child",
+            ["alpha|blocked"],
+            1,
+            ["blocked", "blocked"],
+        ),
+    ],
+)
+def test_forbidden_import_ranks_boundaries_only_when_needed_once_per_module(
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+    boundaries: list[str],
+    expected_sorts: int,
+    expected_messages: list[str],
+) -> None:
+    sort_calls = []
+
+    def record_sort(values, **kwargs):
+        sort_calls.append(tuple(values))
+        return sorted(values, **kwargs)
+
+    monkeypatch.setattr(forbidden_import_module, "sorted", record_sort, raising=False)
+
+    reports = _run_forbidden_import(source, boundaries)
+
+    assert [report.message for report in reports] == expected_messages
+    assert len(sort_calls) == expected_sorts
 
 
 def test_forbidden_import_allows_module_with_boundary_prefix_only() -> None:
