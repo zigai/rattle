@@ -107,6 +107,11 @@ class ConfigMerger:
     excluded: bool = False
     config: RawConfig = field(init=False)
 
+    def __post_init__(self) -> None:
+        self.path = self.path.resolve()
+        if self.root is not None:
+            self.root = self.root.resolve()
+
     def merge(self) -> Config:
         for config in reversed(self.raw_configs):
             self.config = config
