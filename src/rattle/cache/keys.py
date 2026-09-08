@@ -232,24 +232,13 @@ def _rule_fingerprint_hash(raw_fingerprints: object) -> str | None:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _cached_rule_fingerprints_match(
-    raw_fingerprints: object,
-    raw_fingerprint_hash: object,
-) -> bool:
-    del raw_fingerprint_hash
-    if not isinstance(raw_fingerprints, list):
-        return False
-    return _rule_fingerprints_match(raw_fingerprints)
-
-
 def _cached_result_entry_matches_current_rules(
     entry: ResultCacheEntry,
     rules: Collection[LintRule],
 ) -> bool:
-    return _cached_rule_fingerprints_match(
-        entry.rule_fingerprints,
-        entry.rule_fingerprint_hash,
-    ) and _cached_rule_set_matches_current(entry, rules)
+    return _rule_fingerprints_match(entry.rule_fingerprints) and _cached_rule_set_matches_current(
+        entry, rules
+    )
 
 
 def _cached_rule_set_matches_current(

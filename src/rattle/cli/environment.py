@@ -49,7 +49,7 @@ def _find_uv_project_root(path: Path) -> Path | None:
         if isinstance(tool, dict) and "uv" in tool:
             return directory
 
-        dependency_groups = data.get("dependency-groups", {})
+        dependency_groups = data.get("dependency-groups")
         if isinstance(dependency_groups, dict):
             return directory
 

@@ -8,6 +8,16 @@ import libcst.matchers as m
 
 from rattle.rule import Invalid, LintRule, Valid
 
+_ASSERTION_REPLACEMENTS = {
+    "assertEquals": "assertEqual",
+    "assertNotEquals": "assertNotEqual",
+    "assertAlmostEquals": "assertAlmostEqual",
+    "assertNotAlmostEquals": "assertNotAlmostEqual",
+    "assertRegexpMatches": "assertRegex",
+    "assertNotRegexpMatches": "assertNotRegex",
+    "assertRaisesRegexp": "assertRaisesRegex",
+}
+
 
 class DeprecatedUnittestAsserts(LintRule):
     """Discourage deprecated unittest assertion aliases."""
@@ -96,40 +106,31 @@ class DeprecatedUnittestAsserts(LintRule):
     ]
 
     def visit_Call(self, node: cst.Call) -> None:
-        replacements = {
-            "assertEquals": "assertEqual",
-            "assertNotEquals": "assertNotEqual",
-            "assertAlmostEquals": "assertAlmostEqual",
-            "assertNotAlmostEquals": "assertNotAlmostEqual",
-            "assertRegexpMatches": "assertRegex",
-            "assertNotRegexpMatches": "assertNotRegex",
-            "assertRaisesRegexp": "assertRaisesRegex",
-        }
-        for deprecated, replacement in replacements.items():
-            if m.matches(
-                node,
-                m.Call(
-                    func=m.Attribute(
-                        value=m.OneOf(
-                            m.Name("self"),
-                            m.Name("case"),
-                            m.Name("cls"),
-                            m.Call(func=m.Name("super"), args=[]),
-                        ),
-                        attr=m.Name(deprecated),
-                    )
-                ),
-            ):
-                new_call = node.with_deep_changes(
-                    old_node=cst.ensure_type(node.func, cst.Attribute).attr,
-                    value=replacement,
-                )
-                self.report(
-                    node,
-                    self.MESSAGE.format(deprecated=deprecated, replacement=replacement),
-                    replacement=new_call,
-                )
-                break
+        if not isinstance(node.func, cst.Attribute) or not m.matches(
+            node.func.value,
+            m.OneOf(
+                m.Name("self"),
+                m.Name("case"),
+                m.Name("cls"),
+                m.Call(func=m.Name("super"), args=[]),
+            ),
+        ):
+            return
+
+        deprecated = node.func.attr.value
+        replacement = _ASSERTION_REPLACEMENTS.get(deprecated)
+        if replacement is None:
+            return
+
+        new_call = node.with_deep_changes(
+            old_node=node.func.attr,
+            value=replacement,
+        )
+        self.report(
+            node,
+            self.MESSAGE.format(deprecated=deprecated, replacement=replacement),
+            replacement=new_call,
+        )
 
 
 __all__ = [

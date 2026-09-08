@@ -15,7 +15,6 @@ from rattle.rules.blank_lines.utils import (
     assignment_small_statement,
     collect_attribute_receivers,
     collect_name_nodes_including_nested,
-    expression_statement_value,
     has_blank_line_separator,
     has_nontrivial_related_use,
     has_separator,
@@ -24,6 +23,7 @@ from rattle.rules.blank_lines.utils import (
     is_terminal_exception_cleanup_run,
     next_control_block_consumes_assignment,
     prepend_blank_line,
+    receiver_setup_expressions,
     remove_blank_leading_lines,
 )
 
@@ -560,7 +560,7 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
 
         previous_receivers = [
             receiver
-            for expression in self._receiver_setup_expressions(body[index - 1])
+            for expression in receiver_setup_expressions(body[index - 1])
             for receiver in collect_attribute_receivers(expression)
         ]
         if not previous_receivers:
@@ -571,36 +571,6 @@ class BlankLineBeforeAssignment(BaseBlankLinesRule, LintRule):
             for previous_receiver in previous_receivers
             for current_receiver in current_receivers
         )
-
-    def _receiver_setup_expressions(
-        self,
-        statement: cst.BaseStatement,
-    ) -> list[cst.BaseExpression]:
-        expressions: list[cst.BaseExpression] = []
-
-        expression = expression_statement_value(statement)
-        if expression is not None:
-            expressions.append(expression)
-
-        assignment = assignment_small_statement(statement)
-        if isinstance(assignment, cst.Assign):
-            expressions.append(assignment.value)
-            expressions.extend(target.target for target in assignment.targets)
-
-            return expressions
-
-        if isinstance(assignment, cst.AnnAssign):
-            expressions.append(assignment.target)
-            if assignment.value is not None:
-                expressions.append(assignment.value)
-
-            return expressions
-
-        if isinstance(assignment, cst.AugAssign):
-            expressions.append(assignment.target)
-            expressions.append(assignment.value)
-
-        return expressions
 
     def _is_terminal_simple_return_tail(
         self,

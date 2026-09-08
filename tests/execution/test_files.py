@@ -9,10 +9,10 @@ from libcst import Name, Pass
 from rattle.api import rattle_configured_file, rattle_paths
 from rattle.cache import ResultCache, rule_cache_fingerprint
 from rattle.cache.keys import (
-    _cached_rule_fingerprints_match,
     _clean_status_cache_key,
     _decode_cached_source,
     _path_stat_fingerprint,
+    _rule_fingerprints_match,
 )
 from rattle.cache.models import ResultCacheEntry
 from rattle.cache.store import _prune_cache
@@ -148,7 +148,7 @@ class TestApi:
 
         assert _path_stat_fingerprint(path) != first
 
-    def test_rule_fingerprint_validation_rechecks_old_hash(
+    def test_rule_fingerprint_validation_rechecks_file_metadata(
         self,
         tmp_path: Path,
     ) -> None:
@@ -160,11 +160,11 @@ class TestApi:
             ["custom_rules", "CustomRule", source_fingerprint, parent_fingerprint, ()]
         ]
 
-        assert _cached_rule_fingerprints_match(raw_fingerprints, None)
+        assert _rule_fingerprints_match(raw_fingerprints)
 
         source.write_text("VALUE = 200\n")
 
-        assert not _cached_rule_fingerprints_match(raw_fingerprints, None)
+        assert not _rule_fingerprints_match(raw_fingerprints)
 
     def test_rule_fingerprint_tracks_sibling_python_modules(self, tmp_path: Path) -> None:
         class PackageRule(LintRule):

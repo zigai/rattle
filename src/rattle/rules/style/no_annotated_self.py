@@ -9,6 +9,7 @@ from libcst.metadata import (
 )
 
 from rattle.rule import Invalid, LintRule, Valid
+from rattle.rules.helpers import is_in_class_scope
 
 
 def _first_parameter(parameters: cst.Parameters) -> cst.Param | None:
@@ -138,7 +139,7 @@ class NoAnnotatedSelf(LintRule):
     ]
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-        if not self._is_direct_class_member(node):
+        if not is_in_class_scope(self, node):
             return
         if self._is_non_instance_method(node):
             return
@@ -156,16 +157,6 @@ class NoAnnotatedSelf(LintRule):
             self.MESSAGE,
             replacement=parameter.with_changes(annotation=None),
         )
-
-    def _is_direct_class_member(self, node: cst.FunctionDef) -> bool:
-        parent = self.get_metadata(ParentNodeProvider, node, None)
-        while parent is not None:
-            if isinstance(parent, cst.ClassDef):
-                return True
-            if isinstance(parent, cst.FunctionDef | cst.Lambda):
-                return False
-            parent = self.get_metadata(ParentNodeProvider, parent, None)
-        return False
 
     def _is_non_instance_method(self, node: cst.FunctionDef) -> bool:
         return any(

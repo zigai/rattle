@@ -33,6 +33,7 @@ from rattle.rules.blank_lines.utils import (
     ordered_assigned_names,
     ordered_assigned_target_expressions,
     prepend_blank_line,
+    receiver_setup_expressions,
     starts_compact_guard_ladder,
     statement_reference_names,
     statement_touches_name,
@@ -524,23 +525,7 @@ class BaseBlockHeaderCuddleRule(BaseBlankLinesRule):
             return False
 
         previous_statement = body[block_index - 1]
-        previous_expressions: list[cst.BaseExpression] = []
-
-        previous_expression = expression_statement_value(previous_statement)
-        if previous_expression is not None:
-            previous_expressions.append(previous_expression)
-
-        assignment = assignment_small_statement(previous_statement)
-        if isinstance(assignment, cst.Assign):
-            previous_expressions.append(assignment.value)
-            previous_expressions.extend(target.target for target in assignment.targets)
-        elif isinstance(assignment, cst.AnnAssign):
-            previous_expressions.append(assignment.target)
-            if assignment.value is not None:
-                previous_expressions.append(assignment.value)
-        elif isinstance(assignment, cst.AugAssign):
-            previous_expressions.append(assignment.target)
-            previous_expressions.append(assignment.value)
+        previous_expressions = receiver_setup_expressions(previous_statement)
 
         if not previous_expressions:
             return False

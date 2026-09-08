@@ -14,12 +14,12 @@ from platformdirs import user_cache_path
 
 from rattle.cache.keys import (
     _cached_result_entry_matches_current_rules,
-    _cached_rule_fingerprints_match,
     _clean_cache_key,
     _clean_status_cache_key,
     _config_path_fingerprints,
     _decode_cached_source,
     _rule_fingerprint_hash,
+    _rule_fingerprints_match,
     rule_cache_fingerprint,
 )
 from rattle.cache.models import (
@@ -269,10 +269,7 @@ class ResultCache:
 
         if entry.mtime_ns != stat.st_mtime_ns or entry.size != stat.st_size:
             return None
-        if not _cached_rule_fingerprints_match(
-            entry.rule_fingerprints,
-            entry.rule_fingerprint_hash,
-        ):
+        if not _rule_fingerprints_match(entry.rule_fingerprints):
             return None
 
         return Result(path, violation=None)

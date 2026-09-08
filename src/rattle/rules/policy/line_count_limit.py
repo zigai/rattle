@@ -10,6 +10,7 @@ from libcst.metadata import FilePathProvider, ParentNodeProvider, PositionProvid
 
 from rattle.diagnostics import CodePosition
 from rattle.rule import LintRule, RuleSetting
+from rattle.rules.helpers import is_in_class_scope
 
 _SETTING_NAMES = frozenset({"max_file_lines", "max_function_lines", "max_method_lines"})
 
@@ -172,7 +173,7 @@ class LineCountLimit(LintRule):
         )
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
-        is_method = self._is_class_member(node)
+        is_method = is_in_class_scope(self, node)
         is_nested_function = self._function_depth > 0 and not is_method
         max_lines = (
             self._current_limits.max_method_lines
@@ -246,16 +247,6 @@ class LineCountLimit(LintRule):
         return relative_path is not None and fnmatch.fnmatchcase(
             relative_path.as_posix(), Path(path_pattern).as_posix()
         )
-
-    def _is_class_member(self, node: cst.FunctionDef) -> bool:
-        current: cst.CSTNode = node
-        while (parent := self.get_metadata(ParentNodeProvider, current, None)) is not None:
-            if isinstance(parent, cst.ClassDef):
-                return True
-            if isinstance(parent, (cst.FunctionDef, cst.Lambda)):
-                return False
-            current = parent
-        return False
 
     def _matches_per_file_path(self, path_pattern: str, file_path: Path) -> bool:
         configured_path = Path(path_pattern)

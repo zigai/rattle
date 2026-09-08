@@ -106,6 +106,17 @@ def enclosing_class_defines_method(
     return False
 
 
+def is_in_class_scope(rule: LintRule, node: cst.CSTNode) -> bool:
+    parent = rule.get_metadata(ParentNodeProvider, node, None)
+    while parent is not None:
+        if isinstance(parent, cst.ClassDef):
+            return True
+        if isinstance(parent, (cst.FunctionDef, cst.Lambda)):
+            return False
+        parent = rule.get_metadata(ParentNodeProvider, parent, None)
+    return False
+
+
 def latest_assignment(
     rule: LintRule,
     name: cst.Name,

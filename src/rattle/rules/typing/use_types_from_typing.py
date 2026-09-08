@@ -239,7 +239,7 @@ class UseTypesFromTyping(LintRule):
             return None
 
         if isinstance(node, libcst.Name):
-            alias_builtin_type = self._alias_builtin_type_name(node)
+            alias_builtin_type = self._builtin_type_aliases.resolve(node)
             if alias_builtin_type is not None:
                 return alias_builtin_type
 
@@ -251,9 +251,6 @@ class UseTypesFromTyping(LintRule):
 
         first_name = next(iter(qualified_names)).name
         return first_name.rsplit(".", 1)[-1]
-
-    def _alias_builtin_type_name(self, node: libcst.Name) -> str | None:
-        return self._builtin_type_aliases.resolve(node)
 
     def _typing_type_is_unambiguously_available(
         self,

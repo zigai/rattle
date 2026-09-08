@@ -214,7 +214,7 @@ class ForbiddenCall(LintRule):
         return None
 
     def _forbidden_symbol_for_expression(self, node: cst.BaseExpression) -> str | None:
-        forbidden_symbols = set(self._forbidden_calls_by_symbol)
+        forbidden_symbols = self._forbidden_calls_by_symbol
         alias_symbol = self._alias_value(node)
         if alias_symbol in forbidden_symbols:
             return alias_symbol

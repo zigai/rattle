@@ -8,6 +8,7 @@ import libcst.matchers as m
 from libcst.metadata import ParentNodeProvider
 
 from rattle.rule import Invalid, LintRule, Valid
+from rattle.rules.helpers import is_in_class_scope
 
 UNNECESSARY_LAMBDA: str = (
     "The lambda that wraps {function} is redundant and can be replaced by the callable."
@@ -61,7 +62,7 @@ class NoRedundantLambda(LintRule):
         return all(param.default is None for param in node.params)
 
     def visit_Lambda(self, node: cst.Lambda) -> None:
-        if self._is_in_class_scope(node):
+        if is_in_class_scope(self, node):
             return
 
         if m.matches(
@@ -84,16 +85,6 @@ class NoRedundantLambda(LintRule):
                 node,
                 UNNECESSARY_LAMBDA.format(function=call.func.value),
             )
-
-    def _is_in_class_scope(self, node: cst.CSTNode) -> bool:
-        parent = self.get_metadata(ParentNodeProvider, node, None)
-        while parent is not None:
-            if isinstance(parent, cst.ClassDef):
-                return True
-            if isinstance(parent, (cst.FunctionDef, cst.Lambda)):
-                return False
-            parent = self.get_metadata(ParentNodeProvider, parent, None)
-        return False
 
 
 __all__ = [

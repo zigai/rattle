@@ -342,6 +342,31 @@ class CliTest(TestCase):
 
             assert _find_uv_project_root(nested) == root
 
+    def test_find_uv_project_root_rejects_unrelated_pyproject(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "pyproject.toml").write_text('[project]\nname = "unrelated"\n')
+
+            assert _find_uv_project_root(root) != root
+
+    def test_find_uv_project_root_accepts_dependency_groups(self) -> None:
+        for groups in ("[dependency-groups]\n", "[dependency-groups]\ndev = []\n"):
+            with self.subTest(groups=groups), TemporaryDirectory() as td:
+                root = Path(td)
+                (root / "pyproject.toml").write_text(groups)
+
+                assert _find_uv_project_root(root) == root
+
+    def test_find_uv_project_root_skips_unrelated_child_pyproject(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            nested = root / "child" / "src"
+            nested.mkdir(parents=True)
+            (root / "uv.lock").write_text("")
+            (nested.parent / "pyproject.toml").write_text('[project]\nname = "unrelated"\n')
+
+            assert _find_uv_project_root(nested) == root
+
     def test_uv_reexec_is_limited_to_rule_loading_commands(self) -> None:
         with (
             patch.dict(os.environ, {}, clear=True),

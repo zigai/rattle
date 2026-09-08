@@ -11,7 +11,7 @@ import trailrunner
 
 from rattle.config.models import Config, Options
 from rattle.diagnostics import Result
-from rattle.engine import Metrics, MetricsHook
+from rattle.engine import Metrics
 from rattle.execution.files import rattle_configured_file
 from rattle.rule_loading import collect_rules
 
@@ -93,32 +93,6 @@ def _process_context() -> BaseContext | None:
         return None
 
 
-def _rattle_configured_file_wrapper(
-    item: ConfiguredPath,
-    *,
-    autofix: bool = False,
-    include_diff: bool = False,
-    allow_cached_dirty_results: bool = False,
-    deferred_format_paths: list[Path] | None = None,
-    options: Options | None = None,
-    metrics_hook: MetricsHook | None = None,
-) -> list[Result]:
-    path, config, explicit_path = item
-    return list(
-        rattle_configured_file(
-            path,
-            config=config,
-            autofix=autofix,
-            include_diff=include_diff,
-            allow_cached_dirty_results=allow_cached_dirty_results,
-            deferred_format_paths=deferred_format_paths,
-            options=options,
-            explicit_path=explicit_path,
-            metrics_hook=metrics_hook,
-        )
-    )
-
-
 def _rattle_configured_file_batch_wrapper(
     batch: ConfiguredPathBatch,
     *,
@@ -132,15 +106,17 @@ def _rattle_configured_file_batch_wrapper(
     deferred_format_paths: list[Path] = []
     metrics: list[Metrics] = []
     metrics_hook = (lambda value: metrics.append(dict(value))) if collect_metrics else None
-    for item in batch:
+    for path, config, explicit_path in batch:
         results.extend(
-            _rattle_configured_file_wrapper(
-                item,
+            rattle_configured_file(
+                path,
+                config=config,
                 autofix=autofix,
                 include_diff=include_diff,
                 allow_cached_dirty_results=allow_cached_dirty_results,
                 deferred_format_paths=deferred_format_paths,
                 options=options,
+                explicit_path=explicit_path,
                 metrics_hook=metrics_hook,
             )
         )

@@ -153,6 +153,43 @@ enable = ["{{ category.collection }}"]
 
 DETAIL_TPL = Template(
     """\
+{% macro valid_example(case) %}
+{% if case.options %}
+<p class="rule-example-label">Options</p>
+
+```toml
+{{ case.options }}
+```
+{% endif %}
+```python
+{{ case.code }}
+```
+{% endmacro %}
+{% macro invalid_example(case, separated) %}
+```{raw} html
+<div class="rule-invalid-example{% if separated %} rule-invalid-example-separated{% endif %}">
+```
+{% if case.options %}
+<p class="rule-example-label">Options</p>
+
+```toml
+{{ case.options }}
+```
+{% endif %}
+```python
+{{ case.code }}
+```
+{% if case.replacement %}
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+{{ case.replacement }}
+```
+{% endif %}
+```{raw} html
+</div>
+```
+{% endmacro %}
 ---
 orphan: true
 ---
@@ -219,32 +256,14 @@ Placeholder values are filled in when the violation is reported.
 
 {% if rule.valid_examples_visible %}
 {% for case in rule.valid_examples_visible %}
-{% if case.options %}
-<p class="rule-example-label">Options</p>
-
-```toml
-{{ case.options }}
-```
-{% endif %}
-```python
-{{ case.code }}
-```
+{{ valid_example(case) -}}
 {% endfor %}
 {% if rule.valid_examples_hidden %}
 ```{raw} html
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 {% for case in rule.valid_examples_hidden %}
-{% if case.options %}
-<p class="rule-example-label">Options</p>
-
-```toml
-{{ case.options }}
-```
-{% endif %}
-```python
-{{ case.code }}
-```
+{{ valid_example(case) -}}
 {% endfor %}
 ```{raw} html
 </details>
@@ -258,58 +277,14 @@ No valid examples are documented.
 
 {% if rule.invalid_examples_visible %}
 {% for case in rule.invalid_examples_visible %}
-```{raw} html
-<div class="rule-invalid-example{% if case.replacement and not loop.last %} rule-invalid-example-separated{% endif %}">
-```
-{% if case.options %}
-<p class="rule-example-label">Options</p>
-
-```toml
-{{ case.options }}
-```
-{% endif %}
-```python
-{{ case.code }}
-```
-{% if case.replacement %}
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{{ case.replacement }}
-```
-{% endif %}
-```{raw} html
-</div>
-```
+{{ invalid_example(case, case.replacement and not loop.last) -}}
 {% endfor %}
 {% if rule.invalid_examples_hidden %}
 ```{raw} html
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 {% for case in rule.invalid_examples_hidden %}
-```{raw} html
-<div class="rule-invalid-example{% if case.replacement and not loop.last %} rule-invalid-example-separated{% endif %}">
-```
-{% if case.options %}
-<p class="rule-example-label">Options</p>
-
-```toml
-{{ case.options }}
-```
-{% endif %}
-```python
-{{ case.code }}
-```
-{% if case.replacement %}
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-{{ case.replacement }}
-```
-{% endif %}
-```{raw} html
-</div>
-```
+{{ invalid_example(case, case.replacement and not loop.last) -}}
 {% endfor %}
 ```{raw} html
 </details>

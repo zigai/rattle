@@ -302,6 +302,34 @@ def expression_statement_value(statement: cst.BaseStatement) -> cst.BaseExpressi
     return expression.value
 
 
+def receiver_setup_expressions(statement: cst.BaseStatement) -> list[cst.BaseExpression]:
+    expressions: list[cst.BaseExpression] = []
+
+    expression = expression_statement_value(statement)
+    if expression is not None:
+        expressions.append(expression)
+
+    assignment = assignment_small_statement(statement)
+    if isinstance(assignment, cst.Assign):
+        expressions.append(assignment.value)
+        expressions.extend(target.target for target in assignment.targets)
+
+        return expressions
+
+    if isinstance(assignment, cst.AnnAssign):
+        expressions.append(assignment.target)
+        if assignment.value is not None:
+            expressions.append(assignment.value)
+
+        return expressions
+
+    if isinstance(assignment, cst.AugAssign):
+        expressions.append(assignment.target)
+        expressions.append(assignment.value)
+
+    return expressions
+
+
 def header_expression_nodes(statement: cst.BaseStatement) -> list[cst.CSTNode]:
     if isinstance(statement, cst.If):
         return [statement.test]
@@ -998,6 +1026,7 @@ __all__ = [
     "ordered_assigned_names",
     "prepend_blank_line",
     "primary_body_statements",
+    "receiver_setup_expressions",
     "remove_blank_leading_lines",
     "starts_compact_guard_ladder",
     "statement_consumed_names",

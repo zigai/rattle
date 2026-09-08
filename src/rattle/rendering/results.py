@@ -115,6 +115,26 @@ def _render_console_violation(
             lines.append("")
         return "\n".join(lines)
 
+    rendered = _render_external_violation_line(
+        result, path=path, output_format=output_format, output_template=output_template
+    )
+    rendered = colored(rendered, color="yellow")
+    if show_diff and violation.diff:
+        rendered += "\n" + color_precomputed_diff(violation.diff).rstrip("\n")
+    return rendered
+
+
+def _render_external_violation_line(
+    result: Result,
+    *,
+    path: Path,
+    output_format: OutputFormat,
+    output_template: str,
+) -> str:
+    violation = result.violation
+    assert violation is not None
+    assert violation.range is not None
+
     rule_name = violation.rule_name
     start_line = violation.range.start.line
     start_col = violation.range.start.column
@@ -123,9 +143,9 @@ def _render_console_violation(
         message += " (has autofix)"
 
     if output_format == OutputFormat.vscode:
-        rendered = f"{path}:{start_line}:{start_col} {rule_name}: {message}"
-    elif output_format == OutputFormat.custom:
-        rendered = output_template.format(
+        return f"{path}:{start_line}:{start_col} {rule_name}: {message}"
+    if output_format == OutputFormat.custom:
+        return output_template.format(
             message=message,
             path=path,
             result=result,
@@ -133,13 +153,7 @@ def _render_console_violation(
             start_col=start_col,
             start_line=start_line,
         )
-    else:
-        raise NotImplementedError(f"output-format = {output_format!r}")
-
-    rendered = colored(rendered, color="yellow")
-    if show_diff and violation.diff:
-        rendered += "\n" + color_precomputed_diff(violation.diff).rstrip("\n")
-    return rendered
+    raise NotImplementedError(f"output-format = {output_format!r}")
 
 
 def _render_console_error(
@@ -453,32 +467,14 @@ def _print_violation_result(
     assert violation is not None
     assert violation.range is not None
 
-    rule_name = violation.rule_name
-    start_line = violation.range.start.line
-    start_col = violation.range.start.column
-    message = violation.message
-    if violation.autofixable:
-        message += " (has autofix)"
-
     if output_format == OutputFormat.rattle:
         if _print_rattle_result(result, path=path, show_diff=show_diff, stderr=stderr, brief=brief):
             return True
         raise NotImplementedError("missing rattle renderer for lint violation")
 
-    if output_format == OutputFormat.vscode:
-        line = f"{path}:{start_line}:{start_col} {rule_name}: {message}"
-    elif output_format == OutputFormat.custom:
-        line = output_template.format(
-            message=message,
-            path=path,
-            result=result,
-            rule_name=rule_name,
-            start_col=start_col,
-            start_line=start_line,
-        )
-    else:
-        raise NotImplementedError(f"output-format = {output_format!r}")
-
+    line = _render_external_violation_line(
+        result, path=path, output_format=output_format, output_template=output_template
+    )
     echo(line, color="yellow", err=stderr)
     if show_diff and violation.diff:
         echo_color_precomputed_diff(violation.diff, err=stderr)
