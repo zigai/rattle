@@ -7,37 +7,38 @@ _:
 _require-uv:
   @uv --version > /dev/null || (echo "Please install uv: https://docs.astral.sh/uv/" && exit 1)
 
-# install all dependency groups into the local environment
+# Install all dependency groups into the local environment
 install: _require-uv
   uv sync --inexact --all-groups
 
-# install the dev dependencies used for local testing and CI
+# Install the dev dependencies used for local testing and CI
 install-dev: _require-uv
   uv sync --inexact --group dev
 
-# install only the docs dependencies used for documentation builds
+# Install only the docs dependencies used for documentation builds
 install-docs: _require-uv
   uv sync --inexact --group docs
 
-# create or refresh the local virtual environment
+# Create or refresh the local virtual environment
 venv: install
   @echo 'run `source .venv/bin/activate` to activate virtualenv'
 
-# check code style and potential issues
+# Check code style and potential issues
 lint: _require-uv
   uv run --group dev ruff check src/rattle scripts examples docs/conf.py
   uv run --group dev ruff format --check src/rattle scripts examples docs/conf.py
   uv run --group dev python -m rattle lint src/rattle
 
-# format code
+# Format code
 format: _require-uv
   uv run --group dev ruff format src/rattle scripts examples docs/conf.py
 
-# fix automatically fixable linting issues
+
+# Fix automatically fixable linting issues
 fix: _require-uv
   uv run --group dev ruff check --fix src/rattle scripts examples docs/conf.py
 
-# run tests across all supported Python versions
+# Run tests across all supported Python versions
 [script]
 test *args: _require-uv
   from pathlib import Path
@@ -90,49 +91,50 @@ test *args: _require-uv
       if result.returncode:
           raise SystemExit(result.returncode)
 
-# build the package
+# Build the package
 build: _require-uv
   uv build
 
-# setup or update local dev environment and install pre-commit hooks
+# Setup or update local dev environment and install pre-commit hooks
 sync: install
   uv run --group dev pre-commit install
 
-# run tests with coverage and show a coverage report
+# Run tests with coverage and show a coverage report
 coverage: _require-uv
   uv run --group dev coverage run -m pytest
   uv run --group dev coverage report
 
-# build the docs and regenerate the builtins page
+# Build the docs and regenerate the builtins page
 docs: _require-uv
   uv run --group docs python scripts/document_rules.py
   uv run --group docs sphinx-build -ab html docs html
 
-# regenerate rule docs, commit generated changes, and build the docs
+# Regenerate rule docs, commit generated changes, and build the docs
 docs-commit: _require-uv
   uv run --group docs python scripts/document_rules.py --commit
   uv run --group docs sphinx-build -ab html docs html
 
-# clean build artifacts and caches
+# Clean build artifacts and caches
 clean:
   rm -rf .venv .pytest_cache .ruff_cache build dist html htmlcov .coverage
   find . -type d -name "__pycache__" -exec rm -r {} +
 
-# static type check with pyright
+# Static type check with pyright
 typecheck: _require-uv
   uv run --group dev pyright
 
-# check code for common misspellings
+# Check code for common misspellings
 spell: _require-uv
   uv run --group dev codespell .
 
-# run all quality checks
+# Run all quality checks
 check: lint coverage typecheck spell
+  uv run --group dev ruff format --check src/rattle scripts examples docs/conf.py
 
-# run the main local workflow
+# Run the main local workflow
 all: install test lint docs
 
-# list available recipes
+# List available recipes
 help:
   @just --list
 
