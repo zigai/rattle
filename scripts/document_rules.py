@@ -709,8 +709,8 @@ def generate_rule_docs(
         commit_generated_docs(message)
 
 
-def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> None:
-    Interfacy(sys_exit_enabled=sys_exit_enabled).run(generate_rule_docs, args=args)
+def main(args: list[str] | None = None) -> None:
+    Interfacy().run(generate_rule_docs, args=args)
 
 
 if __name__ == "__main__":

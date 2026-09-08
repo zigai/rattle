@@ -33,11 +33,9 @@ FIX_PARAMS = {
 }
 
 
-def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
+def build_app() -> Interfacy:
     app = Interfacy(
-        sys_exit_enabled=sys_exit_enabled,
         abbreviation_gen=NoAbbreviations(),
-        bool_negative_prefix=None,
         help_flags=("-h", "--help"),
         executable_flags=[
             ExecutableFlag(
@@ -96,16 +94,14 @@ def _coalesce_repeated_list_options(args: list[str]) -> list[str]:
     return output
 
 
-def main(args: list[str] | None = None, *, sys_exit_enabled: bool = True) -> object:
+def main(args: list[str] | None = None) -> object:
     """Run the rattle CLI."""
     if args is None:
         args = sys.argv[1:]
         if _should_reexec_with_uv(args):
             _reexec_with_uv(args)
 
-    return build_app(sys_exit_enabled=sys_exit_enabled).run(
-        args=_coalesce_repeated_list_options(args)
-    )
+    return build_app().run(args=_coalesce_repeated_list_options(args))
 
 
 __all__ = ["build_app", "main"]

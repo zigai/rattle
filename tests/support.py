@@ -10,7 +10,7 @@ from typing import Protocol, TextIO
 
 
 class Cli(Protocol):
-    def __call__(self, args: list[str], *, sys_exit_enabled: bool) -> object: ...
+    def __call__(self, args: list[str] | None = None) -> object: ...
 
 
 @dataclass(frozen=True)
@@ -104,7 +104,7 @@ class CliRunner:
             contextlib.redirect_stderr(stderr),
         ):
             try:
-                result = cli(list(args or ()), sys_exit_enabled=False)
+                result = cli(list(args or ()))
                 if isinstance(result, int):
                     exit_code = result
                 elif isinstance(result, SystemExit):
