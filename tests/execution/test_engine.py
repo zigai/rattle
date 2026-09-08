@@ -6,6 +6,7 @@
 from pathlib import Path
 from textwrap import dedent
 from unittest import TestCase
+from unittest.mock import patch
 
 import pytest
 from libcst import (
@@ -72,17 +73,37 @@ class EngineTest(TestCase):
                 type(self).visited_import = True
 
         runner = LintRunner(Path("clean.py"), b"x = 1\n")
+        rule = ImportFromRule()
 
-        assert (
-            list(
-                runner.collect_violations(
-                    [ImportFromRule()],
-                    Config(path=Path("clean.py")),
+        with patch.object(rule, "get_visitors", wraps=rule.get_visitors) as get_visitors:
+            assert (
+                list(
+                    runner.collect_violations(
+                        [rule],
+                        Config(path=Path("clean.py")),
+                    )
                 )
+                == []
             )
-            == []
-        )
+            get_visitors.assert_not_called()
         assert not ImportFromRule.visited_import
+
+        matching_rule = ImportFromRule()
+        matching_runner = LintRunner(Path("matching.py"), b"from x import y\n")
+        with patch.object(
+            matching_rule, "get_visitors", wraps=matching_rule.get_visitors
+        ) as get_visitors:
+            assert (
+                list(
+                    matching_runner.collect_violations(
+                        [matching_rule],
+                        Config(path=Path("matching.py")),
+                    )
+                )
+                == []
+            )
+            get_visitors.assert_called_once()
+        assert ImportFromRule.visited_import
 
     def test_collect_violations_still_parses_when_all_rules_are_source_filtered(self) -> None:
         class PatternRule(LintRule):

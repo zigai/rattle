@@ -2,6 +2,8 @@ from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from rattle.api import rattle_paths
 from rattle.config.models import Config, Options
 from rattle.diagnostics import Result
@@ -58,7 +60,7 @@ class TestApi:
         assert _default_worker_count(file_count=64, total_bytes=50_000_000, cpu_count=16) == 8
         assert _default_worker_count(file_count=100, total_bytes=None, cpu_count=16) == 8
 
-    def test_rattle_paths_caps_parallel_worker_count(self) -> None:
+    def test_rattle_paths_uses_default_worker_count(self) -> None:
         RecordingTrailrunner.calls.clear()
         paths: list[Path] = [Path(f"{index}.py") for index in range(10)]
 
@@ -85,7 +87,8 @@ class TestApi:
         expected_group = [(path.resolve(), Config(path=path), True) for path in paths]
         assert RecordingTrailrunner.calls == [(4, [[item] for item in expected_group])]
 
-    def test_rattle_paths_uses_configured_jobs(self) -> None:
+    @pytest.mark.parametrize(("jobs", "expected_workers"), [(2, 2), (100, 10)])
+    def test_rattle_paths_uses_configured_jobs(self, jobs: int, expected_workers: int) -> None:
         RecordingTrailrunner.calls.clear()
         paths: list[Path] = [Path(f"{index}.py") for index in range(10)]
 
@@ -106,10 +109,16 @@ class TestApi:
             patch("rattle.execution.paths._preload_rules_for_fork"),
             patch("rattle.execution.paths.trailrunner.Trailrunner", RecordingTrailrunner),
         ):
-            results = list(rattle_paths([Path("target")], options=Options(jobs=2)))
+            results = list(rattle_paths([Path("target")], options=Options(jobs=jobs)))
 
         assert [result.path.name for result in results] == [path.name for path in paths]
-        assert [call[0] for call in RecordingTrailrunner.calls] == [2]
+        assert [call[0] for call in RecordingTrailrunner.calls] == [expected_workers]
+        configured_paths = [
+            path
+            for batch in RecordingTrailrunner.calls[0][1]
+            for path, _config, _explicit_path in batch
+        ]
+        assert configured_paths == [path.resolve() for path in paths]
         default_worker_count.assert_not_called()
 
     def test_rattle_paths_reports_parallel_metrics_in_parent(self) -> None:

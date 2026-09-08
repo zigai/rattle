@@ -7,11 +7,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
 from unittest import TestCase
+from unittest.mock import patch
 
 import pytest
 from packaging.version import Version
 
-from rattle import config
+from rattle import config, rule_loading
 from rattle.config.models import Config
 from rattle.rule import LintRule
 from rattle.selectors import QualifiedRule, RuleNameSelector, Tags
@@ -144,9 +145,14 @@ class ConfigTest(TestCase):
         from rattle.rules.modernization.no_named_tuple import NoNamedTuple
         from rattle.rules.typing.use_types_from_typing import UseTypesFromTyping
 
-        AvoidOrInExcept.TAGS = {"exceptions"}
-        UseTypesFromTyping.TAGS = {"typing"}
-        NoNamedTuple.TAGS = {"typing", "tuples"}
+        for patcher in (
+            patch.object(AvoidOrInExcept, "TAGS", {"exceptions"}),
+            patch.object(UseTypesFromTyping, "TAGS", {"typing"}),
+            patch.object(NoNamedTuple, "TAGS", {"typing", "tuples"}),
+            patch.object(rule_loading, "_rule_plan_cache", {}),
+        ):
+            self.addCleanup(patcher.stop)
+            patcher.start()
 
         def collect_types(cfg: Config) -> list[type[LintRule]]:
             return sorted([type(rule) for rule in config.collect_rules(cfg)], key=str)

@@ -302,20 +302,29 @@ class ConfigTest(TestCase):
             )
 
             runner = CliRunner()
-            content = "name = '{name}'.format(name='Jane Doe')"
+            content = "name = '%s' % (first_name,)"
             filepath = self.tdp / "f_string.py"
-            filepath.write_text(content)
-            output_format_regex = r".*f_string\.py:\d+:\d+ use-f-string: .+"
+            output_format_regex = rf"{re.escape(filepath.name)}:\d+:\d+ use-f-string: .+"
 
             with self.subTest("linting vscode"):
+                filepath.write_text(content)
                 result = runner.invoke(main, ["lint", filepath.as_posix()], catch_exceptions=False)
-                assert re.search(output_format_regex, result.output)
+                assert result.exit_code == 1
+                assert any(
+                    re.fullmatch(output_format_regex, line) for line in result.stdout.splitlines()
+                )
 
             with self.subTest("fixing vscode"):
-                result = runner.invoke(main, ["fix", filepath.as_posix()], catch_exceptions=False)
-                assert re.search(output_format_regex, result.output)
+                filepath.write_text(content)
+                result = runner.invoke(
+                    main, ["fix", "--diff", filepath.as_posix()], catch_exceptions=False
+                )
+                assert result.exit_code == 0
+                assert any(
+                    re.fullmatch(output_format_regex, line) for line in result.stdout.splitlines()
+                )
 
-            custom_output_format_regex = r".*f_string\.py|\d+|\d+ use-f-string: .+"
+            custom_output_format_regex = rf"{re.escape(filepath.name)}\|\d+\|\d+ use-f-string: .+"
             custom_output_format = "{path}|{start_line}|{start_col} {rule_name}: {message}"
             (self.tdp / "pyproject.toml").write_text(
                 dedent(
@@ -329,12 +338,24 @@ class ConfigTest(TestCase):
             )
 
             with self.subTest("linting custom"):
+                filepath.write_text(content)
                 result = runner.invoke(main, ["lint", filepath.as_posix()], catch_exceptions=False)
-                assert re.search(custom_output_format_regex, result.output)
+                assert result.exit_code == 1
+                assert any(
+                    re.fullmatch(custom_output_format_regex, line)
+                    for line in result.stdout.splitlines()
+                )
 
             with self.subTest("fixing custom"):
-                result = runner.invoke(main, ["fix", filepath.as_posix()], catch_exceptions=False)
-                assert re.search(custom_output_format_regex, result.output)
+                filepath.write_text(content)
+                result = runner.invoke(
+                    main, ["fix", "--diff", filepath.as_posix()], catch_exceptions=False
+                )
+                assert result.exit_code == 0
+                assert any(
+                    re.fullmatch(custom_output_format_regex, line)
+                    for line in result.stdout.splitlines()
+                )
 
             with self.subTest("per-file output-format"):
                 nested = self.tdp / "nested"

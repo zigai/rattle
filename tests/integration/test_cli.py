@@ -155,7 +155,23 @@ class CliTest(TestCase):
         assert "Config(" not in result.stdout
 
     def test_rules_command_displays_disabled_rules_with_canonical_names(self) -> None:
-        result = self.runner.invoke(main, ["rules"], catch_exceptions=False)
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            config = root / "pyproject.toml"
+            config.write_text(
+                "[tool.rattle]\n"
+                "root = true\n"
+                'python-version = "3.10"\n'
+                'enable = ["explicit-frozen-dataclass", "use-rattle-ignore-comment", '
+                '"use-types-from-typing"]\n'
+                'disable = ["explicit-frozen-dataclass", "use-rattle-ignore-comment"]\n'
+            )
+            path = write_clean_file(root)
+            result = self.runner.invoke(
+                main,
+                ["rules", "--config", config.as_posix(), path.as_posix()],
+                catch_exceptions=False,
+            )
 
         assert result.exit_code == 0
         assert "Disabled" in result.stdout

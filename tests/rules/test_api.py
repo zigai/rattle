@@ -13,7 +13,7 @@ import pytest
 from libcst.metadata import CodePosition, CodeRange
 
 from rattle.config.models import Config
-from rattle.engine import LintRunner
+from rattle.engine import LintRunner, Metrics
 from rattle.rule import LintRule, RuleSetting, rule_name_from_class_name
 
 
@@ -89,13 +89,34 @@ class RunnerTest(TestCase):
         assert "Count.Total" in self.runner.metrics
 
     def test_timing_hook(self) -> None:
+        rule = ExerciseReportRule()
+        observed_metrics: list[Metrics] = []
+        hook = MagicMock(side_effect=lambda metrics: observed_metrics.append(dict(metrics)))
+        violations = self.runner.collect_violations([rule], Config(), metrics_hook=hook)
+
+        hook.assert_not_called()
+        module_violation = next(violations)
+        assert module_violation.message == "Module"
+        hook.assert_not_called()
+        pass_violation = next(violations)
+        assert pass_violation.message == "I pass"
+        hook.assert_not_called()
+
+        with pytest.raises(StopIteration) as completed:
+            next(violations)
+
+        assert completed.value.value == 2
+        hook.assert_called_once()
+        assert observed_metrics[0]["Count.Total"] == 2
+        assert observed_metrics[0]["Count.exercise-report-rule"] == 2
+        assert observed_metrics[0]["FixCount.exercise-report-rule"] == 0
+
+    def test_timing_hook_without_violations(self) -> None:
         rule = NoopRule()
         hook = MagicMock()
-        for i, _ in enumerate(self.runner.collect_violations([rule], Config(), metrics_hook=hook)):
-            if i <= 1:
-                # only called at the end
-                hook.assert_not_called()
+        assert list(self.runner.collect_violations([rule], Config(), metrics_hook=hook)) == []
         hook.assert_called_once()
+        assert hook.call_args.args[0]["Count.Total"] == 0
 
 
 class ExerciseReportRule(LintRule):
