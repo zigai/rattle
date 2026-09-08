@@ -39,8 +39,6 @@ def _parse_forbidden_name(entry: str | ForbiddenNameEntry) -> ForbiddenNameEntry
     rule = f"{kind}:{pattern}"
     if not _ENTRY_PATTERN.fullmatch(rule):
         raise ValueError(f"expected forbidden name entry with kind and pattern, got {entry!r}")
-    if normalized_message == "":
-        raise ValueError(f"expected non-empty message in forbidden name entry, got {entry!r}")
 
     return ForbiddenNameEntry(kind=kind, pattern=pattern, message=normalized_message)
 

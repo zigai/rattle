@@ -43,11 +43,6 @@ _ORDER_SENSITIVE_BASE_TAILS = _ORDER_SENSITIVE_BASE_NAMES
 _ORDER_SENSITIVE_DECORATOR_TAILS = {
     name.rsplit(".", 1)[-1] for name in _ORDER_SENSITIVE_DECORATOR_NAMES
 }
-_OVERLOAD_DECORATOR_NAMES = {
-    "overload",
-    "typing.overload",
-    "typing_extensions.overload",
-}
 _OVERLOAD_DECORATOR_TAILS = {"overload"}
 _PUBLIC_ACCESSOR_DECORATOR_SUFFIXES = (".setter", ".deleter")
 _REGISTER_DECORATOR_SUFFIXES = (".register",)
@@ -440,8 +435,6 @@ class PublicMethodOrder(LintRule):
             if method_name in overload_names:
                 continue
             if self._is_public_accessor(method):
-                continue
-            if self._is_overload_declaration(method):
                 continue
             if self._is_order_sensitive_registration(method):
                 continue

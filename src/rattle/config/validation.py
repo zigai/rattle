@@ -104,11 +104,7 @@ class ConfigValidator:
 
     def _validate_inherited_ruff_files(self) -> None:
         inherit_ruff_files = self.data.get("inherit-ruff-files", False)
-        if inherit_ruff_files and not isinstance(inherit_ruff_files, bool):
-            self.exceptions.append(
-                "Failed to parse inherit-ruff-files: ConfigError: 'inherit-ruff-files' must be a boolean"
-            )
-        elif inherit_ruff_files:
+        if inherit_ruff_files:
             try:
                 _read_ruff_file_selection(self.config)
             except (ConfigError, OSError, TOMLDecodeError) as e:
@@ -118,25 +114,14 @@ class ConfigValidator:
 
     def _collect_overrides(self) -> None:
         overrides = self.data.get("overrides", [])
-        if not isinstance(overrides, list):
-            self.exceptions.append(
-                "Failed to parse overrides: ConfigError: 'overrides' requires array of tables"
-            )
-            return
+        # read_configs has already validated these shapes; retain type narrowing.
+        assert isinstance(overrides, list)
 
         for override in overrides:
-            if not isinstance(override, dict):
-                self.exceptions.append(
-                    "Failed to parse overrides: ConfigError: 'overrides' requires array of tables"
-                )
-                continue
+            assert isinstance(override, dict)
 
-            raw_override_path = override.get("path", self.path.as_posix())
-            if not isinstance(raw_override_path, str):
-                self.exceptions.append(
-                    "Failed to parse overrides: ConfigError: override path must be a string"
-                )
-                continue
+            raw_override_path = override["path"]
+            assert isinstance(raw_override_path, str)
             override_path = Path(raw_override_path)
             self._collect_rule_selectors(
                 _get_string_sequence_from_mapping(self.config, override, "enable"),

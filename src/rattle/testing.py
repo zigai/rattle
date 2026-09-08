@@ -235,27 +235,15 @@ def add_lint_rule_tests_to_module(
     module_attrs: dict[str, Any], rules: Collection[LintRule]
 ) -> None:
     """
-    Generates classes inheriting from `unittest.TestCase` from the data available in `rules` and adds these to module_attrs.
-    The goal is to facilitate unit test discovery by Python's `unittest` framework. This will provide the capability of
-    testing your lint rules by running commands such as `python -m unittest <your testing module name>`.
+    Generate LintRuleTestCase subclasses from rule instances and install them in a module.
 
-    module_attrs: A dictionary of attributes we want to add these test cases to. If adding to a module, you can pass `globals()` as the argument.
+    Generated classes expose each rule's VALID and INVALID cases for unittest
+    discovery, allowing `python -m unittest <your testing module name>` to run them.
 
-    rules: A collection of classes extending `LintRule` to be converted to test cases.
-
-    test_case_type: A class extending Python's `unittest.TestCase` that implements a custom test method for testing lint rules to serve as a stencil for test cases.
-    New classes will be generated, and named after each lint rule. They will inherit directly from the class passed into `test_case_type`.
-    If argument is omitted, will default to the `LintRuleTestCase` class from rattle.common.testing.
-
-    custom_test_method_name: A member method of the class passed into `test_case_type` parameter that contains the logic around asserting success or failure of
-    LintRule's `Valid` and `Invalid` test cases. The method will be dynamically renamed to `test_<VALID/INVALID>_<test case index>` for discovery
-    by unittest. If argument is omitted, `add_lint_rule_tests_to_module` will look for a test method named `_test_method` member of `test_case_type`.
-
-    fixture_dir: The directory in which fixture files for the passed rules live. Necessary only if any lint rules require fixture data for testing.
-
-    rules_package: The name of the rules package. This will be used during the search for fixture files and provides insight into the structure of the fixture directory.
-    The structure of the fixture directory is automatically assumed to mirror the structure of the rules package, eg: `<rules_package>.submodule.module.rule_class` should
-    have fixture files in `<fixture_dir>/submodule/module/rule_class/`.
+    Args:
+        module_attrs: Module attributes to receive the generated classes, typically
+            supplied with `globals()`.
+        rules: LintRule instances whose embedded cases should become tests.
     """
     test_case_classes = generate_lint_rule_test_cases(rules)
     for test_case_class in test_case_classes:

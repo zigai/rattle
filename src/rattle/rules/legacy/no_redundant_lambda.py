@@ -5,7 +5,6 @@
 
 import libcst as cst
 import libcst.matchers as m
-from libcst.helpers import get_full_name_for_node
 from libcst.metadata import ParentNodeProvider
 
 from rattle.rule import Invalid, LintRule, Valid
@@ -81,13 +80,9 @@ class NoRedundantLambda(LintRule):
             if not isinstance(call.func, cst.Name):
                 return
 
-            full_name = get_full_name_for_node(call)
-            if full_name is None:
-                full_name = "function"
-
             self.report(
                 node,
-                UNNECESSARY_LAMBDA.format(function=full_name),
+                UNNECESSARY_LAMBDA.format(function=call.func.value),
             )
 
     def _is_in_class_scope(self, node: cst.CSTNode) -> bool:

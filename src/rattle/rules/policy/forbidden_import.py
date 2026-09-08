@@ -26,8 +26,6 @@ def _parse_forbidden_import(entry: str | ForbiddenImportEntry) -> ForbiddenImpor
 
     if not boundary or any(not part.isidentifier() for part in boundary.split(".")):
         raise ValueError(f"expected import boundary in forbidden import entry, got {entry!r}")
-    if normalized_message == "":
-        raise ValueError(f"expected non-empty message in forbidden import entry, got {entry!r}")
 
     return ForbiddenImportEntry(boundary=boundary, message=normalized_message)
 

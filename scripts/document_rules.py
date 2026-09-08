@@ -357,11 +357,8 @@ class InvalidExampleDoc:
 class RuleDoc:
     name: str
     slug: str
-    module: str
     collection: str
-    selector: str
     path: str
-    toctree_path: str
     description: str
     message: str
     message_is_template: bool
@@ -370,7 +367,6 @@ class RuleDoc:
     autofix: str
     autofix_icon: str
     python_version: str
-    tags: str
     settings: Sequence[SettingDoc]
     valid_examples_visible: Sequence[ExampleDoc]
     valid_examples_hidden: Sequence[ExampleDoc]
@@ -381,7 +377,6 @@ class RuleDoc:
 @dataclass(frozen=True)
 class CategoryDoc:
     collection: str
-    module: str
     title: str
     description: str
     slug: str
@@ -598,11 +593,8 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
     return RuleDoc(
         name=name,
         slug=slug,
-        module=rule.__module__,
         collection=collection,
-        selector=f"{rule.__module__}:{name}",
         path=f"rules/{slug}.md",
-        toctree_path=f"rules/{slug}",
         description=description,
         message=message,
         message_is_template=message_is_template,
@@ -611,7 +603,6 @@ def build_rule_doc(rule: type[LintRule], *, collection: str) -> RuleDoc:
         autofix="Yes" if rule.AUTOFIX else "No",
         autofix_icon="Yes" if rule.AUTOFIX else "No",
         python_version=f"`{python_version}`" if python_version != "Any" else "Any",
-        tags=", ".join(f"`{tag}`" for tag in sorted(rule.TAGS)),
         settings=settings,
         valid_examples_visible=valid_examples_visible,
         valid_examples_hidden=valid_examples_hidden,
@@ -642,7 +633,6 @@ def build_categories() -> list[CategoryDoc]:
         categories.append(
             CategoryDoc(
                 collection=collection,
-                module=module,
                 title=title,
                 description=CATEGORY_DESCRIPTIONS.get(collection, "Built-in Rattle rules."),
                 slug=slug,

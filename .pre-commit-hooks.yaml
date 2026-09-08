@@ -7,6 +7,6 @@
 - id: rattle-fix
   name: Rattle - lint and apply autofixes
   description: This hook shows Rattle lints and applies suggested changes.
-  entry: rattle fix --automatic
+  entry: rattle fix
   language: python
   types: [python]

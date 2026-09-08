@@ -68,10 +68,7 @@ def build_app(*, sys_exit_enabled: bool = True) -> Interfacy:
     return app
 
 
-def _coalesce_repeated_list_options(args: list[str] | None) -> list[str] | None:
-    if args is None:
-        return None
-
+def _coalesce_repeated_list_options(args: list[str]) -> list[str]:
     repeated_options = {"--exclude", "-e", "--extend-exclude", "-ee"}
     output: list[str] = []
     pending: dict[str, int] = {}

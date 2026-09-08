@@ -27,24 +27,23 @@ def _drive_rattle_bytes(
     clean = True
     cache_violations: list[LintViolation] = []
 
+    try:
+        result = next(runner)
+    except StopIteration as e:
+        return e.value, clean, cacheable, cache_violations
+
     while True:
+        if result.violation or result.error:
+            clean = False
+        if result.error:
+            cacheable = False
+        if result.violation:
+            cache_violations.append(result.violation)
+        send_value = yield result
         try:
-            result = next(runner)
+            result = runner.send(bool(send_value))
         except StopIteration as e:
             return e.value, clean, cacheable, cache_violations
-
-        while True:
-            if result.violation or result.error:
-                clean = False
-            if result.error:
-                cacheable = False
-            if result.violation:
-                cache_violations.append(result.violation)
-            send_value = yield result
-            try:
-                result = runner.send(bool(send_value))
-            except StopIteration as e:
-                return e.value, clean, cacheable, cache_violations
 
 
 def _rattle_bytes_autofix_with_diff(

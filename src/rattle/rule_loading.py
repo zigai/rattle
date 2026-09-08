@@ -214,10 +214,7 @@ def find_rules(rule: QualifiedRule) -> Iterable[type[LintRule]]:
 
         if rule.name:
             if value := module_rules.get(rule.name, None):
-                if issubclass(value, LintRule):
-                    yield value
-                else:
-                    LOG.warning("don't know what to do with {value!r}")
+                yield value
             elif rule.local:
                 raise CollectionError(f"could not find rule {rule} in {rule.root}", rule)
             else:

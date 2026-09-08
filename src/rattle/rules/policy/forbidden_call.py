@@ -41,8 +41,6 @@ def _parse_forbidden_call(entry: str | ForbiddenCallEntry) -> ForbiddenCallEntry
 
     if not _SYMBOL_PATTERN.fullmatch(symbol):
         raise ValueError(f"expected callable symbol in forbidden call entry, got {entry!r}")
-    if normalized_message == "":
-        raise ValueError(f"expected non-empty message in forbidden call entry, got {entry!r}")
     if normalized_use_instead is not None and not _SYMBOL_PATTERN.fullmatch(normalized_use_instead):
         raise ValueError(
             f"expected callable use_instead symbol in forbidden call entry, got {entry!r}"

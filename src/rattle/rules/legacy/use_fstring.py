@@ -182,10 +182,6 @@ class UseFstring(LintRule):
             escape_transformer = EscapeStringQuote(simple_string.quote)
             i = 1
             while i < len(tokens):
-                if i - 1 >= len(expressions):
-                    # Only generate warning for cases where %-string not comes with same number of elements in tuple
-                    self.report(node, self.MESSAGE)
-                    return
                 try:
                     parts.append(
                         cst.FormattedStringExpression(
