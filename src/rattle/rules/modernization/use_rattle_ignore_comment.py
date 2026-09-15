@@ -9,7 +9,9 @@ import libcst as cst
 
 from rattle.rule import Invalid, LintRule, Valid
 
-NOQA_COMMENT_PATTERN = re.compile(r"(?:^|#)\s*(?:flake8:\s*)?noqa(?=$|[\s:,\[])", re.IGNORECASE)
+NOQA_COMMENT_PATTERN = re.compile(
+    r"(?:^|(?<=\s))#\s*(?:flake8:\s*)?noqa(?=$|[\s:,\[])", re.IGNORECASE
+)
 
 
 class UseRattleIgnoreComment(LintRule):
@@ -35,6 +37,8 @@ class UseRattleIgnoreComment(LintRule):
         ),
         Valid("fn()  # noqaed by another tool"),
         Valid("fn()  # See https://example.test/noqa-policy"),
+        Valid("fn()  # https://github.com/astral-sh/ruff/issues/123#noqa-support"),
+        Valid("fn()  # https://example.test/#noqa"),
     ]
     INVALID = [
         Invalid("fn() # noqa"),

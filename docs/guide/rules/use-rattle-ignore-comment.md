@@ -41,6 +41,18 @@ fn()  # noqaed by another tool
 ```python
 fn()  # See https://example.test/noqa-policy
 ```
+```python
+fn()  # https://github.com/astral-sh/ruff/issues/123#noqa-support
+```
+```{raw} html
+<details class="rule-extra-examples"><summary>Show more</summary>
+```
+```python
+fn()  # https://example.test/#noqa
+```
+```{raw} html
+</details>
+```
 
 ## Invalid examples
 
