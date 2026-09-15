@@ -265,9 +265,11 @@ class NoBareObjectAnnotations(LintRule):
         if self._should_skip_current_file():
             return
 
+        is_dunder_comparison = node.name.value in {"__eq__", "__ne__"}
         for parameter in ordinary_parameters(node.params):
+            if is_dunder_comparison and parameter.name.value in {"other", "o"}:
+                continue
             self._report_param_if_needed(parameter)
-
         if node.returns is not None and self._is_bare_object_annotation(node.returns.annotation):
             self.report(node.returns, self.MESSAGE)
 

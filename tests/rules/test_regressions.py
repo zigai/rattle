@@ -1044,3 +1044,14 @@ def test_no_string_type_annotation_tuple_parentheses() -> None:
     assert len(reports) == 1
     assert 'x: (int, str) = (1, "a")' in fixed
     ast.parse(fixed)
+
+
+def test_no_bare_object_annotations_exempts_dunder_eq_other() -> None:
+    code = """class Item:
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Item)
+    def __ne__(self, other: object) -> bool:
+        return not self.__eq__(other)
+"""
+    _runner, reports = _reports(NoBareObjectAnnotations(), code)
+    assert reports == []
