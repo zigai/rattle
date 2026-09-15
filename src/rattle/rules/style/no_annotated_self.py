@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import libcst as cst
+import libcst.matchers as m
 from libcst.metadata import (
     ParentNodeProvider,
     QualifiedName,
@@ -95,6 +96,17 @@ class NoAnnotatedSelf(LintRule):
                     pass
             """
         ),
+        Valid(
+            """
+            from typing import TypeVar
+
+            T = TypeVar("T", bound="Query")
+
+            class Query:
+                def filter(self: T, condition: str) -> T:
+                    return self
+            """
+        ),
     ]
 
     INVALID = [
@@ -151,12 +163,49 @@ class NoAnnotatedSelf(LintRule):
             return
         if parameter.annotation is None:
             return
+        if not self._should_report_self_annotation(node, parameter):
+            return
 
         self.report(
             parameter,
             self.MESSAGE,
             replacement=parameter.with_changes(annotation=None),
         )
+
+    def _enclosing_class_name(self, node: cst.FunctionDef) -> str | None:
+        parent: cst.CSTNode | None = self.get_metadata(ParentNodeProvider, node, None)
+        while parent and not isinstance(parent, cst.ClassDef):
+            parent = self.get_metadata(ParentNodeProvider, parent, None)
+        return parent.name.value if isinstance(parent, cst.ClassDef) else None
+
+    def _should_report_self_annotation(self, node: cst.FunctionDef, parameter: cst.Param) -> bool:
+        if parameter.annotation is None:
+            return False
+        if node.name.value == "__new__":
+            return False
+
+        annot_expr = parameter.annotation.annotation
+        if isinstance(annot_expr, cst.Subscript):
+            return False
+
+        annot_names = self._extract_annotation_names(annot_expr)
+        class_name = self._enclosing_class_name(node)
+
+        if class_name and (class_name in annot_names or "Self" in annot_names):
+            return True
+
+        if node.returns is not None:
+            return_names = self._extract_annotation_names(node.returns.annotation)
+            if annot_names & return_names:
+                return False
+
+        return True
+
+    @staticmethod
+    def _extract_annotation_names(annot_expr: cst.BaseExpression) -> set[str]:
+        if isinstance(annot_expr, cst.SimpleString):
+            return {annot_expr.value.strip("'\"")}
+        return {n.value for n in m.findall(annot_expr, m.Name()) if isinstance(n, cst.Name)}
 
     def _is_non_instance_method(self, node: cst.FunctionDef) -> bool:
         return any(

@@ -80,6 +80,15 @@ class A:
     def helper(self: int) -> None:
         pass
 ```
+```python
+from typing import TypeVar
+
+T = TypeVar("T", bound="Query")
+
+class Query:
+    def filter(self: T, condition: str) -> T:
+        return self
+```
 ```{raw} html
 </details>
 ```
