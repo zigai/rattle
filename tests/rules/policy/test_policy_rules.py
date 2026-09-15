@@ -1207,6 +1207,12 @@ def test_forbidden_name_accepts_documented_leading_glob() -> None:
     assert len(reports) == 1
 
 
+def test_forbidden_name_catches_import_from() -> None:
+    reports = _run_forbidden_name("from requests import get", ["import:requests"])
+    assert len(reports) == 1
+    assert "requests" in reports[0].message
+
+
 def test_underscore_import_alias_range_targets_alias_name() -> None:
     reports = _run_rule(NoUnderscoreImportAliases(), "import json as _json")
 

@@ -199,6 +199,11 @@ class ForbiddenName(LintRule):
 
             return
 
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
+        if node.module is not None:
+            for name in _dotted_names(node.module):
+                self._report_for_name(name, "import")
+
     def _report_for_target(self, target: cst.BaseExpression) -> None:
         for name in target_names(target):
             self._report_for_name(name, "variable")
