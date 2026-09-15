@@ -15,6 +15,7 @@ from rattle.rules.blank_lines.utils import (
     is_header_block_statement,
     is_single_line_control_block,
     prepend_blank_line,
+    try_has_pass_handler,
 )
 
 
@@ -95,6 +96,17 @@ class BlankLineAfterTerminalControlBlock(BaseBlankLinesRule, LintRule):
                 return out
             """
         ),
+        Valid(
+            """
+            def get_value(cache: dict[str, str], key: str) -> str:
+                try:
+                    return cache[key]
+                except KeyError:
+                    pass
+                value = compute()
+                return value
+            """
+        ),
     ]
     INVALID = [
         Invalid(
@@ -136,28 +148,6 @@ class BlankLineAfterTerminalControlBlock(BaseBlankLinesRule, LintRule):
                     result.append(value)
 
                 return result
-            """,
-            expected_message=MESSAGE,
-        ),
-        Invalid(
-            """
-            def parse(text: str) -> object:
-                try:
-                    return json.loads(text)
-                except ValueError:
-                    pass
-                parsed = tomllib.loads(text)
-                return parsed
-            """,
-            expected_replacement="""
-            def parse(text: str) -> object:
-                try:
-                    return json.loads(text)
-                except ValueError:
-                    pass
-
-                parsed = tomllib.loads(text)
-                return parsed
             """,
             expected_message=MESSAGE,
         ),
@@ -204,6 +194,9 @@ class BlankLineAfterTerminalControlBlock(BaseBlankLinesRule, LintRule):
 
     def _has_terminal_branch(self, statement: cst.BaseStatement) -> bool:
         if not is_control_block_statement(statement):
+            return False
+
+        if try_has_pass_handler(statement):
             return False
 
         return any(

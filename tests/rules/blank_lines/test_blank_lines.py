@@ -1341,3 +1341,28 @@ def test_relaxed_cuddle_async_header_range_covers_keyword(
     assert len(reports) == 1
     assert reports[0].range is not None
     assert reports[0].range.end.column - reports[0].range.start.column == expected_length
+
+
+def test_blank_line_after_control_block_with_as_target_inspection() -> None:
+    from rattle.rules.blank_lines.blank_line_after_control_block import BlankLineAfterControlBlock
+
+    _runner, reports = _run_rule(
+        BlankLineAfterControlBlock,
+        """
+        def test_session():
+            with Session() as s:
+                s.run()
+            assert s.is_done
+        """,
+    )
+    assert reports == []
+
+
+def test_is_compact_guard_if_supports_single_line_suite() -> None:
+    import libcst as cst
+
+    from rattle.rules.blank_lines.utils import is_compact_guard_if
+
+    mod = cst.parse_module("if x < 0: return 0\n")
+    stmt = mod.body[0]
+    assert is_compact_guard_if(stmt) is True

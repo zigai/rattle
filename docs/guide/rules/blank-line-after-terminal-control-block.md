@@ -100,6 +100,15 @@ def render(parser: object, capsys: object) -> object:
     out = capsys.readouterr()
     return out
 ```
+```python
+def get_value(cache: dict[str, str], key: str) -> str:
+    try:
+        return cache[key]
+    except KeyError:
+        pass
+    value = compute()
+    return value
+```
 ```{raw} html
 </details>
 ```
@@ -133,57 +142,30 @@ def normalize(value: str | None) -> str:
 <details class="rule-extra-examples"><summary>Show more</summary>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
-```
-```python
-def collect(values: list[int]) -> list[int]:
-    result: list[int] = []
-    for value in values:
-        if value < 0:
-            continue
-        result.append(value)
-
-    return result
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-def collect(values: list[int]) -> list[int]:
-    result: list[int] = []
-    for value in values:
-        if value < 0:
-            continue
-
-        result.append(value)
-
-    return result
-```
-```{raw} html
-</div>
-```
-```{raw} html
 <div class="rule-invalid-example">
 ```
 ```python
-def parse(text: str) -> object:
-    try:
-        return json.loads(text)
-    except ValueError:
-        pass
-    parsed = tomllib.loads(text)
-    return parsed
+def collect(values: list[int]) -> list[int]:
+    result: list[int] = []
+    for value in values:
+        if value < 0:
+            continue
+        result.append(value)
+
+    return result
 ```
 <p class="rule-example-label">Suggested fix</p>
 
 ```python
-def parse(text: str) -> object:
-    try:
-        return json.loads(text)
-    except ValueError:
-        pass
+def collect(values: list[int]) -> list[int]:
+    result: list[int] = []
+    for value in values:
+        if value < 0:
+            continue
 
-    parsed = tomllib.loads(text)
-    return parsed
+        result.append(value)
+
+    return result
 ```
 ```{raw} html
 </div>

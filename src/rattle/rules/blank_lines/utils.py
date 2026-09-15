@@ -742,11 +742,16 @@ def compact_tail_run_before(
 
 
 def is_compact_guard_if(statement: cst.BaseStatement) -> bool:
-    if (
-        not isinstance(statement, cst.If)
-        or statement.orelse is not None
-        or not isinstance(statement.body, cst.IndentedBlock)
-    ):
+    if not isinstance(statement, cst.If) or statement.orelse is not None:
+        return False
+
+    if isinstance(statement.body, cst.SimpleStatementSuite):
+        body_small = statement.body.body
+        return bool(
+            1 <= len(body_small) <= 2 and isinstance(body_small[-1], BRANCH_SMALL_STATEMENTS)
+        )
+
+    if not isinstance(statement.body, cst.IndentedBlock):
         return False
 
     body_statements = statement.body.body
@@ -843,9 +848,11 @@ def next_statement_inspects_with_assignment(
         return False
 
     names: set[str] = set()
+    for item in current_statement.items:
+        if item.asname is not None and item.asname.name is not None:
+            names.update(extract_target_names(item.asname.name))
     for body_statement in body_statements:
         names.update(assigned_names(body_statement))
-
     if not names:
         return False
 
@@ -959,6 +966,12 @@ def is_pass_only_try(statement: cst.BaseStatement) -> bool:
     )
 
 
+def try_has_pass_handler(statement: cst.BaseStatement) -> bool:
+    return isinstance(statement, (cst.Try, cst.TryStar)) and any(
+        _suite_is_single_pass(handler.body) for handler in statement.handlers
+    )
+
+
 def count_non_empty_lines(source_lines: list[str], start_line: int, end_line: int) -> int:
     if not source_lines:
         return 0
@@ -1034,4 +1047,5 @@ __all__ = [
     "statement_touches_name",
     "suite_statements",
     "target_reference_names",
+    "try_has_pass_handler",
 ]
