@@ -370,6 +370,8 @@ class NoStringTypeAnnotation(LintRule):
             return
         try:
             repl = cst.parse_expression(value)
+            if isinstance(repl, cst.Tuple) and not repl.lpar:
+                repl = repl.with_changes(lpar=[cst.LeftParen()], rpar=[cst.RightParen()])
             self.report(node, self.MESSAGE, replacement=repl)
         except cst.ParserSyntaxError:
             self.report(node, self.MESSAGE)

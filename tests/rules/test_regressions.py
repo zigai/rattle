@@ -1050,3 +1050,13 @@ def test_abc_class_rewrite_preserves_each_base_diagnostic_and_complete_replaceme
 
     assert runner.apply_replacements(reports).code == expected
     assert runner.module.code == source
+
+
+def test_no_string_type_annotation_tuple_parentheses() -> None:
+    import ast
+
+    code = 'from __future__ import annotations\nx: "int, str" = (1, "a")\n'
+    reports, fixed = _fixed(NoStringTypeAnnotation(), code)
+    assert len(reports) == 1
+    assert 'x: (int, str) = (1, "a")' in fixed
+    ast.parse(fixed)
