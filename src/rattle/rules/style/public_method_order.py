@@ -69,13 +69,11 @@ def _decorator_names(decorators: Sequence[cst.Decorator]) -> tuple[str, ...]:
     )
 
 
-def _is_public_accessor(method: cst.FunctionDef) -> bool:
+def _is_public_secondary_accessor(method: cst.FunctionDef) -> bool:
     if method.name.value.startswith("_"):
         return False
 
     for decorator_name in _decorator_names(method.decorators):
-        if decorator_name == "property":
-            return True
         if decorator_name.endswith(_PUBLIC_ACCESSOR_DECORATOR_SUFFIXES):
             return True
 
@@ -189,12 +187,12 @@ class PublicMethodOrder(LintRule):
             from builtins import property as prop
 
             class Workflow:
-                def _normalize(self) -> str:
-                    return "ok"
-
                 @prop
                 def value(self) -> str:
                     return self._normalize()
+
+                def _normalize(self) -> str:
+                    return "ok"
             """),
         Valid("""
             from typing import overload
@@ -421,22 +419,28 @@ class PublicMethodOrder(LintRule):
             for decorator in node.decorators
         )
 
-    def _first_order_violation(
+    def _first_order_violation(  # noqa: C901
         self, methods: list[cst.FunctionDef]
     ) -> tuple[cst.FunctionDef, str] | None:
         first_private_helper_name: str | None = None
         overload_names = {
             method.name.value for method in methods if self._is_overload_declaration(method)
         }
+        seen_overload_names: set[str] = set()
+        seen_public_properties: set[str] = set()
         for method in methods:
             method_name = method.name.value
             if _is_dunder(method_name):
                 continue
-            if method_name in overload_names:
-                continue
-            if self._is_public_accessor(method):
-                continue
             if self._is_order_sensitive_registration(method):
+                continue
+            if self._is_public_secondary_accessor(method) and method_name in seen_public_properties:
+                continue
+            if method_name in overload_names:
+                if method_name not in seen_overload_names:
+                    seen_overload_names.add(method_name)
+                    if not method_name.startswith("_") and first_private_helper_name is not None:
+                        return method, first_private_helper_name
                 continue
 
             if method_name.startswith("_"):
@@ -444,20 +448,24 @@ class PublicMethodOrder(LintRule):
                     first_private_helper_name = method_name
 
                 continue
+            seen_public_properties.add(method_name)
 
             if first_private_helper_name is not None:
                 return method, first_private_helper_name
 
         return None
 
-    def _is_public_accessor(self, method: cst.FunctionDef) -> bool:
-        if _is_public_accessor(method):
+    def _is_public_secondary_accessor(self, method: cst.FunctionDef) -> bool:
+        if _is_public_secondary_accessor(method):
             return True
         if method.name.value.startswith("_"):
             return False
 
         return any(
-            self._expression_resolves_to_tail(decorator.decorator, {"property"})
+            any(
+                self._expression_resolves_to_tail(decorator.decorator, {suffix.lstrip(".")})
+                for suffix in _PUBLIC_ACCESSOR_DECORATOR_SUFFIXES
+            )
             for decorator in method.decorators
         )
 

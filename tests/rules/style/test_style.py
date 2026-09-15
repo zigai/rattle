@@ -177,3 +177,62 @@ def test_annotated_self_in_conditional_class_body_is_reported() -> None:
 
     assert len(reports) == 1
     assert "def run(self) -> None:" in fixed
+
+
+def test_public_method_order_flags_overload_after_helper() -> None:
+    _runner, reports = _reports(
+        PublicMethodOrder(),
+        """
+        from typing import overload
+
+        class Service:
+            def _helper(self):
+                pass
+
+            @overload
+            def run(self, x: int) -> int: ...
+            @overload
+            def run(self, x: str) -> str: ...
+            def run(self, x):
+                return x
+        """,
+    )
+    assert len(reports) == 1
+    assert "Public method 'run' appears after private helper '_helper'" in reports[0].message
+
+
+def test_public_method_order_flags_property_after_helper() -> None:
+    _runner, reports = _reports(
+        PublicMethodOrder(),
+        """
+        class Service:
+            def _setup(self) -> None:
+                pass
+
+            @property
+            def value(self) -> int:
+                return 1
+        """,
+    )
+    assert len(reports) == 1
+    assert "Public method 'value' appears after private helper '_setup'" in reports[0].message
+
+
+def test_public_method_order_allows_setter_after_helper_if_getter_precedes() -> None:
+    _runner, reports = _reports(
+        PublicMethodOrder(),
+        """
+        class Service:
+            @property
+            def value(self) -> int:
+                return 1
+
+            def _setup(self) -> None:
+                pass
+
+            @value.setter
+            def value(self, val: int) -> None:
+                pass
+        """,
+    )
+    assert len(reports) == 0

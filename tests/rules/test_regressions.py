@@ -344,21 +344,6 @@ def test_alias_and_scope_false_negative_regressions(rule: LintRule, source: str)
         (
             PublicMethodOrder(),
             """
-            def property(func):
-                return func
-
-            class Workflow:
-                def _normalize(self) -> str:
-                    return "ok"
-
-                @property
-                def value(self) -> str:
-                    return self._normalize()
-            """,
-        ),
-        (
-            PublicMethodOrder(),
-            """
             def singledispatchmethod(func):
                 return func
 

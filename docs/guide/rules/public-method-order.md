@@ -109,12 +109,12 @@ class Workflow:
 from builtins import property as prop
 
 class Workflow:
-    def _normalize(self) -> str:
-        return "ok"
-
     @prop
     def value(self) -> str:
         return self._normalize()
+
+    def _normalize(self) -> str:
+        return "ok"
 ```
 ```python
 from typing import overload
