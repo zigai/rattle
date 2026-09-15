@@ -150,6 +150,7 @@ def rattle_bytes(
         ParserSyntaxError,
         RattleError,
         RuleConfigurationError,
+        SyntaxError,
         UnicodeError,
     ) as e:
         # TODO: this is not the right place to catch errors

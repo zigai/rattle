@@ -59,3 +59,19 @@ class TestApi:
         assert diffs[0].count("-z = x") == 1
         assert diffs[0].count("+z = y") == 1
         assert diffs[1:] == ["", ""]
+
+    def test_rattle_bytes_handles_syntax_error_null_bytes(self) -> None:
+        class DummyRule(LintRule):
+            pass
+
+        path = Path("binary.py")
+        results = list(
+            rattle_bytes(
+                path,
+                b"\x00\x00\x00\x00",
+                config=Config(path=path),
+                rules=[DummyRule()],
+            )
+        )
+        assert results[0].error is not None
+        assert "SyntaxError" in str(results[0].error[0])
