@@ -103,9 +103,9 @@ violation:
 class Foo(NamedTuple):  # rattle: ignore[no-named-tuple]
     ...
 
+
 # rattle: ignore[no-named-tuple]
-class Bar(NamedTuple):
-    ...
+class Bar(NamedTuple): ...
 ```
 
 By providing one or more rule names, separated by commas, Rattle can still
@@ -247,6 +247,7 @@ Once enabled, Rattle can run the new rule against the codebase:
 
 ```python
 # teambread/sourdough/baker.py
+
 
 def main():
     name = "Paul"
