@@ -204,7 +204,7 @@ class SortedAttributes(LintRule):
         return any(empty_line.comment is None for empty_line in line.leading_lines)
 
     def _is_sortable_assignment(self, line: LineType) -> bool:
-        return m.matches(
+        if not m.matches(
             line,
             m.SimpleStatementLine(
                 body=[
@@ -214,7 +214,10 @@ class SortedAttributes(LintRule):
                     )
                 ]
             ),
-        )
+        ):
+            return False
+        name = self._get_assign_name(line)
+        return not (name.startswith("__") and name.endswith("__"))
 
     def _get_assign_name(self, line: LineType) -> str:
         statement_line = cst.ensure_type(line, cst.SimpleStatementLine)
@@ -229,7 +232,7 @@ class SortedAttributes(LintRule):
     def _assignment_is_safe_to_move(self, line: LineType) -> bool:
         statement = cst.ensure_type(line, cst.SimpleStatementLine).body[0]
         value = statement.value if isinstance(statement, (cst.Assign, cst.AnnAssign)) else None
-        return value is not None and is_static_literal_expression(value)
+        return value is None or is_static_literal_expression(value)
 
 
 __all__ = [

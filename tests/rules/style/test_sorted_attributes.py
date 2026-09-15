@@ -145,3 +145,31 @@ def test_sorted_attributes_preserves_group_boundary_and_converges() -> None:
     assert "    z = 1\n\n    a = 3\n    b = 2" in fixed
     _runner, remaining_reports = _reports(SortedAttributes(), fixed)
     assert remaining_reports == []
+
+
+def test_sorted_attributes_autofixes_pure_annotations() -> None:
+    reports, fixed = _fixed(
+        SortedAttributes(),
+        '''
+        class Schema:
+            """@sorted-attributes"""
+            z: int
+            a: int
+        ''',
+    )
+    assert len(reports) == 1
+    assert reports[0].autofixable is True
+    assert "    a: int\n    z: int" in fixed
+
+
+def test_sorted_attributes_does_not_sort_slots() -> None:
+    _runner, reports = _reports(
+        SortedAttributes(),
+        '''
+        class Slotted:
+            """@sorted-attributes"""
+            __slots__ = ("b", "a")
+            A = 1
+        ''',
+    )
+    assert len(reports) == 0
