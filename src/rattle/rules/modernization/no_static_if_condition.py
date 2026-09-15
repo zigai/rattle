@@ -4,12 +4,28 @@
 # LICENSE file in the root directory of this source tree.
 
 
+import ast
+import operator
 from collections.abc import Sequence
 
 import libcst as cst
 import libcst.matchers as m
 
 from rattle.rule import Invalid, LintRule, Valid
+from rattle.rules.helpers import is_static_literal_expression
+
+_CMP_OPS = {
+    cst.Equal: operator.eq,
+    cst.NotEqual: operator.ne,
+    cst.LessThan: operator.lt,
+    cst.LessThanEqual: operator.le,
+    cst.GreaterThan: operator.gt,
+    cst.GreaterThanEqual: operator.ge,
+    cst.Is: operator.is_,
+    cst.IsNot: operator.is_not,
+    cst.In: lambda a, b: a in b,
+    cst.NotIn: lambda a, b: a not in b,
+}
 
 
 class NoStaticIfCondition(LintRule):
@@ -201,8 +217,36 @@ class NoStaticIfCondition(LintRule):
             truthiness = cls._extract_static_bool(node.value)
         elif isinstance(node, (cst.GeneratorExp, cst.Lambda)):
             truthiness = True
-
+        elif isinstance(node, cst.Comparison):
+            truthiness = cls._extract_comparison_truthiness(node)
         return truthiness
+
+    @classmethod
+    def _extract_comparison_truthiness(  # noqa: PLR0911
+        cls, node: cst.Comparison
+    ) -> bool | None:
+        mod = cst.Module(body=[])
+        if not is_static_literal_expression(node.left):
+            return None
+        try:
+            current_val = ast.literal_eval(mod.code_for_node(node.left))
+        except (ValueError, SyntaxError):
+            return None
+
+        for target in node.comparisons:
+            if not is_static_literal_expression(target.comparator):
+                return None
+            op_func = _CMP_OPS.get(type(target.operator))
+            if op_func is None:
+                return None
+            try:
+                next_val = ast.literal_eval(mod.code_for_node(target.comparator))
+                if not op_func(current_val, next_val):
+                    return False
+                current_val = next_val
+            except (ValueError, SyntaxError):
+                return None
+        return True
 
     @staticmethod
     def _extract_literal_truthiness(node: cst.BaseExpression) -> bool | None:

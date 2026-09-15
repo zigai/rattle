@@ -212,3 +212,8 @@ def test_static_if_detects_debug_fstring() -> None:
     _runner, reports = _reports(NoStaticIfCondition(), 'if f"{value=}":\n    pass')
 
     assert len(reports) == 1
+
+
+def test_no_static_if_condition_evaluates_literal_comparisons() -> None:
+    _runner, reports = _reports(NoStaticIfCondition(), "if 1 == 1:\n    pass\n")
+    assert len(reports) == 1
