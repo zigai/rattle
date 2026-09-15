@@ -81,6 +81,10 @@ class UseAssertIn(LintRule):
             "self.assertFalse(a in b)",
             expected_replacement="self.assertNotIn(a, b)",
         ),
+        Invalid(
+            "self.assertTrue(a in b, 'custom message')",
+            expected_replacement="self.assertIn(a, b, 'custom message')",
+        ),
     ]
 
     def visit_Call(self, node: cst.Call) -> None:
@@ -91,7 +95,7 @@ class UseAssertIn(LintRule):
                     value=m.Name("self"),
                     attr=m.OneOf(m.Name("assertTrue"), m.Name("assertFalse")),
                 ),
-                args=[m.Arg()],
+                args=[m.Arg(), m.ZeroOrMore(m.Arg())],
             ),
         ):
             return
@@ -118,14 +122,15 @@ class UseAssertIn(LintRule):
         ) or enclosing_class_defines_method(self, node, new_attr):
             return
 
+        extra_args = node.args[1:]
         new_call = node.with_changes(
             func=cst.Attribute(value=cst.Name("self"), attr=cst.Name(new_attr)),
-            args=[cst.Arg(comparison.left), cst.Arg(target.comparator)],
+            args=[cst.Arg(comparison.left), cst.Arg(target.comparator), *extra_args],
         )
         self.report(
             node,
             self.MESSAGE,
-            replacement=None if has_comments(node.args[0]) else new_call,
+            replacement=None if any(has_comments(arg) for arg in node.args) else new_call,
         )
 
 

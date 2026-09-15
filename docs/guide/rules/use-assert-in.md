@@ -158,7 +158,7 @@ self.assertNotIn(a, b)
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 self.assertFalse(a in b)
@@ -167,6 +167,20 @@ self.assertFalse(a in b)
 
 ```python
 self.assertNotIn(a, b)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+self.assertTrue(a in b, 'custom message')
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+self.assertIn(a, b, 'custom message')
 ```
 ```{raw} html
 </div>

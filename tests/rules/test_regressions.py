@@ -954,7 +954,6 @@ def test_membership_assertion_preserves_single_argument_matcher_semantics(prefix
     "source",
     [
         "self.assertTrue()\n",
-        'self.assertTrue(a in b, "message")\n',
         "other.assertTrue(a in b)\n",
         "self.assertTrue(a in b in c)\n",
         "self.assertTrue(a == b)\n",

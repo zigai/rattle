@@ -214,7 +214,7 @@ self.assertIsNone(f(x))
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example">
+<div class="rule-invalid-example rule-invalid-example-separated">
 ```
 ```python
 self.assertFalse(x is None)
@@ -223,6 +223,20 @@ self.assertFalse(x is None)
 
 ```python
 self.assertIsNotNone(x)
+```
+```{raw} html
+</div>
+```
+```{raw} html
+<div class="rule-invalid-example">
+```
+```python
+self.assertTrue(x is not None, 'custom message')
+```
+<p class="rule-example-label">Suggested fix</p>
+
+```python
+self.assertIsNotNone(x, 'custom message')
 ```
 ```{raw} html
 </div>

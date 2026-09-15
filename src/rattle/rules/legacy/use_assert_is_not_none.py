@@ -78,6 +78,10 @@ class UseAssertIsNotNone(LintRule):
             "self.assertFalse(x is None)",
             expected_replacement="self.assertIsNotNone(x)",
         ),
+        Invalid(
+            "self.assertTrue(x is not None, 'custom message')",
+            expected_replacement="self.assertIsNotNone(x, 'custom message')",
+        ),
     ]
 
     def _first_extracted_node(
@@ -119,7 +123,8 @@ class UseAssertIsNotNone(LintRule):
                             ),
                             "argument",
                         )
-                    )
+                    ),
+                    m.ZeroOrMore(m.Arg()),
                 ],
             ),
         )
@@ -156,15 +161,16 @@ class UseAssertIsNotNone(LintRule):
             new_attr = "assertIsNone" if negations_seen % 2 == 0 else "assertIsNotNone"
             if enclosing_class_defines_method(self, node, new_attr):
                 return
+            extra_args = node.args[1:]
             new_call = node.with_changes(
                 func=cst.Attribute(value=cst.Name("self"), attr=cst.Name(new_attr)),
-                args=[cst.Arg(assertion_argument)],
+                args=[cst.Arg(assertion_argument), *extra_args],
             )
 
             self.report(
                 node,
                 self.MESSAGE,
-                replacement=None if has_comments(node.args[0]) else new_call,
+                replacement=None if any(has_comments(arg) for arg in node.args) else new_call,
             )
 
 
