@@ -216,6 +216,7 @@ def _run_automatic_fix_stdin(
     content = sys.stdin.buffer.read()
     config = generate_config(path, options=report.options, explicit_path=True)
     if config.excluded:
+        sys.stdout.buffer.write(content)
         return
 
     for _ in range(MAX_AUTOFIX_PASSES):
