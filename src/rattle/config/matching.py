@@ -107,6 +107,11 @@ def _relative_path_str(path: Path, base: Path) -> str | None:
 def _path_matches_glob(relative_path: str, pattern: str) -> bool:
     has_glob = any(char in pattern for char in GLOB_META_CHARS)
 
+    if pattern.endswith("/") and pattern != "/":
+        pattern = pattern.rstrip("/")
+        if has_glob:
+            return _path_matches_glob(relative_path, f"{pattern}/**")
+
     if "/" not in pattern:
         parts = relative_path.split("/")
         if has_glob:
@@ -116,6 +121,10 @@ def _path_matches_glob(relative_path: str, pattern: str) -> bool:
 
     if not has_glob:
         return relative_path == pattern or relative_path.startswith(f"{pattern}/")
+    if pattern == "**" or (
+        pattern.endswith("/**") and _path_matches_glob(relative_path, pattern[:-3])
+    ):
+        return True
 
     return PurePosixPath(relative_path).match(pattern)
 

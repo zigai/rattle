@@ -289,6 +289,24 @@ class ConfigTest(TestCase):
 
             assert actual.excluded is True
 
+    def test_path_matches_glob_nested_directory_wildcard(self) -> None:
+        from rattle.config.matching import _path_matches_glob
+
+        assert _path_matches_glob("tests/unit/test_foo.py", "tests/**") is True
+        assert _path_matches_glob("tests/test_foo.py", "tests/**") is True
+        assert _path_matches_glob("other/test_foo.py", "tests/**") is False
+        assert _path_matches_glob("tests/unit/test_foo.py", "tests/*.py") is False
+        assert _path_matches_glob("tests/test_foo.py", "tests/*.py") is True
+
+    def test_path_matches_glob_trailing_slash(self) -> None:
+        from rattle.config.matching import _path_matches_glob
+
+        assert _path_matches_glob("build/foo.py", "build/") is True
+        assert _path_matches_glob("build/sub/foo.py", "build/") is True
+        assert _path_matches_glob("build", "build/") is True
+        assert _path_matches_glob("other/foo.py", "build/") is False
+        assert _path_matches_glob("foo/sub/bar/baz.py", "foo/*/bar/") is True
+
     def test_format_output(self) -> None:
         with chdir(self.tdp):
             (self.tdp / "pyproject.toml").write_text(
