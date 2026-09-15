@@ -151,3 +151,84 @@ class EngineTest(TestCase):
         )
         assert ClassRule.visited
         assert FunctionRule.visited
+
+    def test_structural_replacement_transformer_duplicate_subtrees(self) -> None:
+        import libcst as cst
+
+        code = "items = foo(list([1, 2]), list([1, 2]))\n"
+        runner = LintRunner(Path("test.py"), code.encode())
+
+        class Finder(cst.CSTVisitor):
+            def __init__(self) -> None:
+                self.calls: list[cst.Call] = []
+                self.stmt: cst.SimpleStatementLine | None = None
+
+            def visit_SimpleStatementLine(self, node: cst.SimpleStatementLine) -> None:
+                self.stmt = node
+
+            def visit_Call(self, node: cst.Call) -> None:
+                if getattr(node.func, "value", None) == "list":
+                    self.calls.append(node)
+
+        finder = Finder()
+        runner.module.visit(finder)
+        assert finder.stmt is not None
+        assert len(finder.calls) == 2
+
+        v1 = LintViolation(
+            "RuleStmt",
+            None,
+            "stmt",
+            finder.stmt,
+            finder.stmt.with_changes(leading_lines=[cst.EmptyLine()]),
+        )
+        v2 = LintViolation(
+            "RuleCall",
+            None,
+            "call2",
+            finder.calls[1],
+            cst.List([cst.Element(cst.Integer("1")), cst.Element(cst.Integer("2"))]),
+        )
+
+        fixed = runner.apply_replacements([v1, v2])
+        assert fixed.code.strip() == "items = foo(list([1, 2]), [1, 2])"
+
+    def test_multi_level_nested_replacements_do_not_revert_children(self) -> None:
+        from rattle.rules.legacy.rewrite_to_literal import RewriteToLiteral
+        from rattle.rules.style.sorted_attributes import SortedAttributes
+
+        code = '''class Constants:
+    """@sorted-attributes"""
+    Z = 1
+    A = 2
+
+    def check(self, val):
+        if val:
+            return 1
+        items = list([1, 2, 3])
+        return items
+'''
+        runner = LintRunner(Path("test.py"), code.encode())
+        violations = list(
+            runner.collect_violations(
+                [SortedAttributes(), RewriteToLiteral()],
+                config=Config(path=Path("test.py")),
+            )
+        )
+        fixed = runner.apply_replacements(violations)
+        assert "list([1, 2, 3])" not in fixed.code
+        assert "[1, 2, 3]" in fixed.code
+
+    def test_rule_violations_cleared_across_files(self) -> None:
+        from rattle.rules.style.no_annotated_self import NoAnnotatedSelf
+
+        rule = NoAnnotatedSelf()
+        config = Config(path=Path("f1.py"))
+
+        runner1 = LintRunner(Path("f1.py"), b"class A:\n    def f(self: A): pass\n")
+        v1 = list(runner1.collect_violations([rule], config=config))
+        assert len(v1) == 1
+
+        runner2 = LintRunner(Path("f2.py"), b"class B:\n    def g(self): pass\n")
+        v2 = list(runner2.collect_violations([rule], config=config))
+        assert len(v2) == 0

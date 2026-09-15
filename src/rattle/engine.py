@@ -199,6 +199,7 @@ class LintRunner:
         visit_timing_enabled = metrics_hook is not None or LOG.isEnabledFor(logging.DEBUG)
 
         for rule in rules:
+            rule._violations = []
             if rule.SETTINGS and not rule.settings:
                 rule.configure({})
             if not rule.should_lint_file(self.source, config.path):
@@ -298,17 +299,24 @@ class LintRunner:
 
         class StructuralReplacementTransformer(CSTTransformer):
             def __init__(
-                self, nested_replacements: Mapping[CSTNode, NodeReplacement[CSTNode]]
+                self,
+                nested_replacements: Mapping[CSTNode, NodeReplacement[CSTNode]],
+                tree_nodes: set[CSTNode],
             ) -> None:
                 self._pending = dict(nested_replacements)
+                self._tree_nodes = tree_nodes
 
             def on_leave(
                 self,
                 original_node: CSTNode,
                 updated_node: CSTNode,
             ) -> NodeReplacement[CSTNode]:
+                for source in tuple(self._pending):
+                    if original_node is source:
+                        return self._pending.pop(source)
+
                 for source, replacement in tuple(self._pending.items()):
-                    if original_node.deep_equals(source):
+                    if source not in self._tree_nodes and original_node.deep_equals(source):
                         del self._pending[source]
                         return replacement
                 return updated_node
@@ -330,9 +338,14 @@ class LintRunner:
                             if node is not original_node and node in collector.nodes
                         }
                         if nested_replacements:
-                            return replacement.visit(
-                                StructuralReplacementTransformer(nested_replacements)
+                            target_collector = DescendantCollector()
+                            replacement.visit(target_collector)
+                            replacement = replacement.visit(
+                                StructuralReplacementTransformer(
+                                    nested_replacements, target_collector.nodes
+                                )
                             )
+                    replacements[original_node] = replacement
                     return replacement
                 return updated_node
 
