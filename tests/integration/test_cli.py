@@ -3,959 +3,583 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-import json
 import os
+import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
 from unittest import TestCase
-from unittest.mock import patch
 
+from rattle import __version__
 from rattle.cli import main
-from rattle.cli.commands.rules import _rule_line
-from rattle.cli.environment import _find_uv_project_root, _should_reexec_with_uv
-from rattle.config.models import Options
-from rattle.rule import LintRule
-from rattle.rules.legacy.use_fstring import UseFstring
 from tests.support import CliRunner
 
 
-def assert_brief_diagnostic(stdout: str, path: Path) -> None:
-    line = stdout.strip()
-    prefix = (
-        "no-redundant-f-string [*] Remove the `f` prefix; this f-string has no "
-        "replacement fields.  --> "
-    )
-
-    assert line.startswith(prefix)
-    location = line.removeprefix(prefix)
-    path_text, line_number, column = location.rsplit(":", 2)
-    assert Path(path_text).resolve() == path.resolve()
-    assert (line_number, column) == ("1", "9")
-
-
-def write_config(path: Path, *, enable: str) -> Path:
-    config_path = path / "pyproject.toml"
-    config_path.write_text(f'[tool.rattle]\nroot = true\nenable = ["{enable}"]\n')
-    return config_path
-
-
-def write_clean_file(path: Path) -> Path:
-    file_path = path / "clean.py"
-    file_path.write_text("value = 1\n")
-    return file_path
-
-
-def write_custom_rules(path: Path, source: str) -> None:
-    (path / "custom_rules.py").write_text(dedent(source))
-    (path / "pyproject.toml").write_text(
-        "[tool.rattle]\n"
-        "root = true\n"
-        "enable-root-import = true\n"
-        'formatter = "none"\n'
-        'enable = [".custom_rules"]\n'
-    )
-
-
-class CliTest(TestCase):
+class CLIIntegrationTest(TestCase):
     def setUp(self) -> None:
         self.runner = CliRunner()
 
-    def test_upgrade_command_removed(self) -> None:
-        result = self.runner.invoke(main, ["upgrade"], catch_exceptions=False)
-        assert result.exit_code == 2
-        assert "invalid choice: 'upgrade'" in result.stderr
+    def test_cli_version(self) -> None:
+        result = self.runner.invoke(main, ["--version"])
+        expected = rf"rattle {__version__}"
+        assert expected in result.stdout
 
-    def test_rules_test_uses_enabled_rules_from_config(self) -> None:
+    def test_file_with_formatting(self) -> None:
+        content = dedent(
+            """\
+                import foo
+                import bar
+
+                def func():
+                    value = f"hello world"
+            """
+        )
+        expected_fix = dedent(
+            """\
+                import foo
+                import bar
+
+                def func():
+                    value = "hello world"
+            """
+        )
+        expected_format = dedent(
+            """\
+                import bar
+                import foo
+
+
+                def func():
+                    value = "hello world"
+            """
+        )
         with TemporaryDirectory() as td:
-            root = Path(td)
-            config = write_config(root, enable="use-f-string")
-            path = write_clean_file(root)
-            result = self.runner.invoke(
-                main,
-                ["rules", "--test", "--config", config.as_posix(), path.as_posix()],
-                catch_exceptions=False,
-            )
+            tdp = Path(td).resolve()
+            path = tdp / "file.py"
 
+            with self.subTest("linting"):
+                path.write_text(content)
+                result = self.runner.invoke(
+                    main,
+                    ["lint", "-r", "no-redundant-f-string", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.output != ""
+                assert result.exit_code != 0
+                assert "no-redundant-f-string [*]" in result.output
+                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert '5 |     value = f"hello world"' in result.output
+                assert "help: Apply the available autofix" in result.output
+                assert content == path.read_text(), "file unexpectedly changed"
+
+            with self.subTest("linting with diff"):
+                path.write_text(content)
+                result = self.runner.invoke(
+                    main,
+                    ["lint", "-r", "no-redundant-f-string", "--diff", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.output != ""
+                assert result.exit_code != 0
+                assert "no-redundant-f-string [*]" in result.output
+                assert "--- a/file.py" in result.output
+                assert "+++ b/file.py" in result.output
+
+            with self.subTest("fixing"):
+                path.write_text(content)
+                result = self.runner.invoke(
+                    main,
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.stdout == ""
+                assert result.exit_code == 0
+                assert result.stderr == "1 file checked, 1 fix applied\n"
+                assert expected_fix == path.read_text(), "unexpected file output"
+
+            with self.subTest("fixing with formatting"):
+                (tdp / "pyproject.toml").write_text("[tool.rattle]\nformatter='ufmt'\n")
+
+                path.write_text(content)
+                result = self.runner.invoke(
+                    main,
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.stdout == ""
+                assert result.exit_code == 0
+                assert result.stderr == "1 file checked, 1 fix applied\n"
+                assert expected_format == path.read_text(), "unexpected file output"
+
+            with self.subTest("fixing with ruff formatting"):
+                ruff_content = dedent(
+                    """\
+                        import foo
+                        import bar
+
+                        def func( ):
+                            value = f'hello world'
+                    """
+                )
+                expected_ruff_format = dedent(
+                    """\
+                        import foo
+                        import bar
+
+
+                        def func():
+                            value = "hello world"
+                    """
+                )
+                (tdp / "pyproject.toml").write_text("[tool.rattle]\nformatter='ruff'\n")
+
+                path.write_text(ruff_content)
+                result = self.runner.invoke(
+                    main,
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.stdout == ""
+                assert result.exit_code == 0
+                assert result.stderr == "1 file checked, 1 fix applied\n"
+                assert expected_ruff_format == path.read_text(), "unexpected file output"
+
+            with self.subTest("fixing with auto ruff formatting"):
+                (tdp / "pyproject.toml").write_text(
+                    dedent(
+                        """\
+                            [tool.rattle]
+                            formatter='auto'
+
+                            [tool.ruff.format]
+                            quote-style = "double"
+                        """
+                    )
+                )
+
+                path.write_text(ruff_content)
+                result = self.runner.invoke(
+                    main,
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.stdout == ""
+                assert result.exit_code == 0
+                assert result.stderr == "1 file checked, 1 fix applied\n"
+                assert expected_ruff_format == path.read_text(), "unexpected file output"
+
+            with self.subTest("fixing with auto and no formatter config"):
+                (tdp / "pyproject.toml").write_text("[tool.rattle]\nformatter='auto'\n")
+
+                path.write_text(content)
+                result = self.runner.invoke(
+                    main,
+                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    catch_exceptions=False,
+                )
+
+                assert result.stdout == ""
+                assert result.exit_code == 0
+                assert result.stderr == "1 file checked, 1 fix applied\n"
+                assert expected_fix == path.read_text(), "unexpected file output"
+
+            with self.subTest("linting via stdin"):
+                result = self.runner.invoke(
+                    main,
+                    ["lint", "-r", "no-redundant-f-string", "-", path.as_posix()],
+                    input=content,
+                    catch_exceptions=False,
+                )
+
+                assert result.output != ""
+                assert result.exit_code != 0
+                assert "no-redundant-f-string [*]" in result.output
+                assert re.search(r" --> .*file\.py:5:13", result.output)
+                assert '5 |     value = f"hello world"' in result.output
+
+            with self.subTest("fixing with formatting via stdin"):
+                (tdp / "pyproject.toml").write_text("[tool.rattle]\nformatter='ufmt'\n")
+
+                result = self.runner.invoke(
+                    main,
+                    ["fix", "-r", "no-redundant-f-string", "-", path.as_posix()],
+                    input=content,
+                    catch_exceptions=False,
+                )
+
+                assert result.exit_code == 0
+                assert expected_format == result.stdout, "unexpected stdout"
+
+    def test_this_file_is_clean(self) -> None:
+        path = Path(__file__).resolve().as_posix()
+        result = self.runner.invoke(main, ["lint", path], catch_exceptions=False)
+        assert result.stdout == ""
+        assert result.exit_code == 0
+        assert result.stderr == "1 file clean\n"
+
+    def test_this_project_is_clean(self) -> None:
+        project_dir = Path(__file__).resolve().parent.parent.as_posix()
+        result = self.runner.invoke(main, ["lint", project_dir], catch_exceptions=False)
+        assert result.stdout == ""
         assert result.exit_code == 0
 
-    def test_rules_test_displays_canonical_rule_name(self) -> None:
+    def test_directory_with_violations(self) -> None:
         with TemporaryDirectory() as td:
-            root = Path(td)
-            config = write_config(root, enable="use-f-string")
-            path = write_clean_file(root)
+            tdp = Path(td).resolve()
+            (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
+            (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
+            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
+            assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
+            assert re.search(r" --> .*dirty\.py:2:7", result.output)
+            assert result.exit_code == 1
+            assert result.stderr == "2 files checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_directory_with_selector_overrides_from_cli(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            dirty = tdp / "dirty.py"
+            dirty.write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
             result = self.runner.invoke(
                 main,
-                ["rules", "--test", "--config", config.as_posix(), path.as_posix()],
+                ["lint", "-r", "use-f-string", dirty.as_posix()],
                 catch_exceptions=False,
             )
+            assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
+            assert result.exit_code == 1
 
-        output = result.stdout + result.stderr
-        assert result.exit_code == 0
-        assert "rattle.testing.use-f-string" in output
-        assert "rattle.testing.UseFstring" not in output
-
-    def test_rules_test_returns_nonzero_for_missing_rule(self) -> None:
+    def test_cli_short_rule_selector_resolves_configured_local_rule(self) -> None:
         with TemporaryDirectory() as td:
-            root = Path(td)
-            config = write_config(root, enable="definitely-missing-rule")
-            path = write_clean_file(root)
-            result = self.runner.invoke(
-                main,
-                ["rules", "--test", "--config", config.as_posix(), path.as_posix()],
-                catch_exceptions=False,
+            tdp = Path(td).resolve()
+            (tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
+                    enable = [".my_rules"]
+                    """
+                )
             )
+            (tdp / "my_rules.py").write_text(
+                dedent(
+                    """
+                    from rattle import LintRule
 
-        assert result.exit_code != 0
+                    class ProjectOnlyRule(LintRule):
+                        MESSAGE = "Use the project-only local rule."
 
-    def test_test_command_removed(self) -> None:
-        result = self.runner.invoke(main, ["test", "use-f-string"], catch_exceptions=False)
-
-        assert result.exit_code == 2
-        assert "invalid choice: 'test'" in result.stderr
-
-    def test_help_is_supported_for_commands(self) -> None:
-        short_result = self.runner.invoke(main, ["lint", "-h"], catch_exceptions=False)
-        long_result = self.runner.invoke(main, ["lint", "--help"], catch_exceptions=False)
-
-        assert short_result.exit_code == 0
-        assert "-h, --help" in short_result.stdout
-        assert long_result.exit_code == 0
-        assert "-h, --help" in long_result.stdout
-
-    def test_lsp_does_not_expose_stdio_alias(self) -> None:
-        help_result = self.runner.invoke(main, ["lsp", "--help"], catch_exceptions=False)
-        alias_result = self.runner.invoke(main, ["lsp", "--stdio"], catch_exceptions=False)
-
-        assert help_result.exit_code == 0
-        assert "--no-stdio" in help_result.stdout
-        assert "--stdio" not in help_result.stdout
-        assert alias_result.exit_code == 2
-        assert "unrecognized arguments: --stdio" in alias_result.stderr
-
-    def test_rules_command_displays_enabled_rules(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            config = write_config(root, enable="use-f-string")
-            path = write_clean_file(root)
-            result = self.runner.invoke(
-                main,
-                ["rules", "--config", config.as_posix(), path.as_posix()],
-                catch_exceptions=False,
+                        def visit_Name(self, node):
+                            if node.value == "x":
+                                self.report(node, self.MESSAGE)
+                    """
+                )
             )
+            dirty = tdp / "dirty.py"
+            dirty.write_text("x = 1\n")
 
-        assert result.exit_code == 0
-        assert "Rules for " in result.stdout
-        assert "1 enabled" in result.stdout
-        assert "use-f-string - Use an f-string instead of `%` formatting" in result.stdout
-        assert "[fix]" not in result.stdout
-        assert "simple_expression_max_length" not in result.stdout
-        assert "rattle.rules.legacy.use_fstring:use-f-string" not in result.stdout
-        assert "Options(" not in result.stdout
-        assert "Config(" not in result.stdout
-
-    def test_rules_command_displays_disabled_rules_with_canonical_names(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            config = root / "pyproject.toml"
-            config.write_text(
-                "[tool.rattle]\n"
-                "root = true\n"
-                'python-version = "3.10"\n'
-                'enable = ["explicit-frozen-dataclass", "use-rattle-ignore-comment", '
-                '"use-types-from-typing"]\n'
-                'disable = ["explicit-frozen-dataclass", "use-rattle-ignore-comment"]\n'
-            )
-            path = write_clean_file(root)
-            result = self.runner.invoke(
-                main,
-                ["rules", "--config", config.as_posix(), path.as_posix()],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 0
-        assert "Disabled" in result.stdout
-        assert "  explicit-frozen-dataclass (disabled)" in result.stdout
-        assert "  use-rattle-ignore-comment (disabled)" in result.stdout
-        assert "  use-types-from-typing (python-version)" in result.stdout
-        assert "ExplicitFrozenDataclass" not in result.stdout
-        assert "UseRattleIgnoreComment" not in result.stdout
-        assert "UseTypesFromTyping" not in result.stdout
-
-    def test_explain_command_displays_builtin_rule_info(self) -> None:
-        with TemporaryDirectory() as td:
-            config = write_config(Path(td), enable="use-f-string")
-            result = self.runner.invoke(
-                main,
-                ["explain", "--config", config.as_posix(), "use-f-string"],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 0
-        first_line = result.stdout.splitlines()[0]
-        assert "use-f-string [*]  Enabled" in first_line
-        assert "rattle.rules.legacy.use_fstring" in first_line
-        assert "Use an f-string instead of `%` formatting or `str.format()`." in result.stdout
-        assert "Selector:" not in result.stdout
-        assert "module:" not in result.stdout
-        assert "Python: Any" in result.stdout
-        assert "Patterns: .format, %" in result.stdout
-        assert "Metadata" not in result.stdout
-
-    def test_explain_command_accepts_qualified_selector(self) -> None:
-        with TemporaryDirectory() as td:
-            config = write_config(Path(td), enable="use-f-string")
             result = self.runner.invoke(
                 main,
                 [
-                    "explain",
+                    "lint",
                     "--config",
-                    config.as_posix(),
-                    "rattle.rules.legacy.use_fstring:use-f-string",
+                    (tdp / "pyproject.toml").as_posix(),
+                    "--rules",
+                    "project-only-rule",
+                    dirty.as_posix(),
                 ],
                 catch_exceptions=False,
             )
 
-        assert result.exit_code == 0
-        assert "use-f-string [*]  Enabled" in result.stdout
-        assert "Selector:" not in result.stdout
-
-    def test_explain_command_reports_missing_rule(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["explain", "definitely-missing-rule"],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 2
-        assert "could not find rule definitely-missing-rule" in result.stderr
-
-    def test_explain_command_displays_disabled_status(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["explain", "explicit-frozen-dataclass"],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0
-        first_line = result.stdout.splitlines()[0]
-        assert "explicit-frozen-dataclass  Disabled" in first_line
-        assert "rattle.rules.modernization.explicit_frozen_dataclass" in first_line
-        assert "Python: Any" in result.stdout
-
-    def test_explain_command_indents_multiline_examples(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["explain", "explicit-frozen-dataclass"],
-            catch_exceptions=False,
-        )
-
-        assert result.exit_code == 0
-        assert "    from dataclasses import dataclass" in result.stdout
-        assert "\nfrom dataclasses import dataclass" not in result.stdout
-        assert "    @dataclass(frozen=False)" in result.stdout
-        assert "\n@dataclass(frozen=False)" not in result.stdout
-
-    def test_explain_command_displays_settings_references_and_examples(self) -> None:
-        with TemporaryDirectory() as td:
-            config = write_config(Path(td), enable="use-f-string")
-            result = self.runner.invoke(
-                main,
-                ["explain", "--config", config.as_posix(), "use-f-string"],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 0
-        assert "Settings" in result.stdout
-        assert "simple_expression_max_length  int  default: 30" in result.stdout
-        assert "References" in result.stdout
-        assert "PEP 498: https://www.python.org/dev/peps/pep-0498/" in result.stdout
-        assert "Examples" in result.stdout
-        assert "Valid:" in result.stdout
-        assert "Invalid:" in result.stdout
-        assert '"%s" % "hi"  ->  f"{\'hi\'!s}"' in result.stdout
-
-    def test_explain_command_json_output(self) -> None:
-        with TemporaryDirectory() as td:
-            config = write_config(Path(td), enable="use-f-string")
-            result = self.runner.invoke(
-                main,
-                ["explain", "--json", "--config", config.as_posix(), "use-f-string"],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 0
-        data = json.loads(result.stdout)
-        assert data["name"] == "use-f-string"
-        assert data["status"] == "Enabled"
-        assert data["selector"] == "rattle.rules.legacy.use_fstring:use-f-string"
-        assert data["autofix"] is True
-        assert data["settings"][0]["name"] == "simple_expression_max_length"
-        assert data["settings"][0]["type"] == "int"
-        assert data["settings"][0]["default"] == 30
-        assert data["references"] == [
-            {"label": "PEP 498", "url": "https://www.python.org/dev/peps/pep-0498/"}
-        ]
-        assert data["examples"]["invalid"][1]["replacement"] == "f\"{'hi'!s}\""
-        assert "Invalid(" not in result.stdout
-        assert "Valid(" not in result.stdout
-
-    def test_rule_line_omits_rule_tags(self) -> None:
-        class TaggedRule(LintRule):
-            MESSAGE = "Use the narrow rules listing."
-            TAGS = {"architecture", "local"}
-
-        assert _rule_line(TaggedRule()) == "  tagged-rule - Use the narrow rules listing."
-
-    def test_rule_line_only_colors_rule_name(self) -> None:
-        def fake_colored(
-            text: str,
-            color: str | None = None,
-            background: str | None = None,
-            style: str | None = None,
-        ) -> str:
-            del background, color, style
-            return f"<colored>{text}</colored>"
-
-        with patch("rattle.cli.commands.rules.colored", side_effect=fake_colored):
-            line = _rule_line(UseFstring())
-
-        assert line.startswith("  <colored>use-f-string</colored> - ")
-        assert " - Use an f-string instead of `%` formatting" in line
-        assert " - <colored>Use an f-string instead of `%` formatting" not in line
-
-    def test_find_uv_project_root_accepts_uv_lock(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            nested = root / "src" / "pkg"
-            nested.mkdir(parents=True)
-            (root / "uv.lock").write_text("")
-
-            assert _find_uv_project_root(nested) == root
-
-    def test_find_uv_project_root_accepts_tool_uv(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            nested = root / "src" / "pkg"
-            nested.mkdir(parents=True)
-            (root / "pyproject.toml").write_text("[tool.uv]\n")
-
-            assert _find_uv_project_root(nested) == root
-
-    def test_find_uv_project_root_rejects_unrelated_pyproject(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            (root / "pyproject.toml").write_text('[project]\nname = "unrelated"\n')
-
-            assert _find_uv_project_root(root) != root
-
-    def test_find_uv_project_root_accepts_dependency_groups(self) -> None:
-        for groups in ("[dependency-groups]\n", "[dependency-groups]\ndev = []\n"):
-            with self.subTest(groups=groups), TemporaryDirectory() as td:
-                root = Path(td)
-                (root / "pyproject.toml").write_text(groups)
-
-                assert _find_uv_project_root(root) == root
-
-    def test_find_uv_project_root_skips_unrelated_child_pyproject(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            nested = root / "child" / "src"
-            nested.mkdir(parents=True)
-            (root / "uv.lock").write_text("")
-            (nested.parent / "pyproject.toml").write_text('[project]\nname = "unrelated"\n')
-
-            assert _find_uv_project_root(nested) == root
-
-    def test_uv_reexec_is_limited_to_rule_loading_commands(self) -> None:
-        with (
-            patch.dict(os.environ, {}, clear=True),
-            patch("rattle.cli.environment.shutil.which", return_value="/usr/bin/uv"),
-            patch("rattle.cli.environment._find_uv_project_root", return_value=Path.cwd()),
-        ):
-            assert _should_reexec_with_uv(["lint"])
-            assert _should_reexec_with_uv(["fix", "."])
-            assert _should_reexec_with_uv(["rules"])
-            assert not _should_reexec_with_uv(["--version"])
-            assert not _should_reexec_with_uv(["upgrade"])
-
-    def test_uv_reexec_guard_prevents_loop(self) -> None:
-        with (
-            patch.dict(os.environ, {"RATTLE_UV_RUN_REEXEC": "1"}, clear=True),
-            patch("rattle.cli.environment.shutil.which", return_value="/usr/bin/uv"),
-            patch("rattle.cli.environment._find_uv_project_root", return_value=Path.cwd()),
-        ):
-            assert not _should_reexec_with_uv(["lint"])
-
-    def test_debug_command_removed(self) -> None:
-        result = self.runner.invoke(main, ["debug"], catch_exceptions=False)
-
-        assert result.exit_code == 2
-        assert "invalid choice: 'debug'" in result.stderr
-
-    def test_validate_config_command_removed(self) -> None:
-        result = self.runner.invoke(main, ["validate-config"], catch_exceptions=False)
-
-        assert result.exit_code == 2
-        assert "invalid choice: 'validate-config'" in result.stderr
-
-    def test_validate_command_accepts_config_file(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "pyproject.toml"
-            path.write_text("[tool.rattle]\nroot = true\n")
-
-            result = self.runner.invoke(main, ["validate", path.as_posix()], catch_exceptions=False)
-
-        assert result.exit_code == 0
-
-    def test_validate_command_validates_explicit_config_file(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "pyproject.toml"
-            path.write_text('[tool.rattle]\nroot = true\nenable = ["definitely-missing-rule"]\n')
-
-            result = self.runner.invoke(main, ["validate", path.as_posix()], catch_exceptions=False)
-
-        assert result.exit_code == 1
-        assert "definitely-missing-rule" in result.stderr
-
-    def test_validate_command_defaults_to_pyproject_toml(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            (root / "pyproject.toml").write_text("[tool.rattle]\nroot = true\n")
-            original_cwd = Path.cwd()
-            os.chdir(root)
-            try:
-                result = self.runner.invoke(main, ["validate"], catch_exceptions=False)
-            finally:
-                os.chdir(original_cwd)
-
-        assert result.exit_code == 0
-
-    def test_validate_command_reports_missing_default_pyproject_toml(self) -> None:
-        with TemporaryDirectory() as td:
-            original_cwd = Path.cwd()
-            os.chdir(td)
-            try:
-                result = self.runner.invoke(main, ["validate"], catch_exceptions=False)
-            finally:
-                os.chdir(original_cwd)
-
-        assert result.exit_code == 2
-        assert "path must be an existing file: pyproject.toml" in result.stderr
-
-    def test_lint_returns_usage_error_for_missing_path(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["lint", "missing.py"],
-            catch_exceptions=False,
-        )
-        assert result.exit_code == 2
-        assert "path must be an existing path: missing.py" in result.stderr
-
-    def test_fix_returns_usage_error_for_missing_path(self) -> None:
-        result = self.runner.invoke(
-            main,
-            ["fix", "missing.py"],
-            catch_exceptions=False,
-        )
-        assert result.exit_code == 2
-        assert "path must be an existing path: missing.py" in result.stderr
-
-    def test_fix_returns_nonzero_for_unfixable_violations(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "bad_async.py"
-            path.write_text("import time\nasync def f():\n    time.sleep(1)\n")
-
-            result = self.runner.invoke(
-                main,
-                ["fix", "-r", "use-async-sleep-in-async-def", path.as_posix()],
-                catch_exceptions=False,
-            )
-
+            assert "project-only-rule Use the project-only local rule." in result.output
             assert result.exit_code == 1
 
-    def test_fix_only_prints_unfixed_violations_by_default(self) -> None:
+    def test_directory_respects_inherited_ruff_file_excludes(self) -> None:
         with TemporaryDirectory() as td:
-            path = Path(td) / "mixed.py"
-            path.write_text(
-                'import time\nasync def f():\n    value = f"hello"\n    time.sleep(1)\n'
+            tdp = Path(td).resolve()
+            (tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
+                    inherit-ruff-files = true
+
+                    [tool.ruff]
+                    exclude = ["ignored.py"]
+                    """
+                )
             )
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "use-f-string", td],
+                catch_exceptions=False,
+            )
+
+            assert "included.py" in result.output
+            assert "ignored.py" not in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_directory_respects_rattle_file_excludes(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            (tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
+                    exclude = ["ignored.py"]
+                    """
+                )
+            )
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+
+            result = self.runner.invoke(
+                main,
+                ["lint", "-r", "use-f-string", td],
+                catch_exceptions=False,
+            )
+
+            assert "included.py" in result.output
+            assert "ignored.py" not in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
+
+    def test_directory_respects_cli_exclude(self) -> None:
+        with TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "skipped.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
             result = self.runner.invoke(
                 main,
                 [
-                    "fix",
+                    "lint",
                     "-r",
-                    "no-redundant-f-string,use-async-sleep-in-async-def",
-                    path.as_posix(),
+                    "use-f-string",
+                    td,
+                    "--exclude",
+                    "ignored.py",
+                    "--exclude",
+                    "skipped.py",
                 ],
                 catch_exceptions=False,
             )
-            fixed_content = path.read_text()
 
-        assert result.exit_code == 1
-        assert "use-async-sleep-in-async-def" in result.stdout
-        assert "no-redundant-f-string" not in result.stdout
-        assert "1 file checked, 1 violation in 1 file, 1 fix applied" in (result.stderr)
-        assert (
-            fixed_content == 'import time\nasync def f():\n    value = "hello"\n    time.sleep(1)\n'
-        )
+            assert "included.py" in result.output
+            assert "ignored.py" not in result.output
+            assert "skipped.py" not in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
 
-    def test_fix_returns_nonzero_for_syntax_errors(self) -> None:
+    def test_cli_exclude_overrides_inherited_ruff_file_excludes(self) -> None:
         with TemporaryDirectory() as td:
-            path = Path(td) / "bad_syntax.py"
-            path.write_text("def f(:\n    pass\n")
+            tdp = Path(td).resolve()
+            (tdp / "pyproject.toml").write_text(
+                dedent(
+                    """
+                    [tool.rattle]
+                    root = true
+                    inherit-ruff-files = true
+
+                    [tool.ruff]
+                    exclude = ["ignored.py"]
+                    """
+                )
+            )
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "ignored.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                ["lint", "-r", "use-f-string", td, "--exclude", "included.py"],
                 catch_exceptions=False,
             )
 
-            assert result.exit_code == 2
+            assert "included.py" not in result.output
+            assert "ignored.py" in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
 
-    def test_fix_applies_autofixes_by_default(self) -> None:
+    def test_directory_respects_cli_extend_exclude(self) -> None:
         with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
+            tdp = Path(td).resolve()
+            (tdp / "included.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "generated.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
             result = self.runner.invoke(
                 main,
-                ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                ["lint", "-r", "use-f-string", td, "--extend-exclude", "generated.py"],
                 catch_exceptions=False,
             )
 
-            assert result.exit_code == 0
-            assert result.stdout == ""
-            assert result.stderr == ("1 file checked, 1 fix applied\n")
-            assert path.read_text() == 'value = "hello"\n'
+            assert "included.py" in result.output
+            assert "generated.py" not in result.output
+            assert result.exit_code == 1
+            assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
 
-    def test_fix_diff_prints_applied_fixes(self) -> None:
+    def test_lint_stats_groups_violations_by_rule(self) -> None:
         with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
+            tdp = Path(td).resolve()
+            nested = tdp / "pkg"
+            nested.mkdir()
+            (tdp / "root.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (nested / "one.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (nested / "two.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
-            result = self.runner.invoke(
-                main,
-                ["fix", "-r", "no-redundant-f-string", "--diff", path.as_posix()],
-                catch_exceptions=False,
-            )
-
-            assert result.exit_code == 0
-            assert "no-redundant-f-string [*]" in result.stdout
-            assert "--- a/fstring.py" in result.stdout
-            assert 'value = f"hello"' in result.stdout
-            assert path.read_text() == 'value = "hello"\n'
-
-    def test_fix_does_not_report_stale_violation_removed_by_autofix(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            write_custom_rules(
-                root,
-                """
-                import libcst as cst
-
-                from rattle import LintRule
-
-
-                class ReplaceBadCall(LintRule):
-                    def visit_Call(self, node: cst.Call) -> None:
-                        if isinstance(node.func, cst.Name) and node.func.value == "bad":
-                            self.report(node, "replace bad call", replacement=cst.Name("good"))
-
-
-                class FlagOopsString(LintRule):
-                    def visit_SimpleString(self, node: cst.SimpleString) -> None:
-                        if "oops" in node.value:
-                            self.report(node, "oops string is forbidden")
-                """,
-            )
-            path = root / "stale.py"
-            path.write_text('value = bad("oops")\n')
-
-            result = self.runner.invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
-            fixed_content = path.read_text()
-
-        assert result.exit_code == 0
-        assert "flag-oops-string" not in result.stdout
-        assert result.stderr == "1 file checked, 1 fix applied\n"
-        assert fixed_content == "value = good\n"
-
-    def test_fix_reports_violation_introduced_by_autofix(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            write_custom_rules(
-                root,
-                """
-                import libcst as cst
-
-                from rattle import LintRule
-
-
-                class ReplaceXWithBad(LintRule):
-                    def visit_Name(self, node: cst.Name) -> None:
-                        if node.value == "x":
-                            self.report(node, "replace x", replacement=cst.Name("bad"))
-
-
-                class FlagBadName(LintRule):
-                    def visit_Name(self, node: cst.Name) -> None:
-                        if node.value == "bad":
-                            self.report(node, "bad name is forbidden")
-                """,
-            )
-            path = root / "introduced.py"
-            path.write_text("value = x\n")
-
-            result = self.runner.invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
-            fixed_content = path.read_text()
-
-        assert result.exit_code == 1
-        assert "flag-bad-name" in result.stdout
-        assert result.stderr == "1 file checked, 1 violation in 1 file, 1 fix applied\n"
-        assert fixed_content == "value = bad\n"
-
-    def test_fix_applies_cascading_autofixes_until_stable(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            write_custom_rules(
-                root,
-                """
-                import libcst as cst
-
-                from rattle import LintRule
-
-
-                class ReplaceAWithB(LintRule):
-                    def visit_Name(self, node: cst.Name) -> None:
-                        if node.value == "a":
-                            self.report(node, "replace a", replacement=cst.Name("b"))
-
-
-                class ReplaceBWithC(LintRule):
-                    def visit_Name(self, node: cst.Name) -> None:
-                        if node.value == "b":
-                            self.report(node, "replace b", replacement=cst.Name("c"))
-                """,
-            )
-            path = root / "cascade.py"
-            path.write_text("value = a\n")
-
-            result = self.runner.invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
-            fixed_content = path.read_text()
-
-        assert result.exit_code == 0
-        assert result.stdout == ""
-        assert result.stderr == "1 file checked, 2 fixes applied\n"
-        assert fixed_content == "value = c\n"
-
-    def test_fix_no_format_flag_removed(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text("value = f'hello'\n")
-
-            result = self.runner.invoke(
-                main,
-                ["fix", "-r", "no-redundant-f-string", "-n", path.as_posix()],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 2
-        assert "unrecognized arguments: -n" in result.stderr
-
-    def test_lint_compact_prints_one_line_diagnostics(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
-
-            result = self.runner.invoke(
-                main,
-                ["lint", "-r", "no-redundant-f-string", "--compact", path.as_posix()],
-                catch_exceptions=False,
-            )
+            original_cwd = Path.cwd()
+            os.chdir(tdp.parent)
+            try:
+                result = self.runner.invoke(
+                    main,
+                    ["lint", "-r", "use-f-string", "--stats", tdp.as_posix()],
+                    catch_exceptions=False,
+                )
+            finally:
+                os.chdir(original_cwd)
 
             assert result.exit_code == 1
-            assert_brief_diagnostic(result.stdout, path)
+            assert "Violation stats by rule:" in result.stderr
+            assert "use-f-string  3" in result.stderr
 
-    def test_lint_quiet_prints_only_summary(self) -> None:
+    def test_directory_with_errors(self) -> None:
         with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
+            tdp = Path(td).resolve()
+            (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
+            (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(
-                main,
-                ["lint", "-r", "no-redundant-f-string", "--quiet", path.as_posix()],
-                catch_exceptions=False,
-            )
+            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
+            assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
+            assert re.search(r" --> .*broken\.py:1:1", result.output)
+            assert result.exit_code == 2
+            assert result.stderr == "2 files checked, 1 file with errors\n"
 
-        assert result.exit_code == 1
-        assert result.stdout == ""
-        assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
-
-    def test_lint_quiet_rejects_diff(self) -> None:
+    def test_directory_with_violations_and_errors(self) -> None:
         with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
+            tdp = Path(td).resolve()
+            (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
+            (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
+            (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(
-                main,
-                ["lint", "-r", "no-redundant-f-string", "--quiet", "--diff", path.as_posix()],
-                catch_exceptions=False,
+            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
+            assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
+            assert re.search(r" --> .*dirty\.py:2:7", result.output)
+            assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
+            assert re.search(r" --> .*broken\.py:1:1", result.output)
+            assert result.exit_code == 3
+            assert (
+                result.stderr
+                == "3 files checked, 1 violation in 1 file, 1 file with errors, 1 autofixable\n"
             )
 
-        assert result.exit_code == 2
-        assert "--quiet and --diff cannot be used together" in result.stderr
-
-    def test_lint_stats_prints_violations_by_rule(self) -> None:
+    def test_directory_with_autofixes(self) -> None:
         with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('first = f"hello"\nsecond = f"world"\n')
+            tdp = Path(td).resolve()
+            clean = tdp / "clean.py"
+            clean.write_text(
+                dedent(
+                    """
+                    GLOBAL = 'hello'
 
-            result = self.runner.invoke(
-                main,
-                ["lint", "-r", "no-redundant-f-string", "--stats", path.as_posix()],
-                catch_exceptions=False,
+                    def foo():
+                        value = 'test'
+                        if value is False:
+                            pass
+                    """
+                )
+            )
+            single = tdp / "single.py"
+            single.write_text(
+                dedent(
+                    """
+                    GLOBAL = f'hello'
+
+                    def foo():
+                        value = 'test'
+                        if value is False:
+                            pass
+                    """
+                )
+            )
+            multi = tdp / "multi.py"
+            multi.write_text(
+                dedent(
+                    """
+                    GLOBAL = f'hello'
+
+                    def foo():
+                        value = f'test'
+                        if value == False:
+                            pass
+                    """
+                )
             )
 
-        assert result.exit_code == 1
-        assert "Violation stats by rule:" in result.stderr
-        assert "no-redundant-f-string  2" in result.stderr
+            expected = clean.read_text()
 
-    def test_lint_accepts_jobs_option(self) -> None:
-        seen_jobs: list[int | None] = []
+            result = self.runner.invoke(main, ["fix", "-r", "legacy", td])
 
-        def rattle_paths_stub(*_args: object, **kwargs: object) -> object:
-            options = kwargs["options"]
-            assert isinstance(options, Options)
-            seen_jobs.append(options.jobs)
-            return iter(())
+            with self.subTest("clean"):
+                assert expected == clean.read_text()
 
-        with (
-            patch("rattle.cli.commands.lint.rattle_paths", side_effect=rattle_paths_stub),
-            TemporaryDirectory() as td,
-        ):
-            path = Path(td) / "clean.py"
-            path.write_text("value = 1\n")
-            result = self.runner.invoke(
-                main,
-                ["lint", "-j", "2", path.as_posix()],
-                catch_exceptions=False,
-            )
+            with self.subTest("single fix"):
+                assert expected == single.read_text()
 
-        assert result.exit_code == 0
-        assert seen_jobs == [2]
+            with self.subTest("multiple fixes"):
+                assert expected == multi.read_text()
 
-    def test_lint_metrics_env_uses_cli_output_path(self) -> None:
-        def rattle_paths_stub(*_args: object, **kwargs: object) -> object:
-            metrics_hook = kwargs["metrics_hook"]
-            assert callable(metrics_hook)
-            metrics_hook({"Count.Total": 1})
-            return iter(())
+            assert result.stdout == ""
+            assert result.stderr == "3 files checked, 4 fixes applied\n"
 
-        with (
-            patch.dict(os.environ, {"RATTLE_METRICS": "1"}),
-            patch("rattle.cli.commands.lint.rattle_paths", side_effect=rattle_paths_stub),
-            TemporaryDirectory() as td,
-        ):
-            path = Path(td) / "clean.py"
-            path.write_text("value = 1\n")
+    def test_lint_directory_with_no_rules_enabled(self) -> None:
+        content = dedent(
+            """\
+                import foo
+                import bar
+
+                def func():
+                    value = f"hello world"
+            """
+        )
+        with self.subTest("lint"), TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            path = tdp / "file.py"
+
+            (tdp / "pyproject.toml").write_text("[tool.rattle]\ndisable=['modernization']\n")
+
+            path.write_text(content)
             result = self.runner.invoke(
                 main,
                 ["lint", path.as_posix()],
                 catch_exceptions=False,
             )
 
-        assert result.exit_code == 0
-        assert "{'Count.Total': 1}" in result.stdout
-        assert result.stderr == "No Python files found\n"
-
-    def test_fix_compact_omits_fixed_diagnostics(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
-
-            result = self.runner.invoke(
-                main,
-                ["fix", "-r", "no-redundant-f-string", "--compact", path.as_posix()],
-                catch_exceptions=False,
-            )
-
-            assert result.exit_code == 0
             assert result.stdout == ""
-            assert result.stderr == ("1 file checked, 1 fix applied\n")
-            assert path.read_text() == 'value = "hello"\n'
-
-    def test_fix_stats_prints_remaining_violations_by_rule(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "mixed.py"
-            path.write_text(
-                'import time\nasync def f():\n    value = f"hello"\n    time.sleep(1)\n'
-            )
-
-            result = self.runner.invoke(
-                main,
-                [
-                    "fix",
-                    "-r",
-                    "no-redundant-f-string,use-async-sleep-in-async-def",
-                    "--stats",
-                    path.as_posix(),
-                ],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 1
-        assert "use-async-sleep-in-async-def" in result.stdout
-        assert "no-redundant-f-string" not in result.stdout
-        assert "Violation stats by rule:" in result.stderr
-        assert "use-async-sleep-in-async-def  1" in result.stderr
-        assert "no-redundant-f-string" not in result.stderr
-
-    def test_fix_quiet_rejects_interactive(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
-
-            result = self.runner.invoke(
-                main,
-                ["fix", "-r", "no-redundant-f-string", "--quiet", "--interactive", path.as_posix()],
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 2
-        assert "--quiet and --interactive cannot be used together" in result.stderr
-
-    def test_fix_logs_missing_rule_collection_once(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            (root / "pyproject.toml").write_text(
-                '[tool.rattle]\ndisable = ["missing_rules_collection.rules"]\n'
-            )
-            first = root / "first.py"
-            second = root / "second.py"
-            first.write_text("value = 1\n")
-            second.write_text("other = 2\n")
-
-            with self.assertLogs("rattle.rule_loading", level="WARNING") as logs:
-                result = self.runner.invoke(
-                    main,
-                    ["fix", first.as_posix(), second.as_posix()],
-                    catch_exceptions=False,
-                )
-
             assert result.exit_code == 0
+
+        with self.subTest("fix"), TemporaryDirectory() as td:
+            tdp = Path(td).resolve()
+            path = tdp / "file.py"
+
+            (tdp / "pyproject.toml").write_text("[tool.rattle]\ndisable=['modernization']\n")
+
+            path.write_text(content)
+            result = self.runner.invoke(
+                main,
+                ["fix", path.as_posix()],
+                catch_exceptions=False,
+            )
+
             assert result.stdout == ""
-            assert result.stderr == "2 files clean\n"
-            assert (
-                sum(
-                    "Failed to load rules 'missing_rules_collection.rules'" in message
-                    for message in logs.output
-                )
-                == 1
-            )
-
-    def test_fix_returns_nonzero_when_interactive_fix_is_quit(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
-
-            result = self.runner.invoke(
-                main,
-                ["fix", "-r", "no-redundant-f-string", "--interactive", path.as_posix()],
-                input="q",
-                catch_exceptions=False,
-            )
-
-            assert result.exit_code == 1
-            assert path.read_text() == 'value = f"hello"\n'
-
-    def test_fix_interactive_accepts_single_keypress(self) -> None:
-        with TemporaryDirectory() as td:
-            path = Path(td) / "fstring.py"
-            path.write_text('value = f"hello"\n')
-
-            result = self.runner.invoke(
-                main,
-                ["fix", "-r", "no-redundant-f-string", "--interactive", path.as_posix()],
-                input="y",
-                catch_exceptions=False,
-            )
-
             assert result.exit_code == 0
-            assert path.read_text() == 'value = "hello"\n'
-
-    def test_fix_interactive_verifies_after_accepted_fix(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            write_custom_rules(
-                root,
-                """
-                import libcst as cst
-
-                from rattle import LintRule
-
-
-                class ReplaceXWithBad(LintRule):
-                    def visit_Name(self, node: cst.Name) -> None:
-                        if node.value == "x":
-                            self.report(node, "replace x", replacement=cst.Name("bad"))
-
-
-                class FlagBadName(LintRule):
-                    def visit_Name(self, node: cst.Name) -> None:
-                        if node.value == "bad":
-                            self.report(node, "bad name is forbidden")
-                """,
-            )
-            path = root / "interactive.py"
-            path.write_text("value = x\n")
-
-            result = self.runner.invoke(
-                main,
-                ["fix", "--interactive", path.as_posix()],
-                input="y",
-                catch_exceptions=False,
-            )
-            fixed_content = path.read_text()
-
-        assert result.exit_code == 1
-        assert "replace-x-with-bad" in result.stdout
-        assert "flag-bad-name" in result.stdout
-        assert fixed_content == "value = bad\n"
-
-    def test_fix_stdin_does_not_report_stale_violation_removed_by_autofix(self) -> None:
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            write_custom_rules(
-                root,
-                """
-                import libcst as cst
-
-                from rattle import LintRule
-
-
-                class ReplaceBadCall(LintRule):
-                    def visit_Call(self, node: cst.Call) -> None:
-                        if isinstance(node.func, cst.Name) and node.func.value == "bad":
-                            self.report(node, "replace bad call", replacement=cst.Name("good"))
-
-
-                class FlagOopsString(LintRule):
-                    def visit_SimpleString(self, node: cst.SimpleString) -> None:
-                        if "oops" in node.value:
-                            self.report(node, "oops string is forbidden")
-                """,
-            )
-            path = root / "stdin.py"
-
-            result = self.runner.invoke(
-                main,
-                ["fix", "-", path.as_posix()],
-                input='value = bad("oops")\n',
-                catch_exceptions=False,
-            )
-
-        assert result.exit_code == 0
-        assert result.stdout == "value = good\n"
-        assert "flag-oops-string" not in result.stderr
-        assert result.stderr == "1 file checked, 1 fix applied\n"
