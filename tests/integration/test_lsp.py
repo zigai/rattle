@@ -5,17 +5,25 @@
 
 import os
 import threading
+import time
 import traceback
 from contextlib import suppress
 from pathlib import Path
 
 import pytest
-from lsprotocol.types import PublishDiagnosticsParams
+from lsprotocol.types import (
+    DocumentFormattingParams,
+    FormattingOptions,
+    PublishDiagnosticsParams,
+    TextDocumentIdentifier,
+    TextDocumentItem,
+)
+from pygls.workspace import Workspace
 
 from rattle.config.models import LSPOptions, Options
 from rattle.errors import RattleExecutionError
 from rattle.lsp import LSP, Debouncer
-from rattle.selectors import QualifiedRule
+from rattle.selectors import QualifiedRule, RuleNameSelector
 
 
 def test_lsp_config_cache_invalidation(tmp_path: Path) -> None:
@@ -172,3 +180,63 @@ def test_lsp_close_cleans_all_uris_before_raising_first_callback_failure() -> No
         for timer in timers:
             timer.cancel()
             timer.join(timeout=1)
+
+
+def test_debouncer_clears_error_on_subsequent_call() -> None:
+    runs: list[bool] = []
+
+    def task(fail: bool = False) -> None:
+        if fail:
+            raise ValueError("boom")
+        runs.append(True)
+
+    d = Debouncer(task, interval=0.01)
+    d(fail=True)
+    time.sleep(0.05)
+
+    d(fail=False)
+    time.sleep(0.05)
+    assert runs == [True]
+
+
+def test_lsp_publishes_syntax_error_diagnostics() -> None:
+    lsp = LSP(
+        Options(rules=[RuleNameSelector("no-annotated-self")]),
+        LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0),
+    )
+    lsp.lsp.protocol._workspace = Workspace("/tmp")
+    item = TextDocumentItem(
+        uri="file:///tmp/syntax_err.py", language_id="python", version=1, text="def foo("
+    )
+    lsp.lsp.workspace.put_text_document(item)
+
+    published: list[PublishDiagnosticsParams] = []
+
+    def publish(params: PublishDiagnosticsParams) -> None:
+        published.append(params)
+
+    lsp.lsp.text_document_publish_diagnostics = publish
+    lsp.validate("file:///tmp/syntax_err.py", 1)
+
+    assert len(published) == 1
+    assert len(published[0].diagnostics) == 1
+    diag = published[0].diagnostics[0]
+    assert diag.code == "syntax-error"
+    assert diag.range.start.line == 0
+
+
+def test_lsp_format_empty_document() -> None:
+    lsp = LSP(
+        Options(),
+        LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0),
+    )
+    lsp.lsp.protocol._workspace = Workspace("/tmp")
+    item = TextDocumentItem(uri="file:///tmp/empty.py", language_id="python", version=1, text="")
+    lsp.lsp.workspace.put_text_document(item)
+
+    params = DocumentFormattingParams(
+        text_document=TextDocumentIdentifier(uri="file:///tmp/empty.py"),
+        options=FormattingOptions(tab_size=4, insert_spaces=True),
+    )
+    edits = lsp.format(params)
+    assert edits is None

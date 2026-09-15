@@ -119,6 +119,24 @@ class LSP:
             return
         diagnostics = []
         for result in generator:
+            if result.error:
+                error_obj, _ = result.error
+                raw_line = getattr(error_obj, "raw_line", None)
+                raw_col = getattr(error_obj, "raw_column", None)
+                line = max(0, raw_line - 1) if isinstance(raw_line, int) else 0
+                col = max(0, raw_col) if isinstance(raw_col, int) else 0
+                diagnostic = Diagnostic(
+                    Range(
+                        Position(line, col),
+                        Position(line, col + 1),
+                    ),
+                    str(error_obj),
+                    severity=DiagnosticSeverity.Error,
+                    code="syntax-error",
+                    source="rattle",
+                )
+                diagnostics.append(diagnostic)
+                continue
             violation = result.violation
             if not violation:
                 continue
@@ -167,9 +185,15 @@ class LSP:
             return None
 
         doc: TextDocument = self.lsp.workspace.get_text_document(params.text_document.uri)
+        if not doc.lines:
+            end_line = 0
+            end_char = 0
+        else:
+            end_line = len(doc.lines) - 1
+            end_char = len(doc.lines[-1])
         entire_range = Range(
             start=Position(line=0, character=0),
-            end=Position(line=len(doc.lines) - 1, character=len(doc.lines[-1])),
+            end=Position(line=end_line, character=end_char),
         )
 
         return [TextEdit(new_text=formatted_content.decode(), range=entire_range)]
@@ -213,7 +237,8 @@ class Debouncer(Generic[P]):
         self._error: RattleExecutionError | None = None
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> None:
-        self._raise_if_failed()
+        with self._lock:
+            self._error = None
         if self.interval <= 0:
             self.f(*args, **kwargs)
             return
@@ -246,8 +271,11 @@ class Debouncer(Generic[P]):
     def _run(self, callback: Callable[[], None]) -> None:
         try:
             callback()
+            with self._lock:
+                self._error = None
         except Exception as e:  # noqa: BLE001 - background callback boundary
-            self._error = RattleExecutionError("Debounced callback", type(e).__name__)
+            with self._lock:
+                self._error = RattleExecutionError("Debounced callback", type(e).__name__)
 
     def _raise_if_failed(self) -> None:
         if self._error is not None:
