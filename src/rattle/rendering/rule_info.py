@@ -6,9 +6,7 @@ import textwrap
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from stdl.st import colored
-
-from rattle.rendering.console import echo
+from rattle.rendering.console import Color, colored, echo
 from rattle.rule import Invalid, LintRule, RuleReference, RuleSetting, Valid
 
 JsonValue = None | str | int | float | bool | list["JsonValue"] | dict[str, "JsonValue"]
@@ -169,12 +167,12 @@ class RuleInfo:
 
 
 def render_console_rule_info(info: RuleInfo) -> None:
-    status_color = "green" if info.status == "Enabled" else "yellow"
-    autofix = f" [{colored('*', color='light_cyan', style='bold')}]" if info.autofix else ""
+    status_color: Color = "green" if info.status == "Enabled" else "yellow"
+    autofix = f" [{colored('*', 'light_cyan', bold=True)}]" if info.autofix else ""
     echo(
-        f"{colored(info.name, color='light_cyan', style='bold')}{autofix}  "
-        f"{colored(info.status, color=status_color, style='bold')}  "
-        f"{colored(info.module, color='gray')}"
+        f"{colored(info.name, 'light_cyan', bold=True)}{autofix}  "
+        f"{colored(info.status, color=status_color, bold=True)}  "
+        f"{colored(info.module, 'gray')}"
     )
 
     python_version = "Any" if info.python_version == "any" else info.python_version
@@ -190,7 +188,7 @@ def render_console_rule_info(info: RuleInfo) -> None:
     setting_lines: list[str] = []
     for setting in info.settings:
         setting_lines.append(
-            f"  {colored(setting.name, color='light_cyan', style='bold')}  "
+            f"  {colored(setting.name, 'light_cyan', bold=True)}  "
             f"{setting.value_type}  default: {setting.console_default}"
         )
         if setting.description:
@@ -241,7 +239,7 @@ def _emit_section(title: str, lines: Sequence[str]) -> None:
     if not lines:
         return
     echo()
-    echo(colored(title, color="light_cyan", style="bold"))
+    echo(colored(title, "light_cyan", bold=True))
     for line in lines:
         echo(line)
 

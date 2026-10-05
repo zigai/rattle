@@ -182,11 +182,7 @@ class RuleRegistry:
             return
 
         _logged_rule_load_failures.add(key)
-        LOG.warning(
-            "Failed to load rules '%s': %s",
-            selector,
-            error.__class__.__name__,
-        )
+        LOG.warning("Failed to load rules '%s': %s", selector, error)
 
     def _register_name(self, rule_type: type[LintRule]) -> None:
         name = rule_type.name

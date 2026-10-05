@@ -6,7 +6,7 @@
 $ rattle COMMAND [OPTIONS] ...
 ```
 
-Use `-h` or `--help` on any command to print its supported options.
+Use `--help` on any command to print its supported options.
 
 ## Shared lint/fix options
 
@@ -26,7 +26,7 @@ the pattern.
 $ rattle lint . --exclude "generated/**"
 ```
 
-### `--extend-exclude / -ee PATTERN`
+### `--extend-exclude PATTERN`
 
 Add exclude patterns. This option may be passed more than once. Direct path
 arguments are still checked unless they are excluded by configuration with
@@ -49,6 +49,8 @@ forms as {attr}`enable <rattle.Config.enable>` and
 - exact built-in rule names such as `use-f-string`
 - exact local rule names such as `my-custom-rule`, when the local rule module is
   already configured for the target path
+
+A selector that does not resolve to a rule is an error.
 
 For example:
 
@@ -75,9 +77,17 @@ or `fix --interactive`.
 
 Show fixes as unified diffs.
 
-### `--stats`
+### `--stats / -s`
 
 Print violation counts by rule.
+
+### `--output-format FORMAT`
+
+Override the configured `output-format`: `rattle`, `vscode`, or `custom`.
+
+### `--output-template TEMPLATE`
+
+Override the configured `output-template` used by the `custom` output format.
 
 ## `lint`
 
@@ -87,6 +97,12 @@ input as `PATH`.
 ```console
 $ rattle lint [OPTIONS] [PATH ...]
 ```
+
+### `--json`
+
+Print diagnostics as a JSON array on standard output. The summary still goes to
+standard error. Cannot be combined with `--quiet`, `--diff`, `--compact`,
+`--output-format`, or `--output-template`.
 
 ## `fix`
 
@@ -105,9 +121,9 @@ $ rattle fix [OPTIONS] [--interactive] [PATH ...]
 
 ### `--interactive / -i`
 
-Prompt before applying each autofix. Press `y` to apply, `n` to skip, or `q` to
-stop prompting and leave the remaining fixes unapplied. This option cannot be
-used with standard input.
+Prompt before applying each autofix. Answer `y` to apply, `n` or Enter to skip,
+or `q` to stop prompting and leave the remaining fixes unapplied. This option
+requires a terminal on standard input and cannot be used with `- PATH`.
 
 (lsp_command)=
 
@@ -156,10 +172,14 @@ $ rattle rules [OPTIONS] [PATH ...]
 
 Use a specific config file instead of discovered configuration.
 
-### `--test`
+### `--test / -t`
 
 Test enabled lint rules using their {attr}`~rattle.LintRule.VALID` and
 {attr}`~rattle.LintRule.INVALID` test cases.
+
+### `--json`
+
+Print enabled and disabled rules for each path as JSON.
 
 ## `explain`
 
@@ -186,6 +206,13 @@ Validate Rattle configuration. When no path is provided, Rattle validates
 $ rattle validate
 $ rattle validate pyproject.toml
 ```
+
+## Exit codes
+
+- `0`: no violations or errors.
+- `1`: violations were found, a file could not be parsed, or `validate` found
+  problems.
+- `2`: invalid command-line usage or invalid configuration.
 
 ## Environment variables
 

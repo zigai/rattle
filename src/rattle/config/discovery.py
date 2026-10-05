@@ -8,7 +8,7 @@ from pathlib import Path
 from rattle.config.errors import ConfigError
 from rattle.config.models import RawConfig
 from rattle.config.parsing import ConfigModelError, parse_rattle_config
-from rattle.pyproject import load_pyproject
+from rattle.pyproject import TOMLDecodeError, load_pyproject
 
 RATTLE_CONFIG_FILENAMES = ("pyproject.toml",)
 
@@ -100,7 +100,10 @@ def read_configs(paths: list[Path]) -> list[RawConfig]:
             stat = path.stat()
         except OSError as e:
             raise ConfigError(f"Failed to stat configuration file {path}") from e
-        data = load_pyproject(path, stat=stat)
+        try:
+            data = load_pyproject(path, stat=stat)
+        except TOMLDecodeError as e:
+            raise ConfigError(f"Invalid TOML in {path}: {e}") from None
         tool_data = data.get("tool", {})
         if not isinstance(tool_data, Mapping):
             continue
@@ -110,7 +113,7 @@ def read_configs(paths: list[Path]) -> list[RawConfig]:
             try:
                 parsed_rattle_data = parse_rattle_config(rattle_data)
             except ConfigModelError as e:
-                raise ConfigError(f"Invalid 'tool.rattle' configuration: {e}") from None
+                raise ConfigError(f"Invalid 'tool.rattle' configuration in {path}: {e}") from None
             config = RawConfig(path=path, data=deepcopy(parsed_rattle_data))
             configs.append(config)
 

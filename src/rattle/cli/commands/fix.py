@@ -4,14 +4,20 @@ import sys
 from pathlib import Path
 
 from rattle.api import rattle_bytes, rattle_paths
-from rattle.cli.options import _resolve_input_paths, build_options, usage_error
+from rattle.cli.options import (
+    _resolve_input_paths,
+    build_options,
+    require_known_rules,
+    usage_error,
+)
 from rattle.cli.reporting import FixReport, _metrics_hook
 from rattle.config import (
     generate_config,
 )
 from rattle.config.models import Config
 from rattle.diagnostics import FileContent, Result
-from rattle.rendering.console import AsyncConsole, echo, getchar
+from rattle.rendering.console import AsyncConsole, echo
+from rattle.rendering.models import OutputFormat
 from rattle.util import capture
 
 MAX_AUTOFIX_PASSES = 10
@@ -35,23 +41,31 @@ def _validate_fix_options(
     is_stdin = bool(paths[0] and str(paths[0]) == "-")
     if is_stdin and interactive:
         usage_error("--interactive cannot be used with stdin")
+    if interactive and not sys.stdin.isatty():
+        usage_error(
+            "--interactive requires a terminal on stdin; "
+            "run without --interactive to apply all fixes"
+        )
 
     return is_stdin
 
 
 def _prompt_for_fix() -> tuple[bool, bool]:
-    prompt = "Apply autofix? [Y]es, [n]o, [q]uit: "
     while True:
-        echo(prompt, nl=False, err=True)
-        answer = getchar(echo_input=True, err=True).lower()
-        echo(err=True)
-        if answer in {"\n", "\r", ""}:
-            answer = "y"
-        if answer in {"y", "n", "q"}:
-            break
-        echo("Press y to apply, n to skip, or q to quit fixing.", err=True)
+        echo("Apply autofix? [y/N/q] ", nl=False, err=True)
+        line = sys.stdin.readline()
+        if not line:
+            echo(err=True)
+            return False, True
 
-    return answer == "y", answer == "q"
+        answer = line.strip().lower()
+        if answer in {"", "n", "no"}:
+            return False, False
+        if answer in {"y", "yes"}:
+            return True, False
+        if answer in {"q", "quit"}:
+            return False, True
+        echo("Answer y to apply, n to skip, or q to stop fixing.", err=True)
 
 
 def _changed_result_paths(results: list[Result]) -> set[Path]:
@@ -242,6 +256,8 @@ def fix(
     config: Path | None = None,
     exclude: list[str] | None = None,
     extend_exclude: list[str] | None = None,
+    output_format: OutputFormat | None = None,
+    output_template: str | None = None,
     diff: bool = False,
     interactive: bool = False,
     compact: bool = False,
@@ -256,8 +272,10 @@ def fix(
         config: Use this config file instead of discovered configuration.
         exclude: Replace configured exclude patterns.
         extend_exclude: Add exclude patterns.
-        jobs: Number of worker processes to use when linting multiple files.
+        jobs: Number of worker processes to use when linting multiple files, at least 1.
         rules: Override configured rules with comma-separated selectors.
+        output_format: Override the configured output format.
+        output_template: Override the configured template for the custom output format.
         interactive: Prompt before applying each autofix.
         compact: Print compact diagnostics.
         diff: Show applied fixes as unified diffs.
@@ -280,7 +298,10 @@ def fix(
         extend_exclude=extend_exclude,
         jobs=jobs,
         rules=rules,
+        output_format=output_format,
+        output_template=output_template,
     )
+    require_known_rules(paths, runtime_options)
 
     console = AsyncConsole()
     report = FixReport(

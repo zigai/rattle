@@ -1,35 +1,62 @@
 from __future__ import annotations
 
+import os
 import queue
+import re
 import sys
 import threading
 from dataclasses import dataclass
-from typing import TextIO
+from typing import Literal, TextIO
 
-from stdl import st
+Color = Literal["red", "green", "yellow", "cyan", "gray", "light_red", "light_blue", "light_cyan"]
+
+COLOR_CODES: dict[Color, int] = {
+    "red": 31,
+    "green": 32,
+    "yellow": 33,
+    "cyan": 36,
+    "gray": 90,
+    "light_red": 91,
+    "light_blue": 94,
+    "light_cyan": 96,
+}
+BOLD_CODE = 1
+ANSI_STYLE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def colored(text: str, color: Color | None = None, *, bold: bool = False) -> str:
+    codes = [
+        str(code) for code in (BOLD_CODE if bold else None, color and COLOR_CODES[color]) if code
+    ]
+    if not codes:
+        return text
+    return f"\x1b[{';'.join(codes)}m{text}\x1b[0m"
+
+
+def color_enabled(stream: TextIO) -> bool:
+    if os.environ.get("NO_COLOR") or os.environ.get("NOCOLOR") or os.environ.get("TERM") == "dumb":
+        return False
+    return stream.isatty()
+
+
+def for_stream(text: str, stream: TextIO) -> str:
+    return text if color_enabled(stream) else ANSI_STYLE_RE.sub("", text)
 
 
 def echo(
     message: str = "",
     *,
-    color: str | None = None,
+    color: Color | None = None,
     bold: bool = False,
     nl: bool = True,
     err: bool = False,
     file: TextIO | None = None,
 ) -> None:
     stream = file or (sys.stderr if err else sys.stdout)
-    stream.write(st.colored(message, color=color, style="bold" if bold else None))
+    stream.write(for_stream(colored(message, color, bold=bold), stream))
     if nl:
         stream.write("\n")
     stream.flush()
-
-
-def getchar(*, echo_input: bool = False, err: bool = False) -> str:
-    char = sys.stdin.read(1)
-    if echo_input and char:
-        echo(char, nl=False, err=err)
-    return char
 
 
 def echo_color_precomputed_diff(diff: str, *, err: bool = False) -> None:
@@ -40,13 +67,13 @@ def color_precomputed_diff(diff: str) -> str:
     lines: list[str] = []
     for line in diff.splitlines(keepends=True):
         if line.startswith(("---", "+++")):
-            lines.append(st.colored(line, style="bold"))
+            lines.append(colored(line, bold=True))
         elif line.startswith("@@"):
-            lines.append(st.colored(line, color="cyan"))
+            lines.append(colored(line, "cyan"))
         elif line.startswith("-"):
-            lines.append(st.colored(line, color="red"))
+            lines.append(colored(line, "red"))
         elif line.startswith("+"):
-            lines.append(st.colored(line, color="green"))
+            lines.append(colored(line, "green"))
         else:
             lines.append(line)
     return "".join(lines)
@@ -111,7 +138,7 @@ class AsyncConsole:
                 if message is None:
                     return
                 stream = self._stderr if message.err else self._stdout
-                stream.write(message.text)
+                stream.write(for_stream(message.text, stream))
                 if message.nl:
                     stream.write("\n")
                 stream.flush()
@@ -126,10 +153,14 @@ class AsyncConsole:
 
 
 __all__ = [
+    "ANSI_STYLE_RE",
     "AsyncConsole",
+    "Color",
     "ConsoleMessage",
+    "color_enabled",
     "color_precomputed_diff",
+    "colored",
     "echo",
     "echo_color_precomputed_diff",
-    "getchar",
+    "for_stream",
 ]

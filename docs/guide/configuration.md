@@ -183,6 +183,7 @@ Type: `str`
 Choose one of the presets for terminal output formatting.
 This option is inferred based on the current working directory or from an
 explicitly specified config file. Subpath overrides are ignored.
+`--output-format` overrides it for one run.
 
 Available values:
 
@@ -203,6 +204,7 @@ Only active when {attr}`output-format <rattle.Config.output_format>` is set to
 
 This option is inferred based on the current working directory or from an
 explicitly specified config file. Subpath overrides are ignored.
+`--output-template` overrides it for one run.
 
 Supported variables:
 

@@ -63,6 +63,9 @@ class OutputStream:
     def flush(self) -> None:
         self._stream.flush()
 
+    def isatty(self) -> bool:
+        return False
+
     def getvalue(self) -> str:
         return self._stream.getvalue()
 

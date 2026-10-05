@@ -346,7 +346,7 @@ class ConfigTest(TestCase):
 
             assert results == [
                 (
-                    "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                    f"Invalid config: ConfigError: Invalid 'tool.rattle' configuration in {path}: "
                     "Expected `array`, got `str` - at `$.per-file-enable[...]`"
                 )
             ]
@@ -366,7 +366,7 @@ class ConfigTest(TestCase):
 
             assert results == [
                 (
-                    "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                    f"Invalid config: ConfigError: Invalid 'tool.rattle' configuration in {path}: "
                     "Expected `bool`, got `str` - at `$.inherit-ruff-files`"
                 )
             ]
@@ -386,7 +386,7 @@ class ConfigTest(TestCase):
 
             assert results == [
                 (
-                    "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                    f"Invalid config: ConfigError: Invalid 'tool.rattle' configuration in {path}: "
                     "Expected `array`, got `str` - at `$.exclude`"
                 )
             ]
@@ -406,7 +406,7 @@ class ConfigTest(TestCase):
 
             assert results == [
                 (
-                    "Invalid config: ConfigError: Invalid 'tool.rattle' configuration: "
+                    f"Invalid config: ConfigError: Invalid 'tool.rattle' configuration in {path}: "
                     "Expected `str | null`, got `int` - at `$.output-template`"
                 )
             ]

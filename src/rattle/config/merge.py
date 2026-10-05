@@ -173,7 +173,7 @@ class ConfigMerger:
         self._process_ruff_file_selection(self.config.path.parent, inherited=inherit_ruff_files)
 
         for key in data:
-            LOG.warning("unknown configuration option %r", key)
+            LOG.warning("unknown configuration option %r in %s", key, self.config.path)
 
     def _apply_root_import(self, data: dict[str, object]) -> None:
         if not (value := data.pop("enable-root-import", False)):

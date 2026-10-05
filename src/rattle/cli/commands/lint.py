@@ -3,9 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from rattle.api import rattle_paths
-from rattle.cli.options import _resolve_input_paths, build_options, usage_error
+from rattle.cli.options import (
+    _resolve_input_paths,
+    build_options,
+    require_known_rules,
+    usage_error,
+)
 from rattle.cli.reporting import LintReport, _metrics_hook
 from rattle.rendering.console import AsyncConsole
+from rattle.rendering.models import OutputFormat
 
 
 def lint(
@@ -15,10 +21,13 @@ def lint(
     config: Path | None = None,
     exclude: list[str] | None = None,
     extend_exclude: list[str] | None = None,
+    output_format: OutputFormat | None = None,
+    output_template: str | None = None,
     diff: bool = False,
     compact: bool = False,
     stats: bool = False,
     quiet: bool = False,
+    json: bool = False,
 ) -> None:
     """
     Check files for Rattle violations.
@@ -29,11 +38,14 @@ def lint(
         config: Use this config file instead of discovered configuration.
         exclude: Replace configured exclude patterns.
         extend_exclude: Add exclude patterns.
-        jobs: Number of worker processes to use when linting multiple files.
+        jobs: Number of worker processes to use when linting multiple files, at least 1.
         rules: Override configured rules with comma-separated selectors.
+        output_format: Override the configured output format.
+        output_template: Override the configured template for the custom output format.
         compact: Print compact diagnostics.
         diff: Show available fixes as unified diffs.
         stats: Print violation counts by rule.
+        json: Print diagnostics as JSON.
 
     pass "- PATH" to read stdin and treat it as PATH
     """
@@ -41,6 +53,15 @@ def lint(
         usage_error("--quiet and --diff cannot be used together")
     if quiet and stats:
         usage_error("--quiet and --stats cannot be used together")
+    for enabled, option in (
+        (quiet, "--quiet"),
+        (diff, "--diff"),
+        (compact, "--compact"),
+        (output_format, "--output-format"),
+        (output_template, "--output-template"),
+    ):
+        if json and enabled:
+            usage_error(f"--json and {option} cannot be used together")
 
     paths = _resolve_input_paths(paths)
 
@@ -50,7 +71,10 @@ def lint(
         extend_exclude=extend_exclude,
         jobs=jobs,
         rules=rules,
+        output_format=output_format,
+        output_template=output_template,
     )
+    require_known_rules(paths, runtime_options)
     console = AsyncConsole()
     report = LintReport(
         console=console,
@@ -59,6 +83,7 @@ def lint(
         compact=compact,
         quiet=quiet,
         stats=stats,
+        json=json,
     )
     try:
         for result in rattle_paths(

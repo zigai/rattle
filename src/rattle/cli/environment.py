@@ -28,7 +28,7 @@ def _env_flag(name: str) -> bool:
 
 def _configure_logging() -> None:
     level = logging.DEBUG if _env_flag(DEBUG_ENV) else logging.WARNING
-    logging.basicConfig(level=level, stream=sys.stderr)
+    logging.basicConfig(level=level, stream=sys.stderr, format="%(levelname)s: %(message)s")
 
 
 def _find_uv_project_root(path: Path) -> Path | None:

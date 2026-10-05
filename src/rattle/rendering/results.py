@@ -7,11 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from libcst import ParserSyntaxError
-from stdl.st import colored
 
 from rattle.ast import AstParseError
 from rattle.diagnostics import CodePosition, CodeRange, FileContent, LintViolation, Result
-from rattle.rendering.console import color_precomputed_diff, echo
+from rattle.rendering.console import Color, color_precomputed_diff, colored, echo
 from rattle.rendering.models import OutputFormat
 
 _PARSER_ERROR_PREFIX = re.compile(r"^parser error:\s*", re.IGNORECASE)
@@ -88,7 +87,7 @@ class ResultPresentation:
                 lines.append("")
             return "\n".join(lines)
 
-        rendered = colored(self._render_external_violation_line(result, path=path), color="yellow")
+        rendered = colored(self._render_external_violation_line(result, path=path), "yellow")
         if self.show_diff and violation.diff:
             rendered += "\n" + color_precomputed_diff(violation.diff).rstrip("\n")
         return rendered
@@ -130,7 +129,7 @@ class ResultPresentation:
                 raise NotImplementedError("missing rattle renderer for syntax error")
             return rendered + ("\n" if not self.brief else "")
 
-        rendered = colored(f"{path}: EXCEPTION: {error}", color="red")
+        rendered = colored(f"{path}: EXCEPTION: {error}", "red")
         return f"{rendered}\n{tb.strip()}" if tb else rendered
 
 
@@ -364,20 +363,20 @@ def _to_display_column(source_line: str, column: int) -> int:
 
 
 def _error_style(text: str, *, color: bool) -> str:
-    return colored(text, color="light_red", style="bold") if color else text
+    return colored(text, "light_red", bold=True) if color else text
 
 
 def _help_style(text: str, *, color: bool) -> str:
-    return colored(text, color="light_cyan", style="bold") if color else text
+    return colored(text, "light_cyan", bold=True) if color else text
 
 
 def _line_no_style(text: str, *, color: bool) -> str:
-    fg = "light_cyan" if sys.platform == "win32" else "light_blue"
-    return colored(text, color=fg, style="bold") if color else text
+    fg: Color = "light_cyan" if sys.platform == "win32" else "light_blue"
+    return colored(text, color=fg, bold=True) if color else text
 
 
 def _secondary_code_style(text: str, *, color: bool) -> str:
-    return colored(text, color="red", style="bold") if color else text
+    return colored(text, "red", bold=True) if color else text
 
 
 def _fix_marker(*, color: bool) -> str:

@@ -11,6 +11,7 @@ import libcst
 import pytest
 
 from rattle.diagnostics import CodePosition, CodeRange, LintViolation, Result
+from rattle.rendering.console import ANSI_STYLE_RE
 from rattle.rendering.results import render_rattle_result
 
 
@@ -247,4 +248,5 @@ class OutputTest(TestCase):
 
         assert plain is not None
         assert colored is not None
-        assert colored == plain
+        assert colored != plain
+        assert ANSI_STYLE_RE.sub("", colored) == plain

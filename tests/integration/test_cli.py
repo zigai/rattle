@@ -450,8 +450,8 @@ class CLIIntegrationTest(TestCase):
                 os.chdir(original_cwd)
 
             assert result.exit_code == 1
-            assert "Violation stats by rule:" in result.stderr
-            assert "use-f-string  3" in result.stderr
+            assert re.search(r"^Rule +Violations$", result.stderr, re.MULTILINE)
+            assert re.search(r"^use-f-string +3$", result.stderr, re.MULTILINE)
 
     def test_directory_with_errors(self) -> None:
         with TemporaryDirectory() as td:
@@ -462,7 +462,7 @@ class CLIIntegrationTest(TestCase):
             result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
-            assert result.exit_code == 2
+            assert result.exit_code == 1
             assert result.stderr == "2 files checked, 1 file with errors\n"
 
     def test_directory_with_violations_and_errors(self) -> None:
@@ -477,7 +477,7 @@ class CLIIntegrationTest(TestCase):
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
-            assert result.exit_code == 3
+            assert result.exit_code == 1
             assert (
                 result.stderr
                 == "3 files checked, 1 violation in 1 file, 1 file with errors, 1 autofixable\n"

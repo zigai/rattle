@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-
-from stdl.st import colored
 
 from rattle.config import (
     generate_config,
@@ -13,7 +12,7 @@ from rattle.config import (
 from rattle.config.models import Config, Options
 from rattle.diagnostics import Result
 from rattle.engine import Metrics
-from rattle.rendering.console import AsyncConsole
+from rattle.rendering.console import AsyncConsole, colored
 from rattle.rendering.models import OutputFormat
 from rattle.rendering.results import ResultPresentation
 
@@ -37,29 +36,29 @@ def splash(
         return "file" if v == 1 else "files"
 
     if violation_files or error_files or fixed:
-        reports = [colored(f"{len(visited)} {f(len(visited))} checked")]
+        reports = [f"{len(visited)} {f(len(visited))} checked"]
         if violations:
             reports.append(
                 colored(
                     f"{violations} violation{'s' if violations != 1 else ''} "
                     f"in {len(violation_files)} {f(len(violation_files))}",
-                    color="yellow",
-                    style="bold",
+                    "yellow",
+                    bold=True,
                 )
             )
         if error_files:
             reports.append(
                 colored(
                     f"{len(error_files)} {f(len(error_files))} with errors",
-                    color="yellow",
-                    style="bold",
+                    "yellow",
+                    bold=True,
                 )
             )
         if autofixes:
-            reports.append(colored(f"{autofixes} autofixable", style="bold"))
+            reports.append(colored(f"{autofixes} autofixable", bold=True))
         if fixed:
             word = "fix" if fixed == 1 else "fixes"
-            reports.append(colored(f"{fixed} {word} applied", style="bold"))
+            reports.append(colored(f"{fixed} {word} applied", bold=True))
 
         return ", ".join(reports)
 
@@ -90,17 +89,40 @@ def _metrics_hook(
 ) -> Callable[[Metrics], None] | None:
     if not enabled:
         return None
-    return lambda metrics: console.submit(str(metrics))
+    return lambda metrics: console.submit(json.dumps(metrics, sort_keys=True), err=True)
 
 
 def _print_stats(console: AsyncConsole, stats: Counter[str]) -> None:
     if not stats:
         return
 
-    console.submit("Violation stats by rule:", err=True)
-    width = max(len(rule_name) for rule_name in stats)
+    name_width = max(len("Rule"), *(len(rule_name) for rule_name in stats))
+    count_width = max(len("Violations"), *(len(str(count)) for count in stats.values()))
+    console.submit(f"{'Rule':<{name_width}}  {'Violations':>{count_width}}", err=True)
+    console.submit(f"{'─' * name_width}  {'─' * count_width}", err=True)
     for rule_name, count in sorted(stats.items()):
-        console.submit(f"  {rule_name:<{width}}  {count}", err=True)
+        console.submit(f"{rule_name:<{name_width}}  {count:>{count_width}}", err=True)
+
+
+def _result_json_data(result: Result) -> dict[str, object]:
+    data: dict[str, object] = {"path": _display_path(result.path).as_posix()}
+    if violation := result.violation:
+        code_range = violation.range
+        data["rule"] = violation.rule_name
+        data["message"] = violation.message
+        data["autofixable"] = violation.autofixable
+        data["start"] = (
+            {"line": code_range.start.line, "column": code_range.start.column}
+            if code_range
+            else None
+        )
+        data["end"] = (
+            {"line": code_range.end.line, "column": code_range.end.column} if code_range else None
+        )
+    if result.error:
+        error, _ = result.error
+        data["error"] = f"{type(error).__name__}: {error}"
+    return data
 
 
 def _result_config(result: Result, options: Options) -> Config:
@@ -136,6 +158,7 @@ class LintReport:
     compact: bool
     quiet: bool
     stats: bool
+    json: bool = False
     state: LintState = field(default_factory=LintState)
 
     def record(self, result: Result) -> None:
@@ -147,7 +170,10 @@ class LintReport:
         _record_lint_result(result, config, state=self.state, stats=self.stats)
 
     def submit(self) -> None:
-        if not self.quiet:
+        if self.json:
+            diagnostics = [_result_json_data(result) for result, _config in self.state.diagnostics]
+            self.console.submit(json.dumps(diagnostics, ensure_ascii=False, indent=2))
+        elif not self.quiet:
             _submit_lint_diagnostics(
                 self.console,
                 self.state.diagnostics,
@@ -197,7 +223,7 @@ class FixReport:
                 self.state.violation_stats[result.violation.rule_name] += 1
         if result.error:
             self.error_files.add(result.path)
-            self.state.exit_code |= 2
+            self.state.exit_code |= 1
 
         if not self.quiet:
             _submit_result(
@@ -263,7 +289,7 @@ def _record_lint_result(
             state.autofixes += 1
     if result.error:
         state.error_files.add(result.path)
-        state.exit_code |= 2
+        state.exit_code |= 1
 
 
 def _compact_rule_width(diagnostics: list[tuple[Result, Config]], *, compact: bool) -> int | None:
