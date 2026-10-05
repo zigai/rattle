@@ -1,10 +1,11 @@
 from pathlib import Path
 
-from libcst import Name
+from libcst import Name, ParserSyntaxError
 
 from rattle.api import rattle_bytes
 from rattle.config.models import Config
-from rattle.rendering.results import render_console_result
+from rattle.errors import RattleExecutionError
+from rattle.rendering.results import ResultPresentation
 from rattle.rule import LintRule
 from rattle.util import capture
 
@@ -27,7 +28,7 @@ class TestApi:
         )
 
         assert len(results) == 1
-        rendered = render_console_result(results[0], path=path)
+        rendered = ResultPresentation().render(results[0], path=path)
         assert rendered is not None
         assert "TOP-SECRET" not in rendered
         assert "ValueError" in rendered
@@ -73,5 +74,10 @@ class TestApi:
                 rules=[DummyRule()],
             )
         )
+        assert len(results) == 1
         assert results[0].error is not None
-        assert "SyntaxError" in str(results[0].error[0])
+        error = results[0].error[0]
+        if isinstance(error, RattleExecutionError):
+            assert error.error_type == "SyntaxError"
+        else:
+            assert isinstance(error, ParserSyntaxError)

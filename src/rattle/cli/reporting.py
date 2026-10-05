@@ -15,7 +15,7 @@ from rattle.diagnostics import Result
 from rattle.engine import Metrics
 from rattle.rendering.console import AsyncConsole
 from rattle.rendering.models import OutputFormat
-from rattle.rendering.results import render_console_result
+from rattle.rendering.results import ResultPresentation
 
 
 def _display_path(path: Path) -> Path:
@@ -72,23 +72,11 @@ def splash(
 def _submit_result(
     console: AsyncConsole,
     result: Result,
+    presentation: ResultPresentation,
     *,
-    show_diff: bool,
     stderr: bool = False,
-    output_format: OutputFormat,
-    output_template: str,
-    brief: bool,
-    brief_rule_width: int | None = None,
 ) -> bool:
-    rendered = render_console_result(
-        result,
-        path=_display_path(result.path),
-        show_diff=show_diff,
-        output_format=output_format,
-        output_template=output_template,
-        brief=brief,
-        brief_rule_width=brief_rule_width,
-    )
+    rendered = presentation.render(result, path=_display_path(result.path))
     if rendered is None:
         return False
     console.submit(rendered, err=stderr)
@@ -215,11 +203,12 @@ class FixReport:
             _submit_result(
                 self.console,
                 result,
-                show_diff=False,
+                ResultPresentation(
+                    output_format=config.output_format,
+                    output_template=config.output_template,
+                    brief=self.compact,
+                ),
                 stderr=self.is_stdin,
-                output_format=config.output_format,
-                output_template=config.output_template,
-                brief=self.compact,
             )
 
     def submit_applied_fix(self, result: Result, *, show_diff: bool) -> None:
@@ -231,11 +220,13 @@ class FixReport:
         _submit_result(
             self.console,
             result,
-            show_diff=show_diff,
+            ResultPresentation(
+                output_format=config.output_format,
+                output_template=config.output_template,
+                show_diff=show_diff,
+                brief=self.compact,
+            ),
             stderr=self.is_stdin,
-            output_format=config.output_format,
-            output_template=config.output_template,
-            brief=self.compact,
         )
 
     def submit(self) -> None:
@@ -302,11 +293,13 @@ def _submit_lint_diagnostics(
         _submit_result(
             console,
             result,
-            show_diff=diff,
-            output_format=config.output_format,
-            output_template=config.output_template,
-            brief=compact,
-            brief_rule_width=compact_rule_width,
+            ResultPresentation(
+                output_format=config.output_format,
+                output_template=config.output_template,
+                show_diff=diff,
+                brief=compact,
+                brief_rule_width=compact_rule_width,
+            ),
         )
 
 

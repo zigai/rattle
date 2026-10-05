@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from libcst import ParserSyntaxError
@@ -10,11 +11,7 @@ from stdl.st import colored
 
 from rattle.ast import AstParseError
 from rattle.diagnostics import CodePosition, CodeRange, FileContent, LintViolation, Result
-from rattle.rendering.console import (
-    color_precomputed_diff,
-    echo,
-    echo_color_precomputed_diff,
-)
+from rattle.rendering.console import color_precomputed_diff, echo
 from rattle.rendering.models import OutputFormat
 
 _PARSER_ERROR_PREFIX = re.compile(r"^parser error:\s*", re.IGNORECASE)
@@ -52,130 +49,89 @@ def render_rattle_result(
     return None
 
 
-def render_console_result(
-    result: Result,
-    *,
-    path: Path,
-    show_diff: bool = False,
-    output_format: OutputFormat = OutputFormat.rattle,
-    output_template: str = "",
-    brief: bool = False,
-    brief_rule_width: int | None = None,
-) -> str | None:
-    if result.violation:
-        return _render_console_violation(
-            result,
-            path=path,
-            show_diff=show_diff,
-            output_format=output_format,
-            output_template=output_template,
-            brief=brief,
-            brief_rule_width=brief_rule_width,
-        )
+@dataclass(frozen=True)
+class ResultPresentation:
+    output_format: OutputFormat = OutputFormat.rattle
+    output_template: str = ""
+    show_diff: bool = False
+    brief: bool = False
+    brief_rule_width: int | None = None
 
-    if result.error:
-        return _render_console_error(
-            result,
-            path=path,
-            output_format=output_format,
-            brief=brief,
-        )
+    def render(self, result: Result, *, path: Path) -> str | None:
+        if result.violation:
+            return self._render_violation(result, path=path)
 
-    return None
+        if result.error:
+            return self._render_error(result, path=path)
 
+        return None
 
-def _render_console_violation(
-    result: Result,
-    *,
-    path: Path,
-    show_diff: bool,
-    output_format: OutputFormat,
-    output_template: str,
-    brief: bool,
-    brief_rule_width: int | None,
-) -> str:
-    violation = result.violation
-    assert violation is not None
-    assert violation.range is not None
+    def _render_violation(self, result: Result, *, path: Path) -> str:
+        violation = result.violation
+        assert violation is not None
+        assert violation.range is not None
 
-    if output_format == OutputFormat.rattle:
-        rendered = render_rattle_result(
-            result,
-            path=path,
-            color=True,
-            brief=brief,
-            brief_rule_width=brief_rule_width,
-        )
-        if rendered is None:
-            raise NotImplementedError("missing rattle renderer for lint violation")
-        lines = [rendered]
-        if show_diff and violation.diff:
-            lines.append(color_precomputed_diff(violation.diff).rstrip("\n"))
-        if not brief or (show_diff and violation.diff):
-            lines.append("")
-        return "\n".join(lines)
+        if self.output_format == OutputFormat.rattle:
+            rendered = render_rattle_result(
+                result,
+                path=path,
+                color=True,
+                brief=self.brief,
+                brief_rule_width=self.brief_rule_width,
+            )
+            if rendered is None:
+                raise NotImplementedError("missing rattle renderer for lint violation")
+            lines = [rendered]
+            if self.show_diff and violation.diff:
+                lines.append(color_precomputed_diff(violation.diff).rstrip("\n"))
+            if not self.brief or (self.show_diff and violation.diff):
+                lines.append("")
+            return "\n".join(lines)
 
-    rendered = _render_external_violation_line(
-        result, path=path, output_format=output_format, output_template=output_template
-    )
-    rendered = colored(rendered, color="yellow")
-    if show_diff and violation.diff:
-        rendered += "\n" + color_precomputed_diff(violation.diff).rstrip("\n")
-    return rendered
+        rendered = colored(self._render_external_violation_line(result, path=path), color="yellow")
+        if self.show_diff and violation.diff:
+            rendered += "\n" + color_precomputed_diff(violation.diff).rstrip("\n")
+        return rendered
 
+    def _render_external_violation_line(self, result: Result, *, path: Path) -> str:
+        violation = result.violation
+        assert violation is not None
+        assert violation.range is not None
 
-def _render_external_violation_line(
-    result: Result,
-    *,
-    path: Path,
-    output_format: OutputFormat,
-    output_template: str,
-) -> str:
-    violation = result.violation
-    assert violation is not None
-    assert violation.range is not None
+        rule_name = violation.rule_name
+        start_line = violation.range.start.line
+        start_col = violation.range.start.column
+        message = violation.message
+        if violation.autofixable:
+            message += " (has autofix)"
 
-    rule_name = violation.rule_name
-    start_line = violation.range.start.line
-    start_col = violation.range.start.column
-    message = violation.message
-    if violation.autofixable:
-        message += " (has autofix)"
+        if self.output_format == OutputFormat.vscode:
+            return f"{path}:{start_line}:{start_col} {rule_name}: {message}"
+        if self.output_format == OutputFormat.custom:
+            return self.output_template.format(
+                message=message,
+                path=path,
+                result=result,
+                rule_name=rule_name,
+                start_col=start_col,
+                start_line=start_line,
+            )
+        raise NotImplementedError(f"output-format = {self.output_format!r}")
 
-    if output_format == OutputFormat.vscode:
-        return f"{path}:{start_line}:{start_col} {rule_name}: {message}"
-    if output_format == OutputFormat.custom:
-        return output_template.format(
-            message=message,
-            path=path,
-            result=result,
-            rule_name=rule_name,
-            start_col=start_col,
-            start_line=start_line,
-        )
-    raise NotImplementedError(f"output-format = {output_format!r}")
+    def _render_error(self, result: Result, *, path: Path) -> str:
+        error, tb = result.error or (None, "")
+        assert error is not None
 
+        if self.output_format == OutputFormat.rattle and isinstance(
+            error, (AstParseError, ParserSyntaxError)
+        ):
+            rendered = render_rattle_result(result, path=path, color=True, brief=self.brief)
+            if rendered is None:
+                raise NotImplementedError("missing rattle renderer for syntax error")
+            return rendered + ("\n" if not self.brief else "")
 
-def _render_console_error(
-    result: Result,
-    *,
-    path: Path,
-    output_format: OutputFormat,
-    brief: bool,
-) -> str:
-    error, tb = result.error or (None, "")
-    assert error is not None
-
-    if output_format == OutputFormat.rattle and isinstance(
-        error, (AstParseError, ParserSyntaxError)
-    ):
-        rendered = render_rattle_result(result, path=path, color=True, brief=brief)
-        if rendered is None:
-            raise NotImplementedError("missing rattle renderer for syntax error")
-        return rendered + ("\n" if not brief else "")
-
-    rendered = colored(f"{path}: EXCEPTION: {error}", color="red")
-    return f"{rendered}\n{tb.strip()}" if tb else rendered
+        rendered = colored(f"{path}: EXCEPTION: {error}", color="red")
+        return f"{rendered}\n{tb.strip()}" if tb else rendered
 
 
 def _render_violation(
@@ -428,7 +384,7 @@ def _fix_marker(*, color: bool) -> str:
     return f"[{_help_style('*', color=color)}]"
 
 
-__all__ = ["render_console_result", "render_rattle_result"]
+__all__ = ["ResultPresentation", "render_rattle_result"]
 
 
 def _display_path(path: Path) -> Path:
@@ -436,74 +392,6 @@ def _display_path(path: Path) -> Path:
         return path.relative_to(Path.cwd())
     except ValueError:
         return path
-
-
-def _print_rattle_result(
-    result: Result, *, path: Path, show_diff: bool, stderr: bool, brief: bool
-) -> bool:
-    rendered = render_rattle_result(result, path=path, color=True, brief=brief)
-    if rendered is None:
-        return False
-
-    echo(rendered, err=stderr)
-    if show_diff and result.violation and result.violation.diff:
-        echo_color_precomputed_diff(result.violation.diff, err=stderr)
-    if not brief or (show_diff and result.violation and result.violation.diff):
-        echo(err=stderr)
-    return True
-
-
-def _print_violation_result(
-    result: Result,
-    *,
-    path: Path,
-    show_diff: bool,
-    stderr: bool,
-    output_format: OutputFormat,
-    output_template: str,
-    brief: bool,
-) -> bool:
-    violation = result.violation
-    assert violation is not None
-    assert violation.range is not None
-
-    if output_format == OutputFormat.rattle:
-        if _print_rattle_result(result, path=path, show_diff=show_diff, stderr=stderr, brief=brief):
-            return True
-        raise NotImplementedError("missing rattle renderer for lint violation")
-
-    line = _render_external_violation_line(
-        result, path=path, output_format=output_format, output_template=output_template
-    )
-    echo(line, color="yellow", err=stderr)
-    if show_diff and violation.diff:
-        echo_color_precomputed_diff(violation.diff, err=stderr)
-    return True
-
-
-def _print_error_result(
-    result: Result,
-    *,
-    path: Path,
-    show_diff: bool,
-    stderr: bool,
-    output_format: OutputFormat,
-    brief: bool,
-) -> bool:
-    error, tb = result.error or (None, "")
-    assert error is not None
-
-    if output_format == OutputFormat.rattle and isinstance(
-        error, (AstParseError, ParserSyntaxError)
-    ):
-        if _print_rattle_result(result, path=path, show_diff=show_diff, stderr=stderr, brief=brief):
-            return True
-        raise NotImplementedError("missing rattle renderer for syntax error")
-
-    echo(f"{path}: EXCEPTION: {error}", color="red", err=stderr)
-    if tb:
-        echo(tb.strip(), err=stderr)
-    return True
 
 
 def print_result(
@@ -524,27 +412,16 @@ def print_result(
     Returns ``True`` if the result is "dirty" - either a lint error or exception.
     """
     path = _display_path(result.path)
+    presentation = ResultPresentation(
+        output_format=output_format,
+        output_template=output_template,
+        show_diff=show_diff,
+        brief=brief,
+    )
+    rendered = presentation.render(result, path=path)
+    if rendered is None:
+        LOG.debug("%s: clean", path)
+        return False
 
-    if result.violation:
-        return _print_violation_result(
-            result,
-            path=path,
-            show_diff=show_diff,
-            stderr=stderr,
-            output_format=output_format,
-            output_template=output_template,
-            brief=brief,
-        )
-
-    if result.error:
-        return _print_error_result(
-            result,
-            path=path,
-            show_diff=show_diff,
-            stderr=stderr,
-            output_format=output_format,
-            brief=brief,
-        )
-
-    LOG.debug("%s: clean", path)
-    return False
+    echo(rendered, err=stderr)
+    return True
