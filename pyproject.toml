@@ -21,7 +21,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "interfacy>=0.7.0",
-    "libcst >= 0.3.18",
+    "libcst >= 1.9.0",
     "msgspec >= 0.19",
     "moreorless >= 0.4.0",
     "packaging >= 21",
@@ -52,7 +52,7 @@ test = [
     "pytest>=9.0.3",
     "pygls[ws] >= 2.0,<2.2",
     "black == 26.5.1",
-    "ruff==0.16.1",
+    "ruff==0.16.10",
     "tomli",
     "ufmt == 2.9.1",
     "usort == 1.1.3",
