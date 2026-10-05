@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Sequence
+from functools import lru_cache
 from typing import TYPE_CHECKING, ClassVar
 
 import libcst as cst
@@ -42,6 +43,11 @@ from rattle.rules.blank_lines.utils import (
 from rattle.rules.helpers import is_docstring_statement, validate_non_negative_int
 
 
+@lru_cache(maxsize=1)
+def _module_source_lines(module: cst.Module) -> tuple[str, ...]:
+    return tuple(module.code.splitlines())
+
+
 class BaseBlankLinesRule(BatchableCSTVisitor):
     """Shared helpers for statement-sequence blank-line checks."""
 
@@ -50,7 +56,7 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
         PositionProvider,
     )
 
-    _source_lines_cache: list[str]
+    _source_lines_cache: Sequence[str]
 
     if TYPE_CHECKING:
 
@@ -65,13 +71,13 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
         ) -> None: ...
 
     def _set_source_lines(self, node: cst.Module) -> None:
-        self._source_lines_cache = node.code.splitlines()
+        self._source_lines_cache = _module_source_lines(node)
 
     def visit_Module(self, node: cst.Module) -> None:
         self._set_source_lines(node)
 
-    def _source_lines(self) -> list[str]:
-        return getattr(self, "_source_lines_cache", [])
+    def _source_lines(self) -> Sequence[str]:
+        return getattr(self, "_source_lines_cache", ())
 
     def _line_end_column(self, line_number: int) -> int:
         source_lines = self._source_lines()

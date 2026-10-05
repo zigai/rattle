@@ -972,7 +972,7 @@ def try_has_pass_handler(statement: cst.BaseStatement) -> bool:
     )
 
 
-def count_non_empty_lines(source_lines: list[str], start_line: int, end_line: int) -> int:
+def count_non_empty_lines(source_lines: Sequence[str], start_line: int, end_line: int) -> int:
     if not source_lines:
         return 0
 
