@@ -107,9 +107,10 @@ class PathLintRun:
         if context is not None:
             _preload_rules_for_fork(self.included_paths)
         batches = _configured_path_batches(self.included_paths, concurrency=concurrency)
-        runner = trailrunner.Trailrunner(concurrency=concurrency, context=context)
-        batch_results = _run_configured_batches(runner, batches, fn)
-        for _, batch_result in batch_results:
+        batch_results = _run_configured_batches(
+            batches, fn, concurrency=concurrency, context=context
+        )
+        for batch_result in batch_results:
             self.deferred_format_paths.extend(batch_result.deferred_format_paths)
             if self.metrics_hook is not None:
                 for metrics in batch_result.metrics:

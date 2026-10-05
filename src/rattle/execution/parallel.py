@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import multiprocessing
 import os
-from collections.abc import Callable, Collection, Iterable
+import signal
+from collections.abc import Callable, Collection, Iterable, Iterator
 from dataclasses import dataclass, field
 from multiprocessing.context import BaseContext
 from pathlib import Path
-
-import trailrunner
 
 from rattle.config.models import Config, Options
 from rattle.diagnostics import Result
@@ -26,13 +25,28 @@ class ConfiguredPathBatchResult:
     metrics: list[Metrics] = field(default_factory=list)
 
 
+def _ignore_interrupts() -> None:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+
 def _run_configured_batches(
-    runner: trailrunner.Trailrunner,
     batches: Iterable[ConfiguredPathBatch],
     run_batch: Callable[[ConfiguredPathBatch], ConfiguredPathBatchResult],
-) -> Iterable[tuple[ConfiguredPathBatch, ConfiguredPathBatchResult]]:
-    # Trailrunner is runtime-generic, but its published annotations restrict items to Path.
-    return runner.run_iter(batches, run_batch)  # type: ignore[arg-type, return-value]
+    *,
+    concurrency: int,
+    context: BaseContext | None,
+) -> Iterator[ConfiguredPathBatchResult]:
+    pool_context = context or multiprocessing.get_context()
+    pool = pool_context.Pool(concurrency, initializer=_ignore_interrupts)
+    try:
+        yield from pool.imap_unordered(run_batch, batches)
+    except BaseException:
+        pool.terminate()
+        raise
+    else:
+        pool.close()
+    finally:
+        pool.join()
 
 
 def _available_cpu_count() -> int:

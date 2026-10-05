@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,21 +14,23 @@ from rattle.execution.parallel import (
 )
 
 
-class RecordingTrailrunner:
+class RecordingBatchRunner:
     calls: list[tuple[int, list[ConfiguredPathBatch]]] = []
 
-    def __init__(self, *, concurrency: int = 0, **_: object) -> None:
-        self.concurrency = concurrency
-
-    def run_iter(
-        self,
-        paths: list[ConfiguredPathBatch],
-        func: Callable[[ConfiguredPathBatch], object],
-    ) -> object:
-        batches: list[ConfiguredPathBatch] = list(paths)
-        type(self).calls.append((self.concurrency, batches))
-        for batch in batches:
-            yield batch, func(batch)
+    @classmethod
+    def run(
+        cls,
+        batches: list[ConfiguredPathBatch],
+        run_batch: Callable[[ConfiguredPathBatch], ConfiguredPathBatchResult],
+        *,
+        concurrency: int,
+        context: object,
+    ) -> Iterator[ConfiguredPathBatchResult]:
+        del context
+        recorded = list(batches)
+        cls.calls.append((concurrency, recorded))
+        for batch in recorded:
+            yield run_batch(batch)
 
 
 def clean_batch_result(batch: ConfiguredPathBatch) -> ConfiguredPathBatchResult:
@@ -61,7 +63,7 @@ class TestApi:
         assert _default_worker_count(file_count=100, total_bytes=None, cpu_count=16) == 8
 
     def test_rattle_paths_uses_default_worker_count(self) -> None:
-        RecordingTrailrunner.calls.clear()
+        RecordingBatchRunner.calls.clear()
         paths: list[Path] = [Path(f"{index}.py") for index in range(10)]
 
         with (
@@ -79,17 +81,17 @@ class TestApi:
             ),
             patch("rattle.execution.paths._default_worker_count", return_value=4),
             patch("rattle.execution.paths._preload_rules_for_fork"),
-            patch("rattle.execution.paths.trailrunner.Trailrunner", RecordingTrailrunner),
+            patch("rattle.execution.paths._run_configured_batches", RecordingBatchRunner.run),
         ):
             results = list(rattle_paths([Path("target")]))
 
         assert [result.path.name for result in results] == [path.name for path in paths]
         expected_group = [(path.resolve(), Config(path=path), True) for path in paths]
-        assert RecordingTrailrunner.calls == [(4, [[item] for item in expected_group])]
+        assert RecordingBatchRunner.calls == [(4, [[item] for item in expected_group])]
 
     @pytest.mark.parametrize(("jobs", "expected_workers"), [(2, 2), (100, 10)])
     def test_rattle_paths_uses_configured_jobs(self, jobs: int, expected_workers: int) -> None:
-        RecordingTrailrunner.calls.clear()
+        RecordingBatchRunner.calls.clear()
         paths: list[Path] = [Path(f"{index}.py") for index in range(10)]
 
         with (
@@ -107,15 +109,15 @@ class TestApi:
             ),
             patch("rattle.execution.paths._default_worker_count") as default_worker_count,
             patch("rattle.execution.paths._preload_rules_for_fork"),
-            patch("rattle.execution.paths.trailrunner.Trailrunner", RecordingTrailrunner),
+            patch("rattle.execution.paths._run_configured_batches", RecordingBatchRunner.run),
         ):
             results = list(rattle_paths([Path("target")], options=Options(jobs=jobs)))
 
         assert [result.path.name for result in results] == [path.name for path in paths]
-        assert [call[0] for call in RecordingTrailrunner.calls] == [expected_workers]
+        assert [call[0] for call in RecordingBatchRunner.calls] == [expected_workers]
         configured_paths = [
             path
-            for batch in RecordingTrailrunner.calls[0][1]
+            for batch in RecordingBatchRunner.calls[0][1]
             for path, _config, _explicit_path in batch
         ]
         assert configured_paths == [path.resolve() for path in paths]
@@ -151,7 +153,7 @@ class TestApi:
             ),
             patch("rattle.execution.paths._default_worker_count", return_value=4),
             patch("rattle.execution.paths._preload_rules_for_fork"),
-            patch("rattle.execution.paths.trailrunner.Trailrunner", RecordingTrailrunner),
+            patch("rattle.execution.paths._run_configured_batches", RecordingBatchRunner.run),
         ):
             list(rattle_paths([Path("target")], metrics_hook=seen_metrics.append))
 
@@ -177,7 +179,7 @@ class TestApi:
             ) as rattle_configured_file,
             patch("rattle.execution.paths._default_worker_count", return_value=1),
             patch(
-                "rattle.execution.paths.trailrunner.Trailrunner",
+                "rattle.execution.paths._run_configured_batches",
                 side_effect=AssertionError("process pool should not be used"),
             ),
         ):
