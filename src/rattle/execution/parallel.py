@@ -75,13 +75,37 @@ def _configured_path_total_bytes(group: Collection[ConfiguredPath]) -> int | Non
     return total
 
 
+def _path_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
 def _configured_path_batches(
     group: list[ConfiguredPath],
     *,
     concurrency: int,
 ) -> list[ConfiguredPathBatch]:
-    chunk_size = max(1, len(group) // max(1, concurrency * 4))
-    return [group[index : index + chunk_size] for index in range(0, len(group), chunk_size)]
+    batch_count = max(1, concurrency * 4)
+    chunk_size = max(1, len(group) // batch_count)
+    sizes = [_path_size(path) for path, _config, _explicit_path in group]
+    target_bytes = sum(sizes) / batch_count
+    batches: list[ConfiguredPathBatch] = []
+    batch: ConfiguredPathBatch = []
+    batch_bytes = 0
+    for size, item in sorted(
+        zip(sizes, group, strict=True), key=lambda sized: sized[0], reverse=True
+    ):
+        batch.append(item)
+        batch_bytes += size
+        if len(batch) >= chunk_size or batch_bytes >= target_bytes:
+            batches.append(batch)
+            batch = []
+            batch_bytes = 0
+    if batch:
+        batches.append(batch)
+    return batches
 
 
 def _process_context() -> BaseContext | None:
