@@ -89,7 +89,7 @@ class ConfigTest(TestCase):
         class BetaRule(LintRule):
             pass
 
-        registry = config.RuleRegistry()
+        registry = config.RuleRegistry(root=self.tdp)
         registry.register(BetaRule)
         registry.register(AlphaRule)
 
@@ -114,7 +114,7 @@ class ConfigTest(TestCase):
         class Gamma(LintRule):
             pass
 
-        registry = config.RuleRegistry()
+        registry = config.RuleRegistry(root=self.tdp)
         registry.register(Gamma)
 
         gamma_resolution = registry.resolve(RuleNameSelector("gamma"))
@@ -130,7 +130,7 @@ class ConfigTest(TestCase):
         first_rule = type("DuplicateRule", (LintRule,), {"__module__": "first.rules"})
         second_rule = type("DuplicateRule", (LintRule,), {"__module__": "second.rules"})
 
-        registry = config.RuleRegistry()
+        registry = config.RuleRegistry(root=self.tdp)
         registry.register(first_rule)
         registry.register(second_rule)
 

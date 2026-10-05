@@ -16,7 +16,7 @@ from rattle.config.merge import parse_exact_rule_target, parse_rule
 from rattle.config.models import RawConfig
 from rattle.pyproject import TOMLDecodeError
 from rattle.rule import RuleConfigurationError
-from rattle.rule_loading import CollectionError, RuleRegistry, _build_rule_registry
+from rattle.rule_loading import CollectionError, RuleRegistry
 from rattle.selectors import RuleOptionsTable, RuleSelector
 
 
@@ -180,7 +180,7 @@ class ConfigValidator:
             self._collect_rule_selectors(rules, f"{context}: `{pattern}`")
 
     def _resolve_collected_rules(self) -> None:
-        registry = _build_rule_registry(
+        registry = RuleRegistry.load(
             [
                 *[selector for _raw, selector, _context in self.selectors_to_validate],
                 *[

@@ -65,10 +65,59 @@ class RulePlanEntry:
 
 @dataclass
 class RuleRegistry:
+    root: Path
+    enable_root_import: bool | Path = False
+    log_failures: bool = True
     imported_rules: dict[QualifiedRule, tuple[type[LintRule], ...]] = field(default_factory=dict)
     import_errors: dict[QualifiedRule, Exception] = field(default_factory=dict)
     rules_by_key: dict[str, type[LintRule]] = field(default_factory=dict)
     rules_by_name: dict[str, list[type[LintRule]]] = field(default_factory=dict)
+
+    @classmethod
+    def load(
+        cls,
+        selectors: Iterable[RuleSelector],
+        *,
+        root: Path,
+        enable_root_import: bool | Path = False,
+        strict: bool,
+        log_failures: bool = True,
+    ) -> RuleRegistry:
+        registry = cls(root=root, enable_root_import=enable_root_import, log_failures=log_failures)
+        for rule_type in set(_builtin_rule_types()):
+            registry.register(rule_type)
+
+        import_selectors = sorted(
+            {selector for selector in selectors if isinstance(selector, QualifiedRule)},
+            key=str,
+        )
+        with ExitStack() as stack:
+            if registry.import_root is not None:
+                stack.enter_context(append_sys_path(registry.import_root))
+
+            for selector in import_selectors:
+                try:
+                    rules = tuple(find_rules(selector))
+                except CollectionError as e:
+                    if strict:
+                        raise
+                    registry.import_errors[selector] = e
+                    registry._log_load_failure(selector, e)
+                    rules = ()
+
+                registry.imported_rules[selector] = rules
+                for rule_type in rules:
+                    registry.register(rule_type)
+
+        return registry
+
+    @property
+    def import_root(self) -> Path | None:
+        if not self.enable_root_import:
+            return None
+        if isinstance(self.enable_root_import, Path):
+            return self.root / self.enable_root_import
+        return self.root
 
     def register(self, rule_type: type[LintRule]) -> None:
         key = _rule_key_for_type(rule_type)
@@ -105,39 +154,39 @@ class RuleRegistry:
 
         raise CollectionError(f"could not find rule {selector}", selector)
 
-    def resolve_or_log(
-        self,
-        selector: RuleSelector,
-        *,
-        root: Path,
-        enable_root_import: bool | Path,
-    ) -> RuleResolution | None:
+    def resolve_or_log(self, selector: RuleSelector) -> RuleResolution | None:
         try:
             return self.resolve(selector)
         except CollectionError as e:
-            _log_rule_load_failure_once(
-                selector,
-                e,
-                root=root,
-                enable_root_import=enable_root_import,
-            )
+            self._log_load_failure(selector, e)
             return None
 
-    def iter_resolved(
-        self,
-        selectors: Iterable[RuleSelector],
-        *,
-        root: Path,
-        enable_root_import: bool | Path,
-    ) -> Iterator[RuleResolution]:
+    def iter_resolved(self, selectors: Iterable[RuleSelector]) -> Iterator[RuleResolution]:
         for selector in selectors:
-            resolution = self.resolve_or_log(
-                selector,
-                root=root,
-                enable_root_import=enable_root_import,
-            )
+            resolution = self.resolve_or_log(selector)
             if resolution is not None:
                 yield resolution
+
+    def _log_load_failure(self, selector: RuleSelector, error: Exception) -> None:
+        if not self.log_failures:
+            return
+
+        import_root = self.import_root
+        key = (
+            self.root.resolve(),
+            import_root.resolve() if import_root is not None else None,
+            str(selector),
+            error.__class__.__name__,
+        )
+        if key in _logged_rule_load_failures:
+            return
+
+        _logged_rule_load_failures.add(key)
+        LOG.warning(
+            "Failed to load rules '%s': %s",
+            selector,
+            error.__class__.__name__,
+        )
 
     def _register_name(self, rule_type: type[LintRule]) -> None:
         name = rule_type.name
@@ -314,87 +363,9 @@ def _option_key_aliases_for_rule_types(
     return aliases
 
 
-def _enable_root_import_path(enable_root_import: bool | Path, root: Path) -> Path | None:
-    if not enable_root_import:
-        return None
-    if isinstance(enable_root_import, Path):
-        return root / enable_root_import
-    return root
-
-
-def _log_rule_load_failure_once(
-    selector: RuleSelector,
-    error: Exception,
-    *,
-    root: Path,
-    enable_root_import: bool | Path,
-) -> None:
-    import_root = _enable_root_import_path(enable_root_import, root)
-    key = (
-        root.resolve(),
-        import_root.resolve() if import_root is not None else None,
-        str(selector),
-        error.__class__.__name__,
-    )
-    if key in _logged_rule_load_failures:
-        return
-
-    _logged_rule_load_failures.add(key)
-    LOG.warning(
-        "Failed to load rules '%s': %s",
-        selector,
-        error.__class__.__name__,
-    )
-
-
-def _build_rule_registry(
-    selectors: Iterable[RuleSelector],
-    *,
-    root: Path,
-    enable_root_import: bool | Path = False,
-    strict: bool,
-    log_failures: bool = True,
-) -> RuleRegistry:
-    registry = RuleRegistry()
-    builtin_rule_types = set(_builtin_rule_types())
-    for rule_type in builtin_rule_types:
-        registry.register(rule_type)
-
-    import_selectors = sorted(
-        {selector for selector in selectors if isinstance(selector, QualifiedRule)},
-        key=str,
-    )
-    with ExitStack() as stack:
-        path = _enable_root_import_path(enable_root_import, root)
-        if path is not None:
-            stack.enter_context(append_sys_path(path))
-
-        for selector in import_selectors:
-            try:
-                rules = tuple(find_rules(selector))
-            except CollectionError as e:
-                if strict:
-                    raise
-                registry.import_errors[selector] = e
-                if log_failures:
-                    _log_rule_load_failure_once(
-                        selector,
-                        e,
-                        root=root,
-                        enable_root_import=enable_root_import,
-                    )
-                rules = ()
-
-            registry.imported_rules[selector] = rules
-            for rule_type in rules:
-                registry.register(rule_type)
-
-    return registry
-
-
 def resolve_rule_type(config: Config, selector: RuleSelector) -> type[LintRule]:
     """Resolve one rule selector against built-ins and configured/imported rules."""
-    registry = _build_rule_registry(
+    registry = RuleRegistry.load(
         (*config.rule_imports, *config.enable, *config.disable, selector),
         root=config.root,
         enable_root_import=config.enable_root_import,
@@ -428,27 +399,19 @@ def collect_rule_types(
     named_enables: set[type[LintRule]] = set()
     disabled_rules = debug_reasons if debug_reasons is not None else {}
 
-    registry = _build_rule_registry(
+    registry = RuleRegistry.load(
         (*config.rule_imports, *config.enable, *config.disable),
         root=config.root,
         enable_root_import=config.enable_root_import,
         strict=False,
     )
 
-    for resolution in registry.iter_resolved(
-        config.enable,
-        root=config.root,
-        enable_root_import=config.enable_root_import,
-    ):
+    for resolution in registry.iter_resolved(config.enable):
         if resolution.concrete:
             named_enables |= set(resolution.rules)
         all_rules |= set(resolution.rules)
 
-    for resolution in registry.iter_resolved(
-        config.disable,
-        root=config.root,
-        enable_root_import=config.enable_root_import,
-    ):
+    for resolution in registry.iter_resolved(config.disable):
         disabled_rules.update(
             {
                 rule_type: "disabled"
