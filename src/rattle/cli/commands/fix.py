@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
 from pathlib import Path
 
 from rattle.api import rattle_bytes, rattle_paths
@@ -12,7 +11,6 @@ from rattle.config import (
 )
 from rattle.config.models import Config
 from rattle.diagnostics import FileContent, Result
-from rattle.engine import Metrics
 from rattle.rendering.console import AsyncConsole, echo, getchar
 from rattle.util import capture
 
@@ -84,173 +82,156 @@ def _autofixable_result_count(
     )
 
 
-def _submit_applied_fix_results(
-    report: FixReport,
-    results: list[Result],
-    *,
-    changed_paths: set[Path] | None,
-    show_diff: bool,
-) -> None:
-    if not show_diff:
-        return
+class FixRun:
+    def __init__(self, paths: tuple[Path, ...], report: FixReport, *, diff: bool) -> None:
+        self.paths = paths
+        self.report = report
+        self.diff = diff
+        self.metrics_hook = _metrics_hook(report.console, enabled=report.options.print_metrics)
 
-    for result in results:
-        if changed_paths is not None and result.path not in changed_paths:
-            continue
-        report.submit_applied_fix(result, show_diff=True)
+    def run_automatic(self) -> None:
+        for _ in range(MAX_AUTOFIX_PASSES):
+            if not self._run_automatic_pass():
+                break
 
+        self._verify_paths()
 
-def _collect_rattle_bytes(
-    path: Path,
-    content: FileContent,
-    *,
-    config: Config,
-    autofix: bool,
-    include_diff: bool,
-    metrics_hook: Callable[[Metrics], None] | None,
-) -> tuple[list[Result], FileContent | None]:
-    runner = capture(
-        rattle_bytes(
-            path,
-            content,
-            config=config,
-            autofix=autofix,
-            include_diff=include_diff,
-            metrics_hook=metrics_hook,
+    def run_interactive(self) -> None:
+        generator = capture(
+            rattle_paths(
+                self.paths,
+                autofix=False,
+                include_diff=True,
+                options=self.report.options,
+                parallel=False,
+                metrics_hook=self.metrics_hook,
+            )
         )
-    )
-    results = list(runner)
-    return results, runner.result
+        for result in generator:
+            self.report.visited.add(result.path)
+            violation = result.violation
+            if violation is None or not violation.autofixable:
+                continue
 
+            self.report.submit_applied_fix(result, show_diff=True)
+            self.report.console.flush()
+            apply_fix, quit_fixing = _prompt_for_fix()
+            if quit_fixing:
+                self.report.violation_files.add(result.path)
+                self.report.state.violations += 1
+                self.report.state.autofixes += 1
+                self.report.state.exit_code |= 1
+                return
+            if apply_fix:
+                generator.respond(answer=True)
+                self.report.state.fixed += 1
 
-def _run_automatic_fix_path_pass(
-    paths: tuple[Path, ...],
-    report: FixReport,
-    *,
-    diff: bool,
-) -> bool:
-    results = list(
-        rattle_paths(
-            paths,
-            autofix=True,
-            include_diff=diff,
-            options=report.options,
-            parallel=True,
-            metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
-        )
-    )
-    changed_paths = _changed_result_paths(results)
-    fixed = _autofixable_result_count(results, changed_paths=changed_paths)
-    if not fixed or not changed_paths:
-        return False
+        self._verify_paths()
 
-    report.state.fixed += fixed
-    _submit_applied_fix_results(report, results, changed_paths=changed_paths, show_diff=diff)
-    return True
-
-
-def _verify_fix_paths(paths: tuple[Path, ...], report: FixReport) -> None:
-    for result in rattle_paths(
-        paths,
-        include_diff=False,
-        allow_cached_dirty_results=False,
-        options=report.options,
-        metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
-    ):
-        report.record_verified(result)
-
-
-def _run_automatic_fix_paths(
-    paths: tuple[Path, ...],
-    report: FixReport,
-    *,
-    diff: bool,
-) -> None:
-    for _ in range(MAX_AUTOFIX_PASSES):
-        if not _run_automatic_fix_path_pass(paths, report, diff=diff):
-            break
-
-    _verify_fix_paths(paths, report)
-
-
-def _run_interactive_fix_paths(paths: tuple[Path, ...], report: FixReport) -> None:
-    generator = capture(
-        rattle_paths(
-            paths,
-            autofix=False,
-            include_diff=True,
-            options=report.options,
-            parallel=False,
-            metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
-        )
-    )
-    for result in generator:
-        report.visited.add(result.path)
-        violation = result.violation
-        if violation is None or not violation.autofixable:
-            continue
-
-        report.submit_applied_fix(result, show_diff=True)
-        report.console.flush()
-        apply_fix, quit_fixing = _prompt_for_fix()
-        if quit_fixing:
-            report.violation_files.add(result.path)
-            report.state.violations += 1
-            report.state.autofixes += 1
-            report.state.exit_code |= 1
+    def run_stdin(self) -> None:
+        path = self.paths[1].resolve()
+        content = sys.stdin.buffer.read()
+        config = generate_config(path, options=self.report.options, explicit_path=True)
+        if config.excluded:
+            sys.stdout.buffer.write(content)
             return
-        if apply_fix:
-            generator.respond(answer=True)
-            report.state.fixed += 1
 
-    _verify_fix_paths(paths, report)
+        for _ in range(MAX_AUTOFIX_PASSES):
+            results, updated = self._collect_bytes(
+                path,
+                content,
+                config=config,
+                autofix=True,
+                include_diff=self.diff,
+            )
+            if updated is None or updated == content:
+                break
 
+            fixed = _autofixable_result_count(results)
+            if not fixed:
+                break
 
-def _run_automatic_fix_stdin(
-    paths: tuple[Path, ...],
-    report: FixReport,
-    *,
-    diff: bool,
-) -> None:
-    path = paths[1].resolve()
-    content = sys.stdin.buffer.read()
-    config = generate_config(path, options=report.options, explicit_path=True)
-    if config.excluded:
-        sys.stdout.buffer.write(content)
-        return
+            self.report.state.fixed += fixed
+            self._submit_applied_fixes(results, changed_paths=None)
+            content = updated
 
-    for _ in range(MAX_AUTOFIX_PASSES):
-        results, updated = _collect_rattle_bytes(
+        results, _ = self._collect_bytes(
             path,
             content,
             config=config,
-            autofix=True,
-            include_diff=diff,
-            metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
+            autofix=False,
+            include_diff=False,
         )
-        if updated is None or updated == content:
-            break
+        for result in results:
+            self.report.record_verified(result)
 
-        fixed = _autofixable_result_count(results)
-        if not fixed:
-            break
+        sys.stdout.buffer.write(content)
 
-        report.state.fixed += fixed
-        _submit_applied_fix_results(report, results, changed_paths=None, show_diff=diff)
-        content = updated
+    def _run_automatic_pass(self) -> bool:
+        results = list(
+            rattle_paths(
+                self.paths,
+                autofix=True,
+                include_diff=self.diff,
+                options=self.report.options,
+                parallel=True,
+                metrics_hook=self.metrics_hook,
+            )
+        )
+        changed_paths = _changed_result_paths(results)
+        fixed = _autofixable_result_count(results, changed_paths=changed_paths)
+        if not fixed or not changed_paths:
+            return False
 
-    results, _ = _collect_rattle_bytes(
-        path,
-        content,
-        config=config,
-        autofix=False,
-        include_diff=False,
-        metrics_hook=_metrics_hook(report.console, enabled=report.options.print_metrics),
-    )
-    for result in results:
-        report.record_verified(result)
+        self.report.state.fixed += fixed
+        self._submit_applied_fixes(results, changed_paths=changed_paths)
+        return True
 
-    sys.stdout.buffer.write(content)
+    def _verify_paths(self) -> None:
+        for result in rattle_paths(
+            self.paths,
+            include_diff=False,
+            allow_cached_dirty_results=False,
+            options=self.report.options,
+            metrics_hook=self.metrics_hook,
+        ):
+            self.report.record_verified(result)
+
+    def _collect_bytes(
+        self,
+        path: Path,
+        content: FileContent,
+        *,
+        config: Config,
+        autofix: bool,
+        include_diff: bool,
+    ) -> tuple[list[Result], FileContent | None]:
+        runner = capture(
+            rattle_bytes(
+                path,
+                content,
+                config=config,
+                autofix=autofix,
+                include_diff=include_diff,
+                metrics_hook=self.metrics_hook,
+            )
+        )
+        results = list(runner)
+        return results, runner.result
+
+    def _submit_applied_fixes(
+        self,
+        results: list[Result],
+        *,
+        changed_paths: set[Path] | None,
+    ) -> None:
+        if not self.diff:
+            return
+
+        for result in results:
+            if changed_paths is not None and result.path not in changed_paths:
+                continue
+            self.report.submit_applied_fix(result, show_diff=True)
 
 
 def fix(
@@ -310,13 +291,14 @@ def fix(
         compact=compact,
         stats=stats,
     )
+    run = FixRun(paths, report, diff=diff)
     try:
         if is_stdin:
-            _run_automatic_fix_stdin(paths, report, diff=diff)
+            run.run_stdin()
         elif interactive:
-            _run_interactive_fix_paths(paths, report)
+            run.run_interactive()
         else:
-            _run_automatic_fix_paths(paths, report, diff=diff)
+            run.run_automatic()
 
         report.submit()
     finally:
