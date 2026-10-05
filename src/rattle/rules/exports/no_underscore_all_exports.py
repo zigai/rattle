@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import libcst as cst
 
@@ -36,160 +35,6 @@ def _export_constructor_argument(node: cst.Call) -> cst.BaseExpression | None:
 
     argument = node.args[0]
     return argument.value if argument.keyword is None else None
-
-
-def _collection_exported_names(
-    expression: cst.BaseExpression,
-    known_exports: Mapping[str, KnownExports],
-    shadowed_collection_constructors: set[str],
-) -> list[tuple[cst.CSTNode, str]] | None:
-    if isinstance(expression, cst.Name):
-        known_alias = known_exports.get(expression.value)
-        if known_alias is None:
-            return None
-
-        return [(expression, exported_name) for exported_name in known_alias.names]
-
-    if isinstance(expression, cst.Call):
-        return _call_exported_names(
-            expression,
-            known_exports,
-            shadowed_collection_constructors,
-        )
-
-    if isinstance(expression, cst.BinaryOperation) and isinstance(expression.operator, cst.Add):
-        return _added_exported_names(
-            expression,
-            known_exports,
-            shadowed_collection_constructors,
-        )
-
-    if isinstance(expression, cst.List | cst.Set | cst.Tuple):
-        return _literal_collection_exported_names(
-            expression,
-            known_exports,
-            shadowed_collection_constructors,
-        )
-
-    return None
-
-
-def _call_exported_names(
-    expression: cst.Call,
-    known_exports: Mapping[str, KnownExports],
-    shadowed_collection_constructors: set[str],
-) -> list[tuple[cst.CSTNode, str]] | None:
-    if (
-        isinstance(expression.func, cst.Name)
-        and expression.func.value in shadowed_collection_constructors
-    ):
-        return None
-
-    argument = _export_constructor_argument(expression)
-    if argument is None:
-        return None
-
-    return _collection_exported_names(
-        argument,
-        known_exports,
-        shadowed_collection_constructors,
-    )
-
-
-def _added_exported_names(
-    expression: cst.BinaryOperation,
-    known_exports: Mapping[str, KnownExports],
-    shadowed_collection_constructors: set[str],
-) -> list[tuple[cst.CSTNode, str]] | None:
-    left = _collection_exported_names(
-        expression.left,
-        known_exports,
-        shadowed_collection_constructors,
-    )
-    right = _collection_exported_names(
-        expression.right,
-        known_exports,
-        shadowed_collection_constructors,
-    )
-    if left is None or right is None:
-        return None
-
-    return [*left, *right]
-
-
-def _literal_collection_exported_names(
-    expression: cst.List | cst.Set | cst.Tuple,
-    known_exports: Mapping[str, KnownExports],
-    shadowed_collection_constructors: set[str],
-) -> list[tuple[cst.CSTNode, str]]:
-    exported_names: list[tuple[cst.CSTNode, str]] = []
-    for element in expression.elements:
-        if isinstance(element, cst.StarredElement):
-            nested_exported_names = _collection_exported_names(
-                element.value,
-                known_exports,
-                shadowed_collection_constructors,
-            )
-            if nested_exported_names is not None:
-                exported_names.extend(nested_exported_names)
-            continue
-
-        if (value := _string_value(element.value)) is not None:
-            exported_names.append((element.value, value))
-
-    return exported_names
-
-
-def _exported_names(
-    expression: cst.BaseExpression,
-    known_exports: Mapping[str, KnownExports],
-    shadowed_collection_constructors: set[str],
-) -> list[tuple[cst.CSTNode, str]]:
-    if (value := _string_value(expression)) is not None:
-        return [(expression, value)]
-
-    collection_exported_names = _collection_exported_names(
-        expression,
-        known_exports,
-        shadowed_collection_constructors,
-    )
-    return collection_exported_names if collection_exported_names is not None else []
-
-
-def _collection_kind(
-    expression: cst.BaseExpression,
-    known_exports: Mapping[str, KnownExports],
-    shadowed_collection_constructors: set[str],
-) -> str | None:
-    kind: str | None = None
-    if isinstance(expression, cst.Name):
-        known = known_exports.get(expression.value)
-        kind = known.kind if known is not None else None
-    elif isinstance(expression, cst.List):
-        kind = "list"
-    elif isinstance(expression, cst.Set):
-        kind = "set"
-    elif isinstance(expression, cst.Tuple):
-        kind = "tuple"
-    elif isinstance(expression, cst.Call) and isinstance(expression.func, cst.Name):
-        name = expression.func.value
-        if name in _COLLECTION_CONSTRUCTORS and name not in shadowed_collection_constructors:
-            kind = name
-    elif isinstance(expression, cst.BinaryOperation) and isinstance(expression.operator, cst.Add):
-        left_kind = _collection_kind(
-            expression.left,
-            known_exports,
-            shadowed_collection_constructors,
-        )
-        right_kind = _collection_kind(
-            expression.right,
-            known_exports,
-            shadowed_collection_constructors,
-        )
-        if left_kind == right_kind and left_kind in {"list", "tuple"}:
-            kind = left_kind
-
-    return kind
 
 
 def _destructured_target_value_pairs(
@@ -252,6 +97,238 @@ def _alias_mutation(
         return alias, method, expression
 
     return alias, method, None
+
+
+@dataclass
+class ExportAliases:
+    aliases: dict[str, KnownExports] = field(default_factory=dict)
+    shadowed_constructors: set[str] = field(default_factory=set)
+
+    def exported_names(self, expression: cst.BaseExpression) -> list[tuple[cst.CSTNode, str]]:
+        if (value := _string_value(expression)) is not None:
+            return [(expression, value)]
+
+        collection_exported_names = self.collection_exported_names(expression)
+        return collection_exported_names if collection_exported_names is not None else []
+
+    def collection_exported_names(
+        self,
+        expression: cst.BaseExpression,
+    ) -> list[tuple[cst.CSTNode, str]] | None:
+        if isinstance(expression, cst.Name):
+            known_alias = self.aliases.get(expression.value)
+            if known_alias is None:
+                return None
+
+            return [(expression, exported_name) for exported_name in known_alias.names]
+
+        if isinstance(expression, cst.Call):
+            return self._call_exported_names(expression)
+
+        if isinstance(expression, cst.BinaryOperation) and isinstance(expression.operator, cst.Add):
+            return self._added_exported_names(expression)
+
+        if isinstance(expression, cst.List | cst.Set | cst.Tuple):
+            return self._literal_collection_exported_names(expression)
+
+        return None
+
+    def collection_kind(self, expression: cst.BaseExpression) -> str | None:
+        kind: str | None = None
+        if isinstance(expression, cst.Name):
+            known = self.aliases.get(expression.value)
+            kind = known.kind if known is not None else None
+        elif isinstance(expression, cst.List):
+            kind = "list"
+        elif isinstance(expression, cst.Set):
+            kind = "set"
+        elif isinstance(expression, cst.Tuple):
+            kind = "tuple"
+        elif isinstance(expression, cst.Call) and isinstance(expression.func, cst.Name):
+            name = expression.func.value
+            if name in _COLLECTION_CONSTRUCTORS and name not in self.shadowed_constructors:
+                kind = name
+        elif isinstance(expression, cst.BinaryOperation) and isinstance(
+            expression.operator, cst.Add
+        ):
+            left_kind = self.collection_kind(expression.left)
+            right_kind = self.collection_kind(expression.right)
+            if left_kind == right_kind and left_kind in {"list", "tuple"}:
+                kind = left_kind
+
+        return kind
+
+    def remember_target(
+        self,
+        target: cst.BaseAssignTargetExpression,
+        value: cst.BaseExpression,
+    ) -> None:
+        if isinstance(target, cst.List | cst.Tuple):
+            pairs = _destructured_target_value_pairs(target, value)
+            if pairs is None:
+                self.forget_target(target)
+                return
+
+            for element_target, element_value in pairs:
+                self.remember_target(element_target, element_value)
+            return
+
+        if not isinstance(target, cst.Name):
+            return
+        if target.value == "__all__":
+            return
+
+        exported_names = self.collection_exported_names(value)
+        if exported_names is None:
+            self.aliases.pop(target.value, None)
+        elif isinstance(value, cst.Name) and value.value in self.aliases:
+            self.aliases[target.value] = self.aliases[value.value]
+        else:
+            self.aliases[target.value] = KnownExports(
+                tuple(exported_name for _exported_node, exported_name in exported_names),
+                self.collection_kind(value) or "unknown",
+            )
+
+        self._shadow(target.value)
+
+    def remember_augmented(self, target: cst.Name, value: cst.BaseExpression) -> None:
+        known_exports = self.aliases.get(target.value)
+        if known_exports is None:
+            return
+
+        added_exports = self.collection_exported_names(value)
+        if added_exports is None:
+            self._forget(known_exports)
+            return
+
+        added_names = tuple(name for _node, name in added_exports)
+        if known_exports.kind == "list":
+            known_exports.names = (*known_exports.names, *added_names)
+        elif known_exports.kind == "tuple":
+            self.aliases[target.value] = KnownExports(
+                (*known_exports.names, *added_names),
+                "tuple",
+            )
+        else:
+            self._forget(known_exports)
+
+    def remember_mutation(self, node: cst.Call) -> None:
+        mutation = _alias_mutation(node)
+        if mutation is None:
+            return
+        alias_name_value, method_name, expression = mutation
+        known_exports = self.aliases.get(alias_name_value)
+        if known_exports is None:
+            return
+        if known_exports.kind != "list":
+            self._forget(known_exports)
+            return
+        if expression is None:
+            self._forget(known_exports)
+            return
+
+        exported_names = self._mutation_exported_names(method_name, expression)
+        if exported_names is None:
+            return
+
+        if not exported_names:
+            return
+
+        added_exports = tuple(name for _node, name in exported_names)
+        if method_name == "insert":
+            known_exports.names = (*added_exports, *known_exports.names)
+        else:
+            known_exports.names = (*known_exports.names, *added_exports)
+
+    def forget_target(self, target: cst.BaseAssignTargetExpression) -> None:
+        for name in target_names(target):
+            self.aliases.pop(name.value, None)
+
+    def forget_mutated_target(self, target: cst.BaseAssignTargetExpression) -> None:
+        if not isinstance(target, cst.Subscript):
+            return
+        if not isinstance(target.value, cst.Name):
+            return
+
+        known_exports = self.aliases.get(target.value.value)
+        if known_exports is not None:
+            self._forget(known_exports)
+
+    def bind(self, name: str) -> None:
+        self.aliases.pop(name, None)
+        self._shadow(name)
+
+    def unbind(self, name: str) -> None:
+        self.aliases.pop(name, None)
+        self.shadowed_constructors.discard(name)
+
+    def bind_star_import(self, *, shadows_constructors: bool) -> None:
+        self.aliases.clear()
+        if shadows_constructors:
+            self.shadowed_constructors.update(_COLLECTION_CONSTRUCTORS)
+
+    def _call_exported_names(self, expression: cst.Call) -> list[tuple[cst.CSTNode, str]] | None:
+        if (
+            isinstance(expression.func, cst.Name)
+            and expression.func.value in self.shadowed_constructors
+        ):
+            return None
+
+        argument = _export_constructor_argument(expression)
+        if argument is None:
+            return None
+
+        return self.collection_exported_names(argument)
+
+    def _added_exported_names(
+        self,
+        expression: cst.BinaryOperation,
+    ) -> list[tuple[cst.CSTNode, str]] | None:
+        left = self.collection_exported_names(expression.left)
+        right = self.collection_exported_names(expression.right)
+        if left is None or right is None:
+            return None
+
+        return [*left, *right]
+
+    def _literal_collection_exported_names(
+        self,
+        expression: cst.List | cst.Set | cst.Tuple,
+    ) -> list[tuple[cst.CSTNode, str]]:
+        exported_names: list[tuple[cst.CSTNode, str]] = []
+        for element in expression.elements:
+            if isinstance(element, cst.StarredElement):
+                nested_exported_names = self.collection_exported_names(element.value)
+                if nested_exported_names is not None:
+                    exported_names.extend(nested_exported_names)
+                continue
+
+            if (value := _string_value(element.value)) is not None:
+                exported_names.append((element.value, value))
+
+        return exported_names
+
+    def _mutation_exported_names(
+        self,
+        method_name: str,
+        expression: cst.BaseExpression,
+    ) -> list[tuple[cst.CSTNode, str]] | None:
+        if method_name == "append":
+            exported_name = _string_value(expression)
+            return [] if exported_name is None else [(expression, exported_name)]
+
+        return self.collection_exported_names(expression)
+
+    def _shadow(self, name: str) -> None:
+        if name in _COLLECTION_CONSTRUCTORS:
+            self.shadowed_constructors.add(name)
+
+    def _forget(self, known_exports: KnownExports) -> None:
+        self.aliases = {
+            name: candidate
+            for name, candidate in self.aliases.items()
+            if candidate is not known_exports
+        }
 
 
 class NoUnderscoreAllExports(LintRule):
@@ -366,21 +443,18 @@ class NoUnderscoreAllExports(LintRule):
 
         self._class_depth = 0
         self._function_depth = 0
-        self._export_aliases: dict[str, KnownExports] = {}
-        self._shadowed_collection_constructors: set[str] = set()
+        self._export_aliases = ExportAliases()
 
     def visit_Module(self, node: cst.Module) -> None:
         del node
 
         self._class_depth = 0
         self._function_depth = 0
-        self._export_aliases = {}
-        self._shadowed_collection_constructors = set()
+        self._export_aliases = ExportAliases()
 
     def visit_ClassDef(self, node: cst.ClassDef) -> None:
         if self._is_module_level():
-            self._export_aliases.pop(node.name.value, None)
-            self._remember_shadowed_collection_constructor(node.name.value)
+            self._export_aliases.bind(node.name.value)
 
         self._class_depth += 1
 
@@ -391,8 +465,7 @@ class NoUnderscoreAllExports(LintRule):
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         if self._is_module_level():
-            self._export_aliases.pop(node.name.value, None)
-            self._remember_shadowed_collection_constructor(node.name.value)
+            self._export_aliases.bind(node.name.value)
 
         self._function_depth += 1
 
@@ -409,8 +482,9 @@ class NoUnderscoreAllExports(LintRule):
             self._report_exported_names(node.value)
 
         for target in node.targets:
-            self._forget_mutated_collection_target(target.target)
-        self._remember_export_aliases(node.targets, node.value)
+            self._export_aliases.forget_mutated_target(target.target)
+        for target in node.targets:
+            self._export_aliases.remember_target(target.target, node.value)
 
     def visit_AnnAssign(self, node: cst.AnnAssign) -> None:
         if not self._is_module_level():
@@ -422,10 +496,10 @@ class NoUnderscoreAllExports(LintRule):
             return
 
         if node.value is None:
-            self._forget_export_alias_target(node.target)
+            self._export_aliases.forget_target(node.target)
             return
 
-        self._remember_export_alias_target(node.target, node.value)
+        self._export_aliases.remember_target(node.target, node.value)
 
     def visit_AugAssign(self, node: cst.AugAssign) -> None:
         if not self._is_module_level():
@@ -435,9 +509,9 @@ class NoUnderscoreAllExports(LintRule):
             self._report_exported_names(node.value)
 
         if isinstance(node.target, cst.Name) and isinstance(node.operator, cst.AddAssign):
-            self._remember_augmented_alias(node.target, node.value)
+            self._export_aliases.remember_augmented(node.target, node.value)
         else:
-            self._forget_export_alias_target(node.target)
+            self._export_aliases.forget_target(node.target)
 
     def visit_Call(self, node: cst.Call) -> None:
         if not self._is_module_level():
@@ -452,7 +526,7 @@ class NoUnderscoreAllExports(LintRule):
                 self._report_single_exported_name(expression)
             return
 
-        self._remember_export_alias_mutation(node)
+        self._export_aliases.remember_mutation(node)
 
     def visit_Import(self, node: cst.Import) -> None:
         if not self._is_module_level():
@@ -469,16 +543,16 @@ class NoUnderscoreAllExports(LintRule):
             else:
                 bound_name = alias_name(import_alias.asname, "")
 
-            self._forget_bound_name(bound_name)
+            self._export_aliases.bind(bound_name)
 
     def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
         if not self._is_module_level():
             return
 
         if isinstance(node.names, cst.ImportStar):
-            self._export_aliases.clear()
-            if not is_name(node.module, "builtins"):
-                self._shadowed_collection_constructors.update(_COLLECTION_CONSTRUCTORS)
+            self._export_aliases.bind_star_import(
+                shadows_constructors=not is_name(node.module, "builtins")
+            )
             return
 
         for import_alias in node.names:
@@ -491,82 +565,22 @@ class NoUnderscoreAllExports(LintRule):
                 and bound_name == imported_name.value
                 and bound_name in _COLLECTION_CONSTRUCTORS
             ):
-                self._export_aliases.pop(bound_name, None)
-                self._shadowed_collection_constructors.discard(bound_name)
+                self._export_aliases.unbind(bound_name)
             else:
-                self._forget_bound_name(bound_name)
+                self._export_aliases.bind(bound_name)
 
     def visit_Del(self, node: cst.Del) -> None:
         if not self._is_module_level():
             return
 
         for name in target_names(node.target):
-            self._export_aliases.pop(name.value, None)
-            self._shadowed_collection_constructors.discard(name.value)
+            self._export_aliases.unbind(name.value)
 
     def _is_module_level(self) -> bool:
         return self._class_depth == 0 and self._function_depth == 0
 
-    def _remember_export_aliases(
-        self,
-        targets: Sequence[cst.AssignTarget],
-        value: cst.BaseExpression,
-    ) -> None:
-        for target in targets:
-            self._remember_export_alias_target(target.target, value)
-
-    def _remember_export_alias_target(
-        self,
-        target: cst.BaseAssignTargetExpression,
-        value: cst.BaseExpression,
-    ) -> None:
-        if isinstance(target, cst.List | cst.Tuple):
-            pairs = _destructured_target_value_pairs(target, value)
-            if pairs is None:
-                self._forget_export_alias_target(target)
-                return
-
-            for element_target, element_value in pairs:
-                self._remember_export_alias_target(element_target, element_value)
-            return
-
-        if not isinstance(target, cst.Name):
-            return
-        if target.value == "__all__":
-            return
-
-        exported_names = _collection_exported_names(
-            value,
-            self._export_aliases,
-            self._shadowed_collection_constructors,
-        )
-        if exported_names is None:
-            self._export_aliases.pop(target.value, None)
-        elif isinstance(value, cst.Name) and value.value in self._export_aliases:
-            self._export_aliases[target.value] = self._export_aliases[value.value]
-        else:
-            self._export_aliases[target.value] = KnownExports(
-                tuple(exported_name for _exported_node, exported_name in exported_names),
-                _collection_kind(
-                    value,
-                    self._export_aliases,
-                    self._shadowed_collection_constructors,
-                )
-                or "unknown",
-            )
-
-        self._remember_shadowed_collection_constructor(target.value)
-
-    def _forget_export_alias_target(self, target: cst.BaseAssignTargetExpression) -> None:
-        for name in target_names(target):
-            self._export_aliases.pop(name.value, None)
-
     def _report_exported_names(self, expression: cst.BaseExpression) -> None:
-        for exported_node, exported_name in _exported_names(
-            expression,
-            self._export_aliases,
-            self._shadowed_collection_constructors,
-        ):
+        for exported_node, exported_name in self._export_aliases.exported_names(expression):
             if not exported_name.startswith("_"):
                 continue
             if self._is_allowed_export(exported_name):
@@ -603,103 +617,3 @@ class NoUnderscoreAllExports(LintRule):
             and exported_name.startswith("__")
             and exported_name.endswith("__")
         )
-
-    def _remember_export_alias_mutation(self, node: cst.Call) -> None:
-        mutation = _alias_mutation(node)
-        if mutation is None:
-            return
-        alias_name_value, method_name, expression = mutation
-        known_exports = self._export_aliases.get(alias_name_value)
-        if known_exports is None:
-            return
-        if known_exports.kind != "list":
-            self._forget_known_exports(known_exports)
-            return
-        if expression is None:
-            self._forget_known_exports(known_exports)
-            return
-
-        exported_names = self._mutation_exported_names(method_name, expression)
-        if exported_names is None:
-            return
-
-        if not exported_names:
-            return
-
-        added_exports = tuple(name for _node, name in exported_names)
-        if method_name == "insert":
-            known_exports.names = (*added_exports, *known_exports.names)
-        else:
-            known_exports.names = (*known_exports.names, *added_exports)
-
-    def _remember_augmented_alias(
-        self,
-        target: cst.Name,
-        value: cst.BaseExpression,
-    ) -> None:
-        known_exports = self._export_aliases.get(target.value)
-        if known_exports is None:
-            return
-
-        added_exports = _collection_exported_names(
-            value,
-            self._export_aliases,
-            self._shadowed_collection_constructors,
-        )
-        if added_exports is None:
-            self._forget_known_exports(known_exports)
-            return
-
-        added_names = tuple(name for _node, name in added_exports)
-        if known_exports.kind == "list":
-            known_exports.names = (*known_exports.names, *added_names)
-        elif known_exports.kind == "tuple":
-            self._export_aliases[target.value] = KnownExports(
-                (*known_exports.names, *added_names),
-                "tuple",
-            )
-        else:
-            self._forget_known_exports(known_exports)
-
-    def _mutation_exported_names(
-        self,
-        method_name: str,
-        expression: cst.BaseExpression,
-    ) -> list[tuple[cst.CSTNode, str]] | None:
-        if method_name == "append":
-            exported_name = _string_value(expression)
-            return [] if exported_name is None else [(expression, exported_name)]
-
-        return _collection_exported_names(
-            expression,
-            self._export_aliases,
-            self._shadowed_collection_constructors,
-        )
-
-    def _forget_bound_name(self, name: str) -> None:
-        self._export_aliases.pop(name, None)
-        self._remember_shadowed_collection_constructor(name)
-
-    def _remember_shadowed_collection_constructor(self, name: str) -> None:
-        if name in _COLLECTION_CONSTRUCTORS:
-            self._shadowed_collection_constructors.add(name)
-
-    def _forget_mutated_collection_target(
-        self,
-        target: cst.BaseAssignTargetExpression,
-    ) -> None:
-        if not isinstance(target, cst.Subscript):
-            return
-        if not isinstance(target.value, cst.Name):
-            return
-
-        known_exports = self._export_aliases.get(target.value.value)
-        if known_exports is not None:
-            self._forget_known_exports(known_exports)
-
-    def _forget_known_exports(self, known_exports: KnownExports) -> None:
-        self._export_aliases = {
-            name: candidate
-            for name, candidate in self._export_aliases.items()
-            if candidate is not known_exports
-        }
