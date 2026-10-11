@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
 import os
 import re
 from pathlib import Path
@@ -10,6 +11,8 @@ from tempfile import TemporaryDirectory
 from textwrap import dedent
 from unittest import TestCase
 from unittest.mock import patch
+
+import pytest
 
 from rattle import __version__
 from rattle.cli import main
@@ -611,6 +614,34 @@ def test_interactive_fix_preserves_intervening_save(tmp_path: Path) -> None:
     assert "FileChanged" in result.output
 
 
+@pytest.mark.parametrize(
+    ("relative_path", "expected"),
+    [
+        pytest.param("generated/sample.py", b"value = list([0])\n", id="zero-depth"),
+        pytest.param("generated/nested/sample.py", b"value = list([0])\n", id="one-depth"),
+        pytest.param("generated/nested/deeper/sample.py", b"value = list([0])\n", id="two-depth"),
+        pytest.param("other/sample.py", b"value = [0]\n", id="outside-directory"),
+        pytest.param("other/generated/sample.py", b"value = [0]\n", id="nested-directory-name"),
+    ],
+)
+def test_fix_respects_recursive_exclusions(
+    tmp_path: Path, relative_path: str, expected: bytes
+) -> None:
+    path = tmp_path / relative_path
+    path.parent.mkdir(parents=True)
+    path.write_bytes(b"value = list([0])\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nformatter="none"\n'
+        'enable=["use-literal"]\nexclude=["generated/**/*.py"]\n'
+    )
+
+    with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
+        result = CliRunner().invoke(main, ["fix", tmp_path.as_posix()], catch_exceptions=False)
+
+    assert result.exit_code == 0
+    assert path.read_bytes() == expected
+
+
 def test_fix_writes_empty_module_replacement(empty_module_project: Path) -> None:
     path = empty_module_project / "sample.py"
     path.write_bytes(b"pass\n")
@@ -620,3 +651,31 @@ def test_fix_writes_empty_module_replacement(empty_module_project: Path) -> None
 
     assert path.read_bytes() == b""
     assert result.exit_code == 0
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "expected_exit", "expected_rules"),
+    [
+        pytest.param("scripts/run.py", 0, [], id="inside-exemption"),
+        pytest.param("vendor/scripts/run.py", 1, ["forbidden-call"], id="outside-exemption"),
+    ],
+)
+def test_lint_anchors_per_file_exemptions(
+    tmp_path: Path, relative_path: str, expected_exit: int, expected_rules: list[str]
+) -> None:
+    path = tmp_path / relative_path
+    path.parent.mkdir(parents=True)
+    path.write_text("import os\nos.system('x')\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nenable=["forbidden-call"]\n'
+        'per-file-disable={"scripts/*.py"=["forbidden-call"]}\n'
+        '[tool.rattle.options."forbidden-call"]\nforbidden_calls=["os.system"]\n'
+    )
+
+    with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
+        result = CliRunner().invoke(
+            main, ["lint", "--json", path.as_posix()], catch_exceptions=False
+        )
+
+    assert result.exit_code == expected_exit
+    assert [diagnostic["rule"] for diagnostic in json.loads(result.stdout)] == expected_rules

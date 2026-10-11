@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 
 from rattle.config.errors import ConfigError
@@ -121,12 +122,29 @@ def _path_matches_glob(relative_path: str, pattern: str) -> bool:
 
     if not has_glob:
         return relative_path == pattern or relative_path.startswith(f"{pattern}/")
-    if pattern == "**" or (
-        pattern.endswith("/**") and _path_matches_glob(relative_path, pattern[:-3])
-    ):
-        return True
+    return _path_matches_segment_glob(relative_path, pattern)
 
-    return PurePosixPath(relative_path).match(pattern)
+
+def _path_matches_segment_glob(relative_path: str, pattern: str) -> bool:
+    pattern_parts = PurePosixPath(pattern).parts
+    if "**" in pattern_parts:
+        index = pattern_parts.index("**")
+        return any(
+            _path_matches_segment_glob(
+                relative_path,
+                PurePosixPath(
+                    *pattern_parts[:index],
+                    *(("*",) * depth),
+                    *pattern_parts[index + 1 :],
+                ).as_posix(),
+            )
+            for depth in range(len(PurePosixPath(relative_path).parts) + 1)
+        )
+
+    path_parts = PurePosixPath(relative_path).parts
+    return len(path_parts) == len(pattern_parts) and all(
+        fnmatchcase(part, segment) for part, segment in zip(path_parts, pattern_parts, strict=True)
+    )
 
 
 def _path_matches_current_dir_glob(path: Path, pattern: str) -> bool:
