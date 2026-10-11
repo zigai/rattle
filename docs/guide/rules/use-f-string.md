@@ -178,15 +178,10 @@ simple_expression_max_length = 100
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 "type of var: %s, value of var: %s" % (type(var), var)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"type of var: {type(var)!s}, value of var: {var!s}"
 ```
 ```{raw} html
 </div>
@@ -201,15 +196,10 @@ f"type of var: {type(var)!s}, value of var: {var!s}"
 </div>
 ```
 ```{raw} html
-<div class="rule-invalid-example rule-invalid-example-separated">
+<div class="rule-invalid-example">
 ```
 ```python
 "var1: %s, var2: %s, var3: %s, var4: %s" % (class_object.attribute, dict_lookup["some_key"], some_module.some_function(), var4)
-```
-<p class="rule-example-label">Suggested fix</p>
-
-```python
-f"var1: {class_object.attribute!s}, var2: {dict_lookup['some_key']!s}, var3: {some_module.some_function()!s}, var4: {var4!s}"
 ```
 ```{raw} html
 </div>

@@ -119,12 +119,10 @@ class UseFstring(LintRule):
         ),
         Invalid(
             '"type of var: %s, value of var: %s" % (type(var), var)',
-            expected_replacement='f"type of var: {type(var)!s}, value of var: {var!s}"',
         ),
         Invalid("'%s\" double quote is used' % var"),
         Invalid(
             '"var1: %s, var2: %s, var3: %s, var4: %s" % (class_object.attribute, dict_lookup["some_key"], some_module.some_function(), var4)',
-            expected_replacement='''f"var1: {class_object.attribute!s}, var2: {dict_lookup['some_key']!s}, var3: {some_module.some_function()!s}, var4: {var4!s}"''',
         ),
         Invalid('"a list: %s" % " ".join(var)'),
         Invalid('"%s" % (first, second)'),
@@ -283,6 +281,10 @@ class UseFstring(LintRule):
     ) -> bool:
         if has_comments(original_expression):
             return False
+        if isinstance(original_expression, cst.Tuple) and any(
+            isinstance(element, cst.StarredElement) for element in original_expression.elements
+        ):
+            return False
         if (
             placeholder_count == 1
             and not isinstance(original_expression, cst.Tuple)
@@ -290,6 +292,12 @@ class UseFstring(LintRule):
         ):
             return False
         if len(expressions) != placeholder_count:
+            return False
+        if placeholder_count > 1 and not all(
+            isinstance(value, (cst.BaseNumber, cst.SimpleString))
+            or (isinstance(value, cst.Name) and value.value in {"False", "None", "True"})
+            for value in expressions
+        ):
             return False
         return all(self._is_legacy_fstring_safe(value, codegen) for value in expressions)
 

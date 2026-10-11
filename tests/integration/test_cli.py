@@ -642,6 +642,22 @@ def test_fix_respects_recursive_exclusions(
     assert path.read_bytes() == expected
 
 
+def test_percent_format_fix_preserves_starred_tuple_value(tmp_path: Path) -> None:
+    path = tmp_path / "sample.py"
+    path.write_text("result = '%s' % (*[''],)\n")
+    (tmp_path / "pyproject.toml").write_text('[tool.rattle]\nroot=true\nformatter="none"\n')
+
+    with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
+        result = CliRunner().invoke(
+            main, ["fix", "--rules", "use-f-string", path.as_posix()], catch_exceptions=False
+        )
+
+    namespace: dict[str, object] = {}
+    exec(path.read_text(), namespace)
+    assert namespace["result"] == ""
+    assert result.exit_code in (0, 1)
+
+
 def test_fix_writes_empty_module_replacement(empty_module_project: Path) -> None:
     path = empty_module_project / "sample.py"
     path.write_bytes(b"pass\n")
@@ -679,3 +695,46 @@ def test_lint_anchors_per_file_exemptions(
 
     assert result.exit_code == expected_exit
     assert [diagnostic["rule"] for diagnostic in json.loads(result.stdout)] == expected_rules
+
+
+def test_percent_format_fix_applies_literal_tuple_safely(tmp_path: Path) -> None:
+    path = tmp_path / "sample.py"
+    path.write_text("result = '%s/%s' % ('hi', 0)\n")
+    (tmp_path / "pyproject.toml").write_text('[tool.rattle]\nroot=true\nformatter="none"\n')
+
+    with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
+        result = CliRunner().invoke(
+            main, ["fix", "--rules", "use-f-string", path.as_posix()], catch_exceptions=False
+        )
+
+    namespace: dict[str, object] = {}
+    exec(path.read_text(), namespace)
+    assert namespace["result"] == "hi/0"
+    assert result.exit_code == 0
+
+
+def test_percent_format_fix_preserves_conversion_order(tmp_path: Path) -> None:
+    path = tmp_path / "sample.py"
+    source = (
+        "state = []\n"
+        "class Value:\n"
+        "    def __str__(self):\n"
+        "        state.append(0)\n"
+        "        return ''\n"
+        "result = '%s%s' % (Value(), len(state))\n"
+    )
+    original_namespace: dict[str, object] = {}
+    exec(source, original_namespace)
+    path.write_text(source)
+    (tmp_path / "pyproject.toml").write_text('[tool.rattle]\nroot=true\nformatter="none"\n')
+
+    with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
+        result = CliRunner().invoke(
+            main, ["fix", "--rules", "use-f-string", path.as_posix()], catch_exceptions=False
+        )
+
+    namespace: dict[str, object] = {}
+    exec(path.read_text(), namespace)
+    assert namespace["result"] == original_namespace["result"]
+    assert namespace["state"] == [0]
+    assert result.exit_code in (0, 1)
