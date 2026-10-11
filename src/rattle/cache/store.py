@@ -243,7 +243,7 @@ class ResultCache:
         options: Options | None,
         explicit_path: bool,
         include_diff: bool,
-        config_fingerprints: tuple[tuple[str, int, int], ...] | None = None,
+        config_fingerprints: tuple[tuple[str, int, int, str | None], ...] | None = None,
     ) -> Result | None:
         path = path.resolve()
         try:
@@ -253,15 +253,15 @@ class ResultCache:
 
         if config_fingerprints is None:
             config_fingerprints = _config_path_fingerprints(path, options=options)
-        cache_key = _clean_status_cache_key(
-            path,
-            stat,
-            options=options,
-            explicit_path=explicit_path,
-            include_diff=include_diff,
-            config_fingerprints=config_fingerprints,
-        )
         try:
+            cache_key = _clean_status_cache_key(
+                path,
+                stat,
+                options=options,
+                explicit_path=explicit_path,
+                include_diff=include_diff,
+                config_fingerprints=config_fingerprints,
+            )
             raw = self._clean_status_entry_path(cache_key).read_bytes()
             entry = CLEAN_STATUS_CACHE_DECODER.decode(raw)
         except (OSError, DecodeError):

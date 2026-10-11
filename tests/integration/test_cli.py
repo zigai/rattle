@@ -6,6 +6,8 @@
 import json
 import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
@@ -658,6 +660,32 @@ def test_percent_format_fix_preserves_starred_tuple_value(tmp_path: Path) -> Non
     assert result.exit_code in (0, 1)
 
 
+def test_lint_cache_detects_metadata_preserving_edit(tmp_path: Path) -> None:
+    path = tmp_path / "sample.py"
+    path.write_bytes(b'import os\nos.getenv("x")\n')
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nenable=["forbidden-call"]\n'
+        '[tool.rattle.options."forbidden-call"]\nforbidden_calls=["os.system"]\n'
+    )
+    runner = CliRunner()
+    with patch.dict(
+        os.environ,
+        {"RATTLE_CACHE_DIR": (tmp_path / "cache").as_posix(), "RATTLE_DISABLE_CACHE": ""},
+    ):
+        clean = runner.invoke(main, ["lint", "--json", path.as_posix()], catch_exceptions=False)
+        original_stat = path.stat()
+        path.write_bytes(b'import os\nos.system("x")\n')
+        os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        cached = runner.invoke(main, ["lint", "--json", path.as_posix()], catch_exceptions=False)
+
+    assert clean.exit_code == 0
+    assert json.loads(clean.stdout) == []
+    assert path.stat().st_size == original_stat.st_size
+    assert path.stat().st_mtime_ns == original_stat.st_mtime_ns
+    assert cached.exit_code == 1
+    assert [diagnostic["rule"] for diagnostic in json.loads(cached.stdout)] == ["forbidden-call"]
+
+
 def test_fix_writes_empty_module_replacement(empty_module_project: Path) -> None:
     path = empty_module_project / "sample.py"
     path.write_bytes(b"pass\n")
@@ -738,3 +766,93 @@ def test_percent_format_fix_preserves_conversion_order(tmp_path: Path) -> None:
     assert namespace["result"] == original_namespace["result"]
     assert namespace["state"] == [0]
     assert result.exit_code in (0, 1)
+
+
+def test_lint_cache_detects_metadata_preserving_config_edit(tmp_path: Path) -> None:
+    for index in range(20):
+        (tmp_path / f"sample{index:02}.py").write_text("import os\nos.system('x')\n")
+    config_path = tmp_path / "pyproject.toml"
+    config_path.write_text(
+        '[tool.rattle]\nroot=true\nenable=["forbidden-call"]\n'
+        '[tool.rattle.options."forbidden-call"]\nforbidden_calls=["os.getenv"]\n'
+    )
+    runner = CliRunner()
+    with patch.dict(
+        os.environ,
+        {"RATTLE_CACHE_DIR": (tmp_path / "cache").as_posix(), "RATTLE_DISABLE_CACHE": ""},
+    ):
+        clean = runner.invoke(
+            main, ["lint", "--json", "--jobs", "1", tmp_path.as_posix()], catch_exceptions=False
+        )
+        original_stat = config_path.stat()
+        config_path.write_text(config_path.read_text().replace("os.getenv", "os.system"))
+        os.utime(config_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        changed = runner.invoke(
+            main, ["lint", "--json", "--jobs", "1", tmp_path.as_posix()], catch_exceptions=False
+        )
+
+    assert clean.exit_code == 0
+    assert json.loads(clean.stdout) == []
+    assert config_path.stat().st_size == original_stat.st_size
+    assert config_path.stat().st_mtime_ns == original_stat.st_mtime_ns
+    assert changed.exit_code == 1
+    assert [diagnostic["rule"] for diagnostic in json.loads(changed.stdout)] == [
+        "forbidden-call"
+    ] * 20
+
+
+@pytest.mark.parametrize("edited_name", ["rules.py", "helpers.py"])
+@pytest.mark.parametrize("file_count", [1, 20], ids=["result-cache", "clean-status-cache"])
+def test_lint_cache_detects_metadata_preserving_rule_edit(
+    tmp_path: Path, edited_name: str, file_count: int
+) -> None:
+    paths = [tmp_path / f"sample{index:02}.py" for index in range(file_count)]
+    for path in paths:
+        path.write_text("marker = 'blocked'\n")
+    (tmp_path / "pyproject.toml").write_text('[tool.rattle]\nroot=true\nenable=[".rules"]\n')
+    (tmp_path / "rules.py").write_text(
+        "from rattle import LintRule\n"
+        "from .helpers import marker\n"
+        "TOKEN = 'allowed'\n"
+        "class MarkerCheck(LintRule):\n"
+        "    def visit_Module(self, node):\n"
+        "        if TOKEN in node.code or marker() in node.code:\n"
+        "            self.report(node, 'Blocked marker.')\n"
+    )
+    (tmp_path / "helpers.py").write_text("def marker():\n    return 'allowed'\n")
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    environment = os.environ | {
+        "RATTLE_CACHE_DIR": cache_dir.as_posix(),
+        "RATTLE_DISABLE_CACHE": "",
+    }
+    command = [
+        sys.executable,
+        "-B",
+        "-m",
+        "rattle",
+        "lint",
+        "--json",
+        "--jobs",
+        "1",
+        *(path.as_posix() for path in paths),
+    ]
+    clean = subprocess.run(
+        command, cwd=tmp_path, capture_output=True, text=True, env=environment, check=False
+    )
+    edited = tmp_path / edited_name
+    original_stat = edited.stat()
+    edited.write_text(edited.read_text().replace("allowed", "blocked"))
+    os.utime(edited, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+    changed = subprocess.run(
+        command, cwd=tmp_path, capture_output=True, text=True, env=environment, check=False
+    )
+
+    assert clean.returncode == 0, clean.stderr
+    assert json.loads(clean.stdout) == []
+    assert edited.stat().st_size == original_stat.st_size
+    assert edited.stat().st_mtime_ns == original_stat.st_mtime_ns
+    assert changed.returncode == 1, changed.stderr
+    assert [diagnostic["rule"] for diagnostic in json.loads(changed.stdout)] == [
+        "marker-check"
+    ] * file_count

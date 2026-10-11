@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import hashlib
 import threading
 from collections import deque
 from collections.abc import Callable, Generator
@@ -48,7 +49,7 @@ class LSP:
         self.rattle_options = rattle_options
         self.lsp_options = lsp_options
 
-        self._config_cache: dict[Path, tuple[tuple[tuple[str, int], ...], Config]] = {}
+        self._config_cache: dict[Path, tuple[tuple[tuple[str, str | None], ...], Config]] = {}
 
         # separate debounce timer per URI so that linting one URI
         # doesn't cancel linting another
@@ -71,20 +72,20 @@ class LSP:
         self._config_cache[path] = (fingerprint, config)
         return config
 
-    def _config_fingerprint(self, path: Path) -> tuple[tuple[str, int], ...]:
+    def _config_fingerprint(self, path: Path) -> tuple[tuple[str, str | None], ...]:
         if self.rattle_options.config_file:
             config_paths = [self.rattle_options.config_file]
         else:
             config_paths = locate_configs(path)
 
-        fingerprint: list[tuple[str, int]] = []
+        fingerprint: list[tuple[str, str | None]] = []
         for config_path in config_paths:
             resolved = config_path.resolve()
             try:
-                mtime_ns = resolved.stat().st_mtime_ns
+                source_hash = hashlib.sha256(resolved.read_bytes()).hexdigest()
             except FileNotFoundError:
-                mtime_ns = -1
-            fingerprint.append((resolved.as_posix(), mtime_ns))
+                source_hash = None
+            fingerprint.append((resolved.as_posix(), source_hash))
 
         return tuple(fingerprint)
 

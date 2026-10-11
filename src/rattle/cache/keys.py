@@ -10,6 +10,7 @@ import platform
 from collections.abc import Collection
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from stat import S_ISREG
 
 from rattle.cache.models import CACHE_VERSION, ResultCacheEntry
 from rattle.config.discovery import locate_configs
@@ -24,15 +25,18 @@ def _jsonable_option_value(value: object) -> object:
     return value
 
 
-def _path_stat_fingerprint(path: Path | None) -> tuple[str, int, int] | None:
+def _path_stat_fingerprint(path: Path | None) -> tuple[str, int, int, str | None] | None:
     if path is None:
         return None
 
     try:
         stat = path.stat()
+        source_hash = (
+            hashlib.sha256(path.read_bytes()).hexdigest() if S_ISREG(stat.st_mode) else None
+        )
     except OSError:
-        return (path.as_posix(), -1, -1)
-    return (path.as_posix(), stat.st_mtime_ns, stat.st_size)
+        return (path.as_posix(), -1, -1, None)
+    return (path.as_posix(), stat.st_mtime_ns, stat.st_size, source_hash)
 
 
 def _package_version(package_name: str) -> str | None:
@@ -78,7 +82,7 @@ def rule_cache_fingerprint(rule: LintRule) -> tuple[object, ...]:
 
 def _sibling_python_file_fingerprints(
     source_path: Path | None,
-) -> tuple[tuple[str, int, int], ...]:
+) -> tuple[tuple[str, int, int, str | None], ...]:
     if source_path is None:
         return ()
     try:
@@ -105,6 +109,7 @@ def _clean_cache_key(
         "path": path.as_posix(),
         "mtime_ns": stat.st_mtime_ns,
         "size": stat.st_size,
+        "source_hash": hashlib.sha256(path.read_bytes()).hexdigest(),
         "include_diff": include_diff,
         "root": config.root.as_posix(),
         "enable_root_import": config.enable_root_import.as_posix()
@@ -148,7 +153,7 @@ def _config_path_fingerprints(
     path: Path,
     *,
     options: Options | None,
-) -> tuple[tuple[str, int, int], ...]:
+) -> tuple[tuple[str, int, int, str | None], ...]:
     if options and options.config_file:
         config_paths: list[Path] = [options.config_file]
     else:
@@ -167,7 +172,7 @@ def _clean_status_cache_key(
     options: Options | None,
     explicit_path: bool,
     include_diff: bool,
-    config_fingerprints: tuple[tuple[str, int, int], ...],
+    config_fingerprints: tuple[tuple[str, int, int, str | None], ...],
 ) -> str:
     payload: dict[str, object] = {
         "version": CACHE_VERSION,
@@ -176,6 +181,7 @@ def _clean_status_cache_key(
         "path": path.as_posix(),
         "mtime_ns": stat.st_mtime_ns,
         "size": stat.st_size,
+        "source_hash": hashlib.sha256(path.read_bytes()).hexdigest(),
         "include_diff": include_diff,
         "explicit_path": explicit_path,
         "options": _option_selectors_for_cache(options),
@@ -207,7 +213,7 @@ def _fingerprint_matches(raw_fingerprint: object) -> bool:
 def _path_stat_fingerprint_matches(raw_path_stat: object) -> bool:
     if (
         not isinstance(raw_path_stat, list | tuple)
-        or len(raw_path_stat) != 3
+        or len(raw_path_stat) != 4
         or not isinstance(raw_path_stat[0], str)
     ):
         return False

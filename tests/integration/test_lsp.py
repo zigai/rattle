@@ -313,3 +313,38 @@ def test_lsp_format_applies_empty_module_replacement(empty_module_project: Path)
         assert document.source == ""
     finally:
         lsp.close()
+
+
+def test_lsp_config_detects_metadata_preserving_edit(tmp_path: Path) -> None:
+    config_path = tmp_path / "pyproject.toml"
+    config_path.write_text(
+        '[tool.rattle]\nroot=true\nenable=["forbidden-call"]\n'
+        '[tool.rattle.options."forbidden-call"]\nforbidden_calls=["os.getenv"]\n'
+    )
+    uri = (tmp_path / "sample.py").as_uri()
+    lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
+    lsp.lsp.protocol._workspace = Workspace(tmp_path.as_uri())
+    lsp.lsp.workspace.put_text_document(
+        TextDocumentItem(
+            uri=uri, language_id="python", version=1, text="import os\nos.system('x')\n"
+        )
+    )
+    published: list[PublishDiagnosticsParams] = []
+    lsp.lsp.text_document_publish_diagnostics = published.append
+
+    try:
+        lsp.validate(uri, 1)
+        original_stat = config_path.stat()
+        config_path.write_text(config_path.read_text().replace("os.getenv", "os.system"))
+        os.utime(config_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        lsp.validate(uri, 2)
+        assert config_path.stat().st_size == original_stat.st_size
+        assert config_path.stat().st_mtime_ns == original_stat.st_mtime_ns
+        assert [
+            [diagnostic.code for diagnostic in message.diagnostics] for message in published
+        ] == [
+            [],
+            ["forbidden-call"],
+        ]
+    finally:
+        lsp.close()

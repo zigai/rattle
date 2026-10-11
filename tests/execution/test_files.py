@@ -200,7 +200,7 @@ class TestApi:
         path = tmp_path / "clean.py"
         path.write_text("pass\n")
         stat = path.stat()
-        config_fingerprints: tuple[tuple[str, int, int], ...] = ()
+        config_fingerprints: tuple[tuple[str, int, int, str | None], ...] = ()
 
         with patch("rattle.cache.keys.platform.python_version", return_value="3.10.0"):
             py310_key = _clean_status_cache_key(
