@@ -241,7 +241,7 @@ class NoExceptionMessageVariables(LintRule):
         Invalid(
             """
             message = f"invalid value: {value}"
-            raise RuntimeError(message) from exc
+            raise RuntimeError(message) from e
             """,
         ),
         Invalid(

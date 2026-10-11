@@ -120,7 +120,7 @@ raise ValueError("invalid value")
 ```
 ```python
 message = f"invalid value: {value}"
-raise RuntimeError(message) from exc
+raise RuntimeError(message) from e
 ```
 ```{raw} html
 </div>

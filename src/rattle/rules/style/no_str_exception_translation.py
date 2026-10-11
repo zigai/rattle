@@ -12,7 +12,7 @@ class NoStrExceptionTranslation(LintRule):
 
     MESSAGE = (
         "Use a fixed message when translating an exception, and preserve the cause with "
-        "`raise ... from exc`."
+        "`raise ... from e`."
     )
     METADATA_DEPENDENCIES = (QualifiedNameProvider,)
 
@@ -20,8 +20,8 @@ class NoStrExceptionTranslation(LintRule):
         Valid("""
             try:
                 run()
-            except ValueError as exc:
-                raise CommandArgumentError("Invalid resource identifier.") from exc
+            except ValueError as e:
+                raise CommandArgumentError("Invalid resource identifier.") from e
             """),
         Valid("""
             message = str(value)
@@ -29,20 +29,21 @@ class NoStrExceptionTranslation(LintRule):
         Valid("""
             try:
                 run()
-            except ValueError as exc:
+            except ValueError as e:
                 str = lambda value: "fixed"
-                raise RuntimeError(str(exc)) from exc
+                raise RuntimeError(str(e)) from e
             """),
         Valid("""
             error = "fixed"
 
             try:
                 run()
-            except ValueError as exc:
-                def capture() -> None:
-                    error = exc
+            except ValueError as e:
 
-                raise RuntimeError(str(error)) from exc
+                def capture() -> None:
+                    error = e
+
+                raise RuntimeError(str(error)) from e
             """),
     ]
 
@@ -51,8 +52,8 @@ class NoStrExceptionTranslation(LintRule):
             """
             try:
                 run()
-            except ValueError as exc:
-                raise CommandArgumentError(str(exc)) from exc
+            except ValueError as e:
+                raise CommandArgumentError(str(e)) from e
             """,
             expected_message=MESSAGE,
         ),
@@ -69,8 +70,8 @@ class NoStrExceptionTranslation(LintRule):
             """
             try:
                 run()
-            except ValueError as exc:
-                raise RuntimeError(message=str(exc)) from exc
+            except ValueError as e:
+                raise RuntimeError(message=str(e)) from e
             """,
             expected_message=MESSAGE,
         ),
@@ -78,8 +79,8 @@ class NoStrExceptionTranslation(LintRule):
             """
             try:
                 run()
-            except ValueError as exc:
-                raise RuntimeError(f"{exc}") from exc
+            except ValueError as e:
+                raise RuntimeError(f"{e}") from e
             """,
             expected_message=MESSAGE,
         ),
@@ -87,8 +88,8 @@ class NoStrExceptionTranslation(LintRule):
             """
             try:
                 run()
-            except ValueError as exc:
-                raise RuntimeError("{}".format(exc)) from exc
+            except ValueError as e:
+                raise RuntimeError("{}".format(e)) from e
             """,
             expected_message=MESSAGE,
         ),
@@ -96,8 +97,8 @@ class NoStrExceptionTranslation(LintRule):
             """
             try:
                 run()
-            except ValueError as exc:
-                raise RuntimeError("%s" % exc) from exc
+            except ValueError as e:
+                raise RuntimeError("%s" % e) from e
             """,
             expected_message=MESSAGE,
         ),
@@ -105,8 +106,8 @@ class NoStrExceptionTranslation(LintRule):
             """
             try:
                 run()
-            except ValueError as exc:
-                raise RuntimeError("%s" % (exc,)) from exc
+            except ValueError as e:
+                raise RuntimeError("%s" % (e,)) from e
             """,
             expected_message=MESSAGE,
         ),
@@ -116,8 +117,8 @@ class NoStrExceptionTranslation(LintRule):
 
             try:
                 run()
-            except ValueError as exc:
-                raise RuntimeError(builtins.str(exc)) from exc
+            except ValueError as e:
+                raise RuntimeError(builtins.str(e)) from e
             """,
             expected_message=MESSAGE,
         ),
@@ -127,8 +128,8 @@ class NoStrExceptionTranslation(LintRule):
 
             try:
                 run()
-            except ValueError as exc:
-                raise RuntimeError(builtin_values.str(exc)) from exc
+            except ValueError as e:
+                raise RuntimeError(builtin_values.str(e)) from e
             """,
             expected_message=MESSAGE,
         ),
@@ -138,8 +139,8 @@ class NoStrExceptionTranslation(LintRule):
 
             try:
                 run()
-            except ValueError as exc:
-                raise RuntimeError(stringify(exc)) from exc
+            except ValueError as e:
+                raise RuntimeError(stringify(e)) from e
             """,
             expected_message=MESSAGE,
         ),
