@@ -310,6 +310,59 @@ def test_lsp_publishes_syntax_error_diagnostics() -> None:
     assert diag.range.start.line == 0
 
 
+def test_lsp_format_refreshes_side_effect_import_configuration(tmp_path: Path) -> None:
+    config_path = tmp_path / "pyproject.toml"
+    config = '[tool.rattle]\nroot=true\nformatter="ufmt"\nenable=["use-literal"]\n'
+    config_path.write_text(config)
+    (tmp_path / "z_bootstrap.py").write_text(
+        'from pathlib import Path\nPath(__file__).with_name("ready").touch()\n'
+    )
+    (tmp_path / "a_client.py").write_text(
+        'from pathlib import Path\nassert Path(__file__).with_name("ready").is_file()\n'
+    )
+    uri = (tmp_path / "sample.py").as_uri()
+    lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
+    lsp.lsp.protocol._workspace = Workspace(tmp_path.as_uri())
+    lsp.lsp.workspace.put_text_document(
+        TextDocumentItem(
+            uri=uri,
+            language_id="python",
+            version=1,
+            text="import z_bootstrap\nimport a_client\nvalue = list([0])\n",
+        )
+    )
+    params = DocumentFormattingParams(
+        text_document=TextDocumentIdentifier(uri=uri),
+        options=FormattingOptions(tab_size=4, insert_spaces=True),
+    )
+
+    try:
+        assert lsp.format(params) is not None
+        config_path.write_text(config + '[tool.usort]\nside_effect_modules=["z_bootstrap"]\n')
+        edits = lsp.format(params)
+        assert edits is not None
+        document = lsp.lsp.workspace.get_text_document(uri)
+        for edit in sorted(
+            edits,
+            key=lambda edit: (edit.range.start.line, edit.range.start.character),
+            reverse=True,
+        ):
+            document.apply_change(
+                TextDocumentContentChangePartial(range=edit.range, text=edit.new_text)
+            )
+        result = subprocess.run(
+            [sys.executable, "-c", document.source + "\nprint(value)\n"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == "[0]\n"
+    finally:
+        lsp.close()
+
+
 def test_lsp_format_empty_document() -> None:
     lsp = LSP(
         Options(),

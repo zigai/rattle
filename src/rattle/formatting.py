@@ -190,7 +190,6 @@ def _black_config(path: Path) -> "black.Mode":
     return ufmt.util.make_black_config(path)
 
 
-@cache
 def _usort_config(path: Path) -> "ufmt.UsortConfig":
     import ufmt
 
