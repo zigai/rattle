@@ -3,12 +3,16 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
 import os
+import subprocess
+import sys
 import threading
 import time
 import traceback
 from contextlib import suppress
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
 from lsprotocol.types import (
@@ -106,6 +110,86 @@ def test_lsp_validate_clears_diagnostics_when_file_is_excluded() -> None:
     assert len(published) == 1
     assert published[0].diagnostics == []
     assert published[0].version == 7
+
+
+def test_lsp_reschedules_validation_while_previous_callback_completes(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text('[tool.rattle]\nroot=true\nenable=["use-literal"]\n')
+    script = dedent(
+        """
+        import json
+        import sys
+        import threading
+        from pathlib import Path
+        from lsprotocol.types import (
+            DidChangeTextDocumentParams, DidOpenTextDocumentParams,
+            TextDocumentItem, VersionedTextDocumentIdentifier,
+        )
+        from pygls.workspace import Workspace
+        from rattle.config.models import LSPOptions, Options
+        from rattle.lsp import LSP
+
+        started = threading.Event()
+        release = threading.Event()
+        latest = threading.Event()
+        messages = []
+
+        class ControlledLSP(LSP):
+            def diagnostic_generator(self, uri, *, autofix=False):
+                generator = super().diagnostic_generator(uri, autofix=autofix)
+                if not started.is_set():
+                    started.set()
+                    assert release.wait(2)
+                return generator
+
+        root = Path(sys.argv[1])
+        uri = (root / 'sample.py').as_uri()
+        lsp = ControlledLSP(
+            Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0.001)
+        )
+        lsp.lsp.protocol._workspace = Workspace(root.as_uri())
+        def publish(params):
+            messages.append([params.version, [item.code for item in params.diagnostics]])
+            if params.version == 2:
+                latest.set()
+        lsp.lsp.text_document_publish_diagnostics = publish
+
+        original_join = threading.Timer.join
+        def release_on_join(timer, *args, **kwargs):
+            release.set()
+            return original_join(timer, *args, **kwargs)
+        threading.Timer.join = release_on_join
+        try:
+            item = TextDocumentItem(uri=uri, language_id='python', version=1, text='value = 0\\n')
+            lsp.lsp.workspace.put_text_document(item)
+            lsp.on_did_open(DidOpenTextDocumentParams(text_document=item))
+            assert started.wait(2)
+            lsp.lsp.workspace.put_text_document(TextDocumentItem(
+                uri=uri, language_id='python', version=2, text='value = list([0])\\n'
+            ))
+            lsp.on_did_change(DidChangeTextDocumentParams(
+                text_document=VersionedTextDocumentIdentifier(uri=uri, version=2),
+                content_changes=[],
+            ))
+            release.set()
+            assert latest.wait(2)
+            lsp.close()
+            print(json.dumps(messages[-1]))
+        finally:
+            release.set()
+            threading.Timer.join = original_join
+            lsp.close()
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script, tmp_path.as_posix()],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == [2, ["use-literal"]]
 
 
 def test_debouncer_surfaces_sanitized_background_failures() -> None:

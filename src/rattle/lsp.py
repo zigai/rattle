@@ -238,6 +238,7 @@ class Debouncer(Generic[P]):
         self.interval = interval
         self._timer: threading.Timer | None = None
         self._lock = threading.Lock()
+        self._timer_lock = threading.Lock()
         self._error: RattleExecutionError | None = None
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> None:
@@ -248,7 +249,7 @@ class Debouncer(Generic[P]):
             return
 
         callback = partial(self.f, *args, **kwargs)
-        with self._lock:
+        with self._timer_lock:
             if self._timer is not None:
                 self._timer.cancel()
                 if self._timer is not threading.current_thread():
@@ -263,7 +264,7 @@ class Debouncer(Generic[P]):
 
     def close(self) -> None:
         """Cancel and join the pending callback, then surface callback failures."""
-        with self._lock:
+        with self._timer_lock:
             timer = self._timer
             self._timer = None
         if timer is not None:
