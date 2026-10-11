@@ -121,8 +121,13 @@ class FixRun:
                 metrics_hook=self.metrics_hook,
             )
         )
+        accepted_fixes: dict[Path, int] = {}
         for result in generator:
             self.report.visited.add(result.path)
+            if result.error:
+                self.report.state.fixed -= accepted_fixes.pop(result.path, 0)
+                self.report.record_verified(result)
+                continue
             violation = result.violation
             if violation is None or not violation.autofixable:
                 continue
@@ -139,6 +144,7 @@ class FixRun:
             if apply_fix:
                 generator.respond(answer=True)
                 self.report.state.fixed += 1
+                accepted_fixes[result.path] = accepted_fixes.get(result.path, 0) + 1
 
         self._verify_paths()
 

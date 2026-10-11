@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from rattle import __version__
 from rattle.cli import main
-from tests.support import CliRunner
+from tests.support import CliRunner, InputStream
 
 
 class CLIIntegrationTest(TestCase):
@@ -584,6 +584,31 @@ class CLIIntegrationTest(TestCase):
 
             assert result.stdout == ""
             assert result.exit_code == 0
+
+
+def test_interactive_fix_preserves_intervening_save(tmp_path: Path) -> None:
+    path = tmp_path / "sample.py"
+    path.write_bytes(b"value = list([0])\n")
+    (tmp_path / "pyproject.toml").write_text('[tool.rattle]\nroot=true\nformatter="none"\n')
+
+    def save_before_accepting(*_args: object) -> str:
+        path.write_bytes(b"external = ''\n")
+        return "y\n"
+
+    with (
+        patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}),
+        patch.object(InputStream, "isatty", return_value=True),
+        patch.object(InputStream, "readline", side_effect=save_before_accepting),
+    ):
+        result = CliRunner().invoke(
+            main,
+            ["fix", "--interactive", "--rules", "use-literal", path.as_posix()],
+            catch_exceptions=False,
+        )
+
+    assert path.read_bytes() == b"external = ''\n"
+    assert result.exit_code == 1
+    assert "FileChanged" in result.output
 
 
 def test_fix_writes_empty_module_replacement(empty_module_project: Path) -> None:

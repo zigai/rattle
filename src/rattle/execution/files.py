@@ -13,6 +13,7 @@ from rattle.config.merge import generate_config
 from rattle.config.models import Config, Options
 from rattle.diagnostics import FileContent, LintViolation, Result
 from rattle.engine import MetricsHook
+from rattle.errors import RattleExecutionError
 from rattle.execution.content import _drive_rattle_bytes, rattle_bytes
 from rattle.rule import LintRule
 from rattle.rule_loading import CollectionError, collect_rules
@@ -206,7 +207,7 @@ class ConfiguredFileRun:
                 cache_violations=cache_violations,
             )
 
-        except (CollectionError, ConfigError, OSError) as e:
+        except (CollectionError, ConfigError, OSError, RattleExecutionError) as e:
             LOG.debug(
                 "rattle_configured_file failed with %s",
                 type(e).__name__,
@@ -237,6 +238,8 @@ class ConfiguredFileRun:
     ) -> None:
         assert self.stat is not None
         if updated is not None and updated != self.content:
+            if self.path.read_bytes() != self.content:
+                raise RattleExecutionError("Applying autofix", "FileChanged")
             LOG.info("%s: writing changes to file", self.path)
             self.path.write_bytes(updated)
             if self.defer_format and self.deferred_format_paths is not None:
