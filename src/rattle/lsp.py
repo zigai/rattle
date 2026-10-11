@@ -188,9 +188,12 @@ class LSP:
         if not doc.lines:
             end_line = 0
             end_char = 0
+        elif doc.lines[-1].endswith(("\n", "\r")):
+            end_line = len(doc.lines)
+            end_char = 0
         else:
             end_line = len(doc.lines) - 1
-            end_char = len(doc.lines[-1])
+            end_char = doc.position_codec.client_num_units(doc.lines[-1])
         entire_range = Range(
             start=Position(line=0, character=0),
             end=Position(line=end_line, character=end_char),

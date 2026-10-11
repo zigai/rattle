@@ -243,6 +243,49 @@ def test_lsp_format_empty_document() -> None:
     assert edits is None
 
 
+@pytest.mark.parametrize(
+    "last_line",
+    [
+        pytest.param("tail = 'a'", id="ascii-no-newline"),
+        pytest.param("tail = '\U00010000'", id="astral-no-newline"),
+        pytest.param("tail = ''\r\n", id="crlf"),
+        pytest.param("tail = ''\n", id="lf"),
+    ],
+)
+def test_lsp_format_replaces_entire_utf16_document(tmp_path: Path, last_line: str) -> None:
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nformatter="none"\nenable=["use-literal"]\n'
+    )
+    uri = (tmp_path / "sample.py").as_uri()
+    lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
+    lsp.lsp.protocol._workspace = Workspace(tmp_path.as_uri())
+    lsp.lsp.workspace.put_text_document(
+        TextDocumentItem(
+            uri=uri, language_id="python", version=1, text="value = list([0])\n" + last_line
+        )
+    )
+    params = DocumentFormattingParams(
+        text_document=TextDocumentIdentifier(uri=uri),
+        options=FormattingOptions(tab_size=4, insert_spaces=True),
+    )
+
+    try:
+        edits = lsp.format(params)
+        assert edits is not None
+        document = lsp.lsp.workspace.get_text_document(uri)
+        for edit in sorted(
+            edits,
+            key=lambda edit: (edit.range.start.line, edit.range.start.character),
+            reverse=True,
+        ):
+            document.apply_change(
+                TextDocumentContentChangePartial(range=edit.range, text=edit.new_text)
+            )
+        assert document.source == "value = [0]\n" + last_line
+    finally:
+        lsp.close()
+
+
 def test_lsp_format_applies_empty_module_replacement(empty_module_project: Path) -> None:
     uri = (empty_module_project / "sample.py").as_uri()
     lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
