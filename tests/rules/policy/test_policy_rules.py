@@ -824,6 +824,28 @@ def test_forbidden_name_reports_nested_destructuring_targets_once_each() -> None
     ]
 
 
+def test_forbidden_name_reports_exception_bindings() -> None:
+    reports = _run_forbidden_name(
+        """
+        try:
+            run()
+        except ValueError as blocked_error:
+            pass
+
+        try:
+            run()
+        except* OSError as blocked_group:
+            pass
+        """,
+        ["variable:blocked_*"],
+    )
+
+    assert [report.message for report in reports] == [
+        "Do not use forbidden variable name 'blocked_error'.",
+        "Do not use forbidden variable name 'blocked_group'.",
+    ]
+
+
 def test_forbidden_name_distinguishes_attribute_from_variable_target() -> None:
     reports = _run_forbidden_name(
         """

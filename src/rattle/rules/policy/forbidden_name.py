@@ -182,6 +182,12 @@ class ForbiddenName(LintRule):
 
         self._report_for_target(node.name.name)
 
+    def visit_ExceptStarHandler(self, node: cst.ExceptStarHandler) -> None:
+        if node.name is None:
+            return
+
+        self._report_for_target(node.name.name)
+
     def visit_Attribute(self, node: cst.Attribute) -> None:
         if self._is_import_alias_name_attribute(node):
             return
