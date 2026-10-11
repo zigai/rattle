@@ -222,7 +222,7 @@ class LSP:
         for debouncer in debouncers:
             try:
                 debouncer.close()
-            except RattleExecutionError as e:  # noqa: PERF203 - later timers must still be closed
+            except RattleExecutionError as e:
                 if first_error is None:
                     first_error = e
         if first_error is not None:
