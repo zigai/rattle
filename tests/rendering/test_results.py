@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import ast
 from pathlib import Path
 from textwrap import dedent
 from unittest import TestCase
@@ -10,6 +11,7 @@ from unittest import TestCase
 import libcst
 import pytest
 
+from rattle import AstParseError
 from rattle.diagnostics import CodePosition, CodeRange, LintViolation, Result
 from rattle.rendering.console import ANSI_STYLE_RE
 from rattle.rendering.results import render_rattle_result
@@ -250,3 +252,57 @@ class OutputTest(TestCase):
         assert colored is not None
         assert colored != plain
         assert ANSI_STYLE_RE.sub("", colored) == plain
+
+
+def test_render_ast_parse_error() -> None:
+    source = b"pass  # type: int\nvalue = 1\n"
+    try:
+        ast.parse(source, type_comments=True)
+    except SyntaxError as e:
+        error = AstParseError(e)
+    else:
+        pytest.fail("expected invalid type comment placement to fail AST parsing")
+
+    rendered = render_rattle_result(
+        Result(
+            Path("typed.py"),
+            violation=None,
+            error=(error, "traceback"),
+            source=source,
+        ),
+        path=Path("typed.py"),
+    )
+
+    assert rendered is not None
+    assert rendered.startswith(
+        f"ast-parse-error: Unable to build an AST using Python {error.python_version}: "
+        "invalid syntax\n"
+    )
+    assert " --> typed.py:1:15\n" in rendered
+    assert "1 | pass  # type: int\n" in rendered
+
+
+def test_render_brief_ast_parse_error() -> None:
+    source = b"pass  # type: int\n"
+    try:
+        ast.parse(source, type_comments=True)
+    except SyntaxError as e:
+        error = AstParseError(e)
+    else:
+        pytest.fail("expected invalid type comment placement to fail AST parsing")
+
+    rendered = render_rattle_result(
+        Result(
+            Path("typed.py"),
+            violation=None,
+            error=(error, "traceback"),
+            source=source,
+        ),
+        path=Path("typed.py"),
+        brief=True,
+    )
+
+    assert rendered == (
+        f"ast-parse-error: Unable to build an AST using Python {error.python_version}: "
+        "invalid syntax  --> typed.py:1:15"
+    )

@@ -26,6 +26,8 @@ from rattle.config.models import Config
 from rattle.diagnostics import LintViolation
 from rattle.engine import LintRunner, diff_violation
 from rattle.rule import LintRule
+from rattle.rules.legacy.deprecated_unittest_asserts import DeprecatedUnittestAsserts
+from rattle.rules.legacy.use_fstring import UseFstring
 
 
 class EngineTest(TestCase):
@@ -232,3 +234,15 @@ class EngineTest(TestCase):
         runner2 = LintRunner(Path("f2.py"), b"class B:\n    def g(self): pass\n")
         v2 = list(runner2.collect_violations([rule], config=config))
         assert len(v2) == 0
+
+
+def test_nested_parent_and_child_fixes_are_composed() -> None:
+    source = 'self.assertEquals("%s" % "hi", "value")\n'
+    path = Path("sample.py")
+    runner = LintRunner(path, source.encode())
+    reports = list(
+        runner.collect_violations([DeprecatedUnittestAsserts(), UseFstring()], Config(path=path))
+    )
+
+    assert len(reports) == 2
+    assert runner.apply_replacements(reports).code == ('self.assertEqual(f"{\'hi\'!s}", "value")\n')

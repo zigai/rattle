@@ -9,9 +9,7 @@ from libcst.metadata import CodePosition, CodeRange, MetadataWrapper, PositionPr
 
 from rattle import AstContext, AstParseError, AstProvider, LintRule
 from rattle.config.models import Config
-from rattle.diagnostics import Result
 from rattle.engine import LintRunner
-from rattle.rendering.results import render_rattle_result
 
 
 def _ast_context(source: str) -> AstContext:
@@ -179,57 +177,3 @@ def test_ast_rule_uses_cst_anchor_for_local_suppressions(
             start=CodePosition(line=1, column=0),
             end=CodePosition(line=1, column=9),
         )
-
-
-def test_render_ast_parse_error() -> None:
-    source = b"pass  # type: int\nvalue = 1\n"
-    try:
-        ast.parse(source, type_comments=True)
-    except SyntaxError as e:
-        error = AstParseError(e)
-    else:
-        pytest.fail("expected invalid type comment placement to fail AST parsing")
-
-    rendered = render_rattle_result(
-        Result(
-            Path("typed.py"),
-            violation=None,
-            error=(error, "traceback"),
-            source=source,
-        ),
-        path=Path("typed.py"),
-    )
-
-    assert rendered is not None
-    assert rendered.startswith(
-        f"ast-parse-error: Unable to build an AST using Python {error.python_version}: "
-        "invalid syntax\n"
-    )
-    assert " --> typed.py:1:15\n" in rendered
-    assert "1 | pass  # type: int\n" in rendered
-
-
-def test_render_brief_ast_parse_error() -> None:
-    source = b"pass  # type: int\n"
-    try:
-        ast.parse(source, type_comments=True)
-    except SyntaxError as e:
-        error = AstParseError(e)
-    else:
-        pytest.fail("expected invalid type comment placement to fail AST parsing")
-
-    rendered = render_rattle_result(
-        Result(
-            Path("typed.py"),
-            violation=None,
-            error=(error, "traceback"),
-            source=source,
-        ),
-        path=Path("typed.py"),
-        brief=True,
-    )
-
-    assert rendered == (
-        f"ast-parse-error: Unable to build an AST using Python {error.python_version}: "
-        "invalid syntax  --> typed.py:1:15"
-    )

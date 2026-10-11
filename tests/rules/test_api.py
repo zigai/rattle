@@ -14,7 +14,7 @@ from libcst.metadata import CodePosition, CodeRange
 
 from rattle.config.models import Config
 from rattle.engine import LintRunner, Metrics
-from rattle.rule import LintRule, RuleSetting, rule_name_from_class_name
+from rattle.rule import LintRule, RuleSetting, parse_lint_ignore_comment, rule_name_from_class_name
 
 
 class NoopRule(LintRule):
@@ -536,3 +536,30 @@ class RuleTest(TestCase):
         rule = ConfigurableRule()
         list(runner.collect_violations([rule], Config()))
         assert rule.settings["max_length"] == 10
+
+    def test_ignore_comment_regex(self) -> None:
+        for value, expected_names in (
+            ("# rattle: ignore", None),
+            ("# rattle: ignore[fake-rule]", "fake-rule"),
+            ("#rattle:ignore[fake,another-rule]", "fake,another-rule"),
+            ("# rattle: ignore [fake, another, rule-name]", "fake, another, rule-name"),
+        ):
+            with self.subTest("match " + value):
+                directive = parse_lint_ignore_comment(value)
+                assert directive is not None, "value did not match rattle ignore regex"
+                assert expected_names == directive.names, "regex captured unexpected names"
+
+        for value in (
+            "# something else",
+            "# noqa",
+            "# rattle-ignore",
+            "# rattle: disable[fake-rule]",
+            "# rattle: ignore FakeRule",
+            "# rattle: ignore[FakeRule]",
+            "# this is not a rattle ignore",
+            "# rattle: fixme[fake-rule]",
+        ):
+            with self.subTest("no match " + value):
+                assert parse_lint_ignore_comment(value) is None, (
+                    "value unexpectedly matches rattle ignore regex"
+                )

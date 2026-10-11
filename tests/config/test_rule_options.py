@@ -13,6 +13,7 @@ import pytest
 from packaging.version import Version
 
 from rattle import config, rule_loading
+from rattle.config import collect_rules
 from rattle.config.models import Config
 from rattle.rule import LintRule
 from rattle.selectors import QualifiedRule, RuleNameSelector, Tags
@@ -429,3 +430,16 @@ class ConfigTest(TestCase):
                     python_version=None,
                 )
             )
+
+
+def test_builtin_collections_resolve_rules() -> None:
+    for collection in [
+        "rattle.rules.exports",
+        "rattle.rules.modernization",
+        "rattle.rules.legacy",
+        "rattle.rules.policy",
+        "rattle.rules.style",
+        "rattle.rules.typing",
+    ]:
+        rules = collect_rules(Config(enable=[QualifiedRule(collection)], python_version=None))
+        assert len(rules) > 0, f"Collection {collection} resolved 0 rules"

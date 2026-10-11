@@ -58,3 +58,14 @@ def test_no_bare_object_annotations_follows_forward_alias_annotation() -> None:
     )
 
     assert len(reports) == 1
+
+
+def test_no_bare_object_annotations_exempts_dunder_eq_other() -> None:
+    code = """class Item:
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Item)
+    def __ne__(self, other: object) -> bool:
+        return not self.__eq__(other)
+"""
+    _runner, reports = run_rule(NoBareObjectAnnotations(), code)
+    assert reports == []

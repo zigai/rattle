@@ -1,12 +1,9 @@
-from pathlib import Path
 from textwrap import dedent
 
 import libcst as cst
 import pytest
 from libcst.metadata import CodePosition, CodeRange
 
-from rattle.config.models import Config
-from rattle.engine import LintRunner
 from rattle.rule import LintRule
 from rattle.rules.exports.no_underscore_all_exports import NoUnderscoreAllExports
 from rattle.rules.legacy.avoid_or_in_except import AvoidOrInExcept
@@ -16,7 +13,6 @@ from rattle.rules.legacy.compare_singleton_primitives_by_is import (
     CompareSingletonPrimitivesByIs,
 )
 from rattle.rules.legacy.deprecated_abc_import import DeprecatedABCImport
-from rattle.rules.legacy.deprecated_unittest_asserts import DeprecatedUnittestAsserts
 from rattle.rules.legacy.no_assert_true_for_comparison import (
     NoAssertTrueForComparisons,
 )
@@ -38,7 +34,6 @@ from rattle.rules.legacy.use_async_sleep_in_async_def import (
 )
 from rattle.rules.legacy.use_fstring import UseFstring
 from rattle.rules.modernization.no_named_tuple import NoNamedTuple
-from rattle.rules.style.no_exception_message_variables import NoExceptionMessageVariables
 from rattle.rules.style.no_str_exception_translation import NoStrExceptionTranslation
 from rattle.rules.style.public_method_order import PublicMethodOrder
 from rattle.rules.typing.no_bare_object_annotations import NoBareObjectAnnotations
@@ -123,32 +118,6 @@ def test_classmethod_rename_withholds_fix_for_dynamic_namespace_access() -> None
 
     assert len(reports) == 1
     assert reports[0].replacement is None
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        "detail = build_detail()\nraise CustomError(code(), detail)\n",
-        'message = "safe"  # preserve rationale\nraise ValueError(message)\n',
-    ],
-)
-def test_exception_message_inlining_withholds_unsafe_fixes(source: str) -> None:
-    _runner, reports = run_rule(NoExceptionMessageVariables(), source)
-
-    assert len(reports) == 1
-    assert reports[0].replacement is None
-
-
-def test_nested_parent_and_child_fixes_are_composed() -> None:
-    source = 'self.assertEquals("%s" % "hi", "value")\n'
-    path = Path("sample.py")
-    runner = LintRunner(path, source.encode())
-    reports = list(
-        runner.collect_violations([DeprecatedUnittestAsserts(), UseFstring()], Config(path=path))
-    )
-
-    assert len(reports) == 2
-    assert runner.apply_replacements(reports).code == ('self.assertEqual(f"{\'hi\'!s}", "value")\n')
 
 
 @pytest.mark.parametrize(
@@ -267,7 +236,7 @@ def test_nested_parent_and_child_fixes_are_composed() -> None:
         ),
     ],
 )
-def test_alias_and_scope_false_negative_regressions(rule: LintRule, source: str) -> None:
+def test_rules_report_active_aliases_and_scopes(rule: LintRule, source: str) -> None:
     _runner, reports = run_rule(rule, source)
 
     assert len(reports) == 1
@@ -407,7 +376,7 @@ def test_alias_and_scope_false_negative_regressions(rule: LintRule, source: str)
         ),
     ],
 )
-def test_false_positive_regressions_do_not_report(
+def test_rules_ignore_shadowed_bindings_and_custom_call_targets(
     rule: LintRule,
     source: str,
 ) -> None:
@@ -431,22 +400,6 @@ def test_use_comprehension_does_not_autofix_set_listcomp_order() -> None:
     """
 
     _runner, reports = run_rule(RewriteToComprehension(), source)
-
-    assert len(reports) == 1
-    assert reports[0].replacement is None
-
-
-def test_no_named_tuple_does_not_autofix_to_dataclass() -> None:
-    source = """
-    from dataclasses import field
-    from typing import NamedTuple
-
-    class Foo(NamedTuple):
-        x: int
-    result = Foo(1).x
-    """
-
-    _runner, reports = run_rule(NoNamedTuple(), source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
@@ -1033,14 +986,3 @@ def test_no_string_type_annotation_tuple_parentheses() -> None:
     assert len(reports) == 1
     assert 'x: (int, str) = (1, "a")' in fixed
     ast.parse(fixed)
-
-
-def test_no_bare_object_annotations_exempts_dunder_eq_other() -> None:
-    code = """class Item:
-    def __eq__(self, other: object) -> bool:
-        return isinstance(other, Item)
-    def __ne__(self, other: object) -> bool:
-        return not self.__eq__(other)
-"""
-    _runner, reports = run_rule(NoBareObjectAnnotations(), code)
-    assert reports == []

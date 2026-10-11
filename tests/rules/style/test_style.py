@@ -216,3 +216,17 @@ def test_public_method_order_allows_setter_after_helper_if_getter_precedes() -> 
         """,
     )
     assert len(reports) == 0
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "detail = build_detail()\nraise CustomError(code(), detail)\n",
+        'message = "safe"  # preserve rationale\nraise ValueError(message)\n',
+    ],
+)
+def test_exception_message_inlining_withholds_unsafe_fixes(source: str) -> None:
+    _runner, reports = run_rule(NoExceptionMessageVariables(), source)
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None

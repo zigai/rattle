@@ -6,7 +6,6 @@
 from unittest import TestCase
 
 from rattle import selectors
-from rattle.rule import parse_lint_ignore_comment
 
 
 class SelectorTest(TestCase):
@@ -29,33 +28,6 @@ class SelectorTest(TestCase):
         for value in ({1: "value"}, [object()], {"nested": object()}):
             with self.subTest(value):
                 assert not selectors.is_rule_option_value(value)
-
-    def test_ignore_comment_regex(self) -> None:
-        for value, expected_names in (
-            ("# rattle: ignore", None),
-            ("# rattle: ignore[fake-rule]", "fake-rule"),
-            ("#rattle:ignore[fake,another-rule]", "fake,another-rule"),
-            ("# rattle: ignore [fake, another, rule-name]", "fake, another, rule-name"),
-        ):
-            with self.subTest("match " + value):
-                directive = parse_lint_ignore_comment(value)
-                assert directive is not None, "value did not match rattle ignore regex"
-                assert expected_names == directive.names, "regex captured unexpected names"
-
-        for value in (
-            "# something else",
-            "# noqa",
-            "# rattle-ignore",
-            "# rattle: disable[fake-rule]",
-            "# rattle: ignore FakeRule",
-            "# rattle: ignore[FakeRule]",
-            "# this is not a rattle ignore",
-            "# rattle: fixme[fake-rule]",
-        ):
-            with self.subTest("no match " + value):
-                assert parse_lint_ignore_comment(value) is None, (
-                    "value unexpectedly matches rattle ignore regex"
-                )
 
     def test_qualified_rule(self) -> None:
         valid: set[selectors.QualifiedRule] = set()
