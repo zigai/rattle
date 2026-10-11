@@ -20,7 +20,7 @@ classifiers = [
 
 requires-python = ">=3.10"
 dependencies = [
-    "interfacy>=0.7.0",
+    "interfacy>=0.9.0",
     "libcst >= 1.9.0",
     "msgspec >= 0.19",
     "moreorless >= 0.4.0",

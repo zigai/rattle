@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from interfacy import ExecutableFlag, Interfacy, Param
 from interfacy.naming import NoAbbreviations
-from interfacy.plugins import InterfacyPlugin, PluginContext
+from interfacy.plugins import ExecuteContext, InterfacyPlugin
 
 from rattle.cli.commands.explain import explain_command
 from rattle.cli.commands.fix import fix
@@ -44,7 +44,8 @@ DOCS_URL = "https://rattle.readthedocs.io/en/latest"
 
 
 class CommandErrorPlugin(InterfacyPlugin):
-    def wrap_execute(self, _context: PluginContext, call_next: Callable[[], object]) -> object:
+    def wrap_execute(self, context: ExecuteContext, call_next: Callable[[], object]) -> object:
+        del context
         try:
             return call_next()
         except BrokenPipeError:
@@ -73,11 +74,11 @@ def build_app() -> Interfacy:
         ],
         plugins=[CommandErrorPlugin()],
     )
-    app.add_command(lint, parameter_settings=LINT_PARAMS)
-    app.add_command(fix, parameter_settings=FIX_PARAMS)
+    app.add_command(lint, params=LINT_PARAMS)
+    app.add_command(fix, params=FIX_PARAMS)
     app.add_command(
         lsp,
-        parameter_settings={
+        params={
             "config": CONFIG_PARAM,
             "tcp": Param(metavar="<port>"),
             "ws": Param(metavar="<port>"),
@@ -87,17 +88,17 @@ def build_app() -> Interfacy:
     app.add_command(
         explain_command,
         name="explain",
-        parameter_settings={"config": CONFIG_PARAM},
+        params={"config": CONFIG_PARAM},
     )
     app.add_command(
         rules_command,
         name="rules",
-        parameter_settings={"config": CONFIG_PARAM, "test": Param(short="t")},
+        params={"config": CONFIG_PARAM, "test": Param(short="t")},
     )
     app.add_command(
         validate_command,
         name="validate",
-        parameter_settings={"config": Param(kind="positional", metavar="CONFIG")},
+        params={"config": Param(kind="positional", metavar="CONFIG")},
     )
     return app
 
