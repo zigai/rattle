@@ -1,36 +1,16 @@
-from pathlib import Path
-from textwrap import dedent
-
 import pytest
 
-from rattle.config.models import Config
-from rattle.diagnostics import LintViolation
-from rattle.engine import LintRunner
 from rattle.rule import LintRule
 from rattle.rules.style.no_annotated_self import NoAnnotatedSelf
 from rattle.rules.style.no_exception_message_variables import NoExceptionMessageVariables
 from rattle.rules.style.no_str_exception_translation import NoStrExceptionTranslation
 from rattle.rules.style.no_underscore_class import NoUnderscoreClass
 from rattle.rules.style.public_method_order import PublicMethodOrder
-
-
-def _reports(
-    rule: LintRule,
-    source: str,
-    *,
-    path: Path = Path("sample.py"),
-) -> tuple[LintRunner, list[LintViolation]]:
-    runner = LintRunner(path, dedent(source).encode())
-    return runner, list(runner.collect_violations([rule], Config(path=path)))
-
-
-def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
-    runner, reports = _reports(rule, source)
-    return reports, runner.apply_replacements(reports).code
+from tests.support import fix_rule, run_rule
 
 
 def test_exception_message_variable_used_by_handler_is_not_throwaway() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoExceptionMessageVariables(),
         """
         try:
@@ -45,7 +25,7 @@ def test_exception_message_variable_used_by_handler_is_not_throwaway() -> None:
 
 
 def test_exception_message_variable_ignores_uses_of_an_earlier_binding() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoExceptionMessageVariables(),
         """
         message = "earlier"
@@ -65,7 +45,7 @@ def test_exception_message_variable_ignores_uses_of_an_earlier_binding() -> None
 def test_no_str_exception_translation_ignores_non_string_format_operations(
     expression: str,
 ) -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoStrExceptionTranslation(),
         f"""
         try:
@@ -79,7 +59,7 @@ def test_no_str_exception_translation_ignores_non_string_format_operations(
 
 
 def test_no_str_exception_translation_honors_annotated_rebinding() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoStrExceptionTranslation(),
         """
         try:
@@ -134,13 +114,13 @@ def test_rules_cover_adversarial_but_unambiguous_cases(
     rule: LintRule,
     source: str,
 ) -> None:
-    _runner, reports = _reports(rule, source)
+    _runner, reports = run_rule(rule, source)
 
     assert len(reports) == (0 if isinstance(rule, PublicMethodOrder) else 1)
 
 
 def test_exception_message_global_assignment_is_not_treated_as_local() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoExceptionMessageVariables(),
         """
         message = "original"
@@ -156,7 +136,7 @@ def test_exception_message_global_assignment_is_not_treated_as_local() -> None:
 
 
 def test_underscore_class_range_targets_class_name() -> None:
-    _runner, reports = _reports(NoUnderscoreClass(), "class _Private:\n    pass")
+    _runner, reports = run_rule(NoUnderscoreClass(), "class _Private:\n    pass")
 
     assert len(reports) == 1
     assert reports[0].range is not None
@@ -165,7 +145,7 @@ def test_underscore_class_range_targets_class_name() -> None:
 
 
 def test_annotated_self_in_conditional_class_body_is_reported() -> None:
-    reports, fixed = _fixed(
+    reports, fixed = fix_rule(
         NoAnnotatedSelf(),
         """
         class Service:
@@ -180,7 +160,7 @@ def test_annotated_self_in_conditional_class_body_is_reported() -> None:
 
 
 def test_public_method_order_flags_overload_after_helper() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         PublicMethodOrder(),
         """
         from typing import overload
@@ -202,7 +182,7 @@ def test_public_method_order_flags_overload_after_helper() -> None:
 
 
 def test_public_method_order_flags_property_after_helper() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         PublicMethodOrder(),
         """
         class Service:
@@ -219,7 +199,7 @@ def test_public_method_order_flags_property_after_helper() -> None:
 
 
 def test_public_method_order_allows_setter_after_helper_if_getter_precedes() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         PublicMethodOrder(),
         """
         class Service:

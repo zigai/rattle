@@ -1,26 +1,11 @@
-from pathlib import Path
 from textwrap import dedent
 
-from rattle.config.models import Config
-from rattle.diagnostics import LintViolation
-from rattle.engine import LintRunner
-from rattle.rule import LintRule
 from rattle.rules.style.sorted_attributes import SortedAttributes
-
-
-def _reports(rule: LintRule, source: str) -> tuple[LintRunner, list[LintViolation]]:
-    path = Path("sample.py")
-    runner = LintRunner(path, dedent(source).encode())
-    return runner, list(runner.collect_violations([rule], Config(path=path)))
-
-
-def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
-    runner, reports = _reports(rule, source)
-    return reports, runner.apply_replacements(reports).code
+from tests.support import fix_rule, run_rule
 
 
 def test_sorted_attributes_fixes_nested_directive_classes() -> None:
-    runner, reports = _reports(
+    runner, reports = run_rule(
         SortedAttributes(),
         '''
         class Outer:
@@ -50,7 +35,7 @@ def test_sorted_attributes_fixes_nested_directive_classes() -> None:
 
 
 def test_sorted_attributes_does_not_sort_across_blank_lines() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         SortedAttributes(),
         '''
         class Constants:
@@ -65,7 +50,7 @@ def test_sorted_attributes_does_not_sort_across_blank_lines() -> None:
 
 
 def test_sorted_attributes_preserves_assignment_comments() -> None:
-    reports, fixed = _fixed(
+    reports, fixed = fix_rule(
         SortedAttributes(),
         '''
         class Constants:
@@ -81,7 +66,7 @@ def test_sorted_attributes_preserves_assignment_comments() -> None:
 
 
 def test_sorted_attributes_withholds_fix_for_runtime_dependencies() -> None:
-    runner, reports = _reports(
+    runner, reports = run_rule(
         SortedAttributes(),
         '''
         class Constants:
@@ -112,7 +97,7 @@ def test_sorted_attributes_literal_fix_preserves_runtime_values() -> None:
             a = 2
         ''',
     )
-    reports, fixed = _fixed(SortedAttributes(), source)
+    reports, fixed = fix_rule(SortedAttributes(), source)
     original_namespace: dict[str, object] = {}
     fixed_namespace: dict[str, object] = {}
 
@@ -129,7 +114,7 @@ def test_sorted_attributes_literal_fix_preserves_runtime_values() -> None:
 
 
 def test_sorted_attributes_preserves_group_boundary_and_converges() -> None:
-    reports, fixed = _fixed(
+    reports, fixed = fix_rule(
         SortedAttributes(),
         '''
         class Constants:
@@ -143,12 +128,12 @@ def test_sorted_attributes_preserves_group_boundary_and_converges() -> None:
 
     assert len(reports) == 1
     assert "    z = 1\n\n    a = 3\n    b = 2" in fixed
-    _runner, remaining_reports = _reports(SortedAttributes(), fixed)
+    _runner, remaining_reports = run_rule(SortedAttributes(), fixed)
     assert remaining_reports == []
 
 
 def test_sorted_attributes_autofixes_pure_annotations() -> None:
-    reports, fixed = _fixed(
+    reports, fixed = fix_rule(
         SortedAttributes(),
         '''
         class Schema:
@@ -163,7 +148,7 @@ def test_sorted_attributes_autofixes_pure_annotations() -> None:
 
 
 def test_sorted_attributes_does_not_sort_slots() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         SortedAttributes(),
         '''
         class Slotted:

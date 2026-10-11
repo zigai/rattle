@@ -1,11 +1,5 @@
-from pathlib import Path
-from textwrap import dedent
-
 import pytest
 
-from rattle.config.models import Config
-from rattle.diagnostics import LintViolation
-from rattle.engine import LintRunner
 from rattle.rule import LintRule
 from rattle.rules.modernization.explicit_frozen_dataclass import ExplicitFrozenDataclass
 from rattle.rules.modernization.no_named_tuple import NoNamedTuple
@@ -13,12 +7,7 @@ from rattle.rules.modernization.no_static_if_condition import NoStaticIfConditio
 from rattle.rules.modernization.use_rattle_ignore_comment import UseRattleIgnoreComment
 from rattle.rules.typing.use_types_from_typing import UseTypesFromTyping
 from rattle.rules.typing.variadic_callable_syntax import VariadicCallableSyntax
-
-
-def _reports(rule: LintRule, source: str) -> tuple[LintRunner, list[LintViolation]]:
-    path = Path("sample.py")
-    runner = LintRunner(path, dedent(source).encode())
-    return runner, list(runner.collect_violations([rule], Config(path=path)))
+from tests.support import run_rule
 
 
 @pytest.mark.parametrize(
@@ -48,13 +37,13 @@ def _reports(rule: LintRule, source: str) -> tuple[LintRunner, list[LintViolatio
 def test_explicit_frozen_dataclass_resolves_the_binding_at_the_decorator(
     source: str,
 ) -> None:
-    _runner, reports = _reports(ExplicitFrozenDataclass(), source)
+    _runner, reports = run_rule(ExplicitFrozenDataclass(), source)
 
     assert len(reports) == 1
 
 
 def test_explicit_frozen_dataclass_ignores_rebound_module() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         ExplicitFrozenDataclass(),
         """
         import dataclasses
@@ -98,13 +87,13 @@ def test_explicit_frozen_dataclass_ignores_rebound_module() -> None:
     ],
 )
 def test_no_named_tuple_detects_active_aliases_and_factories(source: str) -> None:
-    _runner, reports = _reports(NoNamedTuple(), source)
+    _runner, reports = run_rule(NoNamedTuple(), source)
 
     assert len(reports) == 1
 
 
 def test_no_named_tuple_ignores_rebound_collections_module() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoNamedTuple(),
         """
         import collections
@@ -132,7 +121,7 @@ def test_no_named_tuple_ignores_rebound_collections_module() -> None:
 def test_no_static_if_condition_detects_additional_provably_static_conditions(
     condition: str,
 ) -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoStaticIfCondition(),
         f"if {condition}:\n    pass\n",
     )
@@ -142,7 +131,7 @@ def test_no_static_if_condition_detects_additional_provably_static_conditions(
 
 @pytest.mark.parametrize("condition", ['f"{value}"', "[*values]", "{**mapping}"])
 def test_no_static_if_condition_keeps_dynamic_truthiness(condition: str) -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoStaticIfCondition(),
         f"if {condition}:\n    pass\n",
     )
@@ -151,7 +140,7 @@ def test_no_static_if_condition_keeps_dynamic_truthiness(condition: str) -> None
 
 
 def test_static_if_large_integer_does_not_crash() -> None:
-    _runner, reports = _reports(NoStaticIfCondition(), "if " + "1" * 5_000 + ":\n    pass\n")
+    _runner, reports = run_rule(NoStaticIfCondition(), "if " + "1" * 5_000 + ":\n    pass\n")
 
     assert len(reports) == 1
 
@@ -161,7 +150,7 @@ def test_static_if_large_integer_does_not_crash() -> None:
     ["# noqa", "# NOQA: E123", "# flake8:noqa", "# type: ignore  # noqa"],
 )
 def test_use_rattle_ignore_comment_detects_noqa_directives(comment: str) -> None:
-    _runner, reports = _reports(UseRattleIgnoreComment(), f"value = 1  {comment}\n")
+    _runner, reports = run_rule(UseRattleIgnoreComment(), f"value = 1  {comment}\n")
 
     assert len(reports) == 1
 
@@ -176,7 +165,7 @@ def test_use_rattle_ignore_comment_detects_noqa_directives(comment: str) -> None
     ],
 )
 def test_use_rattle_ignore_comment_ignores_non_directive_text(comment: str) -> None:
-    _runner, reports = _reports(UseRattleIgnoreComment(), f"value = 1  {comment}\n")
+    _runner, reports = run_rule(UseRattleIgnoreComment(), f"value = 1  {comment}\n")
 
     assert reports == []
 
@@ -203,17 +192,17 @@ def test_use_rattle_ignore_comment_ignores_non_directive_text(comment: str) -> N
     ],
 )
 def test_assignment_alias_tracker_supports_destructuring(rule: LintRule, source: str) -> None:
-    _runner, reports = _reports(rule, source)
+    _runner, reports = run_rule(rule, source)
 
     assert len(reports) == 1
 
 
 def test_static_if_detects_debug_fstring() -> None:
-    _runner, reports = _reports(NoStaticIfCondition(), 'if f"{value=}":\n    pass')
+    _runner, reports = run_rule(NoStaticIfCondition(), 'if f"{value=}":\n    pass')
 
     assert len(reports) == 1
 
 
 def test_no_static_if_condition_evaluates_literal_comparisons() -> None:
-    _runner, reports = _reports(NoStaticIfCondition(), "if 1 == 1:\n    pass\n")
+    _runner, reports = run_rule(NoStaticIfCondition(), "if 1 == 1:\n    pass\n")
     assert len(reports) == 1

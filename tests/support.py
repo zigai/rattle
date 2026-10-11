@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import contextlib
 import io
+import re
 import sys
+import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import Protocol, TextIO
+
+from rattle.config.models import Config
+from rattle.diagnostics import LintViolation
+from rattle.engine import LintRunner
+from rattle.rule import LintRule
 
 
 class Cli(Protocol):
@@ -141,21 +148,20 @@ class CliRunner:
 
 
 def dedent_source(source: str) -> str:
-    import re
-    import textwrap
-
     return textwrap.dedent(re.sub(r"\A\n", "", source))
 
 
 def run_rule(
-    rule: object,
+    rule: LintRule,
     source: str,
     *,
     path: Path | None = None,
-) -> tuple[object, list[object]]:
-    from rattle.config.models import Config
-    from rattle.engine import LintRunner
-
+) -> tuple[LintRunner, list[LintViolation]]:
     rule_path = path or Path("sample.py")
-    runner = LintRunner(rule_path, dedent_source(source).encode())
-    return runner, list(runner.collect_violations([rule], Config(path=rule_path)))  # type: ignore[list-item]
+    runner = LintRunner(rule_path, textwrap.dedent(source).encode())
+    return runner, list(runner.collect_violations([rule], Config(path=rule_path)))
+
+
+def fix_rule(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
+    runner, reports = run_rule(rule, source)
+    return reports, runner.apply_replacements(reports).code

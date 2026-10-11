@@ -1,9 +1,16 @@
 import re
 from pathlib import Path
 
+import pytest
+
 from rattle.rule_loading import _builtin_rule_types
 
 RULE_COUNT_PATTERN = re.compile(r"(?m)^- (?P<count>\d+) built-in lint rules$")
+
+
+@pytest.fixture
+def project_root() -> Path:
+    return Path(__file__).parents[2]
 
 
 def _public_rule_count(path: Path) -> int:

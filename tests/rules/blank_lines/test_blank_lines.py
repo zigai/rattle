@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-import textwrap
 import tokenize
 from collections import Counter
 from io import StringIO
@@ -24,6 +22,7 @@ from rattle.rules.blank_lines.block_header_cuddle_strict import BlockHeaderCuddl
 from rattle.rules.blank_lines.match_case_separation import MatchCaseSeparation
 from rattle.selectors import RuleOptions
 from rattle.testing import _execution_outcome
+from tests.support import dedent_source
 
 RULE_CLASSES: tuple[type[LintRule], ...] = (
     NoSuiteLeadingTrailingBlankLines,
@@ -43,10 +42,6 @@ DEFAULT_RULE_COLLECTION: tuple[type[LintRule], ...] = (
     BlockHeaderCuddleRelaxed,
     BlankLineAfterControlBlock,
 )
-
-
-def _dedent(source: str) -> str:
-    return textwrap.dedent(re.sub(r"\A\n", "", source))
 
 
 def _comments(source: str) -> Counter[str]:
@@ -80,7 +75,7 @@ def _run_rule(
     rule = rule_cls()
     if options is not None:
         rule.configure(options)
-    runner = LintRunner(path, _dedent(source).encode())
+    runner = LintRunner(path, dedent_source(source).encode())
     reports = list(runner.collect_violations([rule], Config(path=path, root=Path.cwd())))
 
     return runner, reports
@@ -92,7 +87,7 @@ def _run_rules(
 ) -> tuple[LintRunner, list]:
     path = Path("fixture.py")
     rules = [rule_cls() for rule_cls in rule_classes]
-    runner = LintRunner(path, _dedent(source).encode())
+    runner = LintRunner(path, dedent_source(source).encode())
     reports = list(runner.collect_violations(rules, Config(path=path, root=Path.cwd())))
 
     return runner, reports
@@ -139,9 +134,9 @@ def test_invalid_fixtures_produce_expected_reports(
 
     if case.expected_replacement is not None:
         fixed_code = runner.apply_replacements(reports).code
-        assert fixed_code == _dedent(case.expected_replacement)
-        assert not (_comments(_dedent(case.code)) - _comments(fixed_code))
-        assert _execution_outcome(_dedent(case.code)) == _execution_outcome(fixed_code)
+        assert fixed_code == dedent_source(case.expected_replacement)
+        assert not (_comments(dedent_source(case.code)) - _comments(fixed_code))
+        assert _execution_outcome(dedent_source(case.code)) == _execution_outcome(fixed_code)
 
         _, fixed_reports = _run_rule(rule_cls, fixed_code, case.options)
         assert fixed_reports == []
@@ -301,7 +296,7 @@ def test_default_rule_collection_converges_after_guard_to_assignment_fix() -> No
     assert reports
 
     fixed_code = runner.apply_replacements(reports).code
-    assert fixed_code == _dedent(
+    assert fixed_code == dedent_source(
         """
         def f(flag: bool, label: str) -> str:
             if not flag:
@@ -666,7 +661,7 @@ def test_default_rule_collection_keeps_loop_cleanup_compact_but_separates_phases
     )
 
     fixed_code = runner.apply_replacements(reports).code
-    assert fixed_code == _dedent(
+    assert fixed_code == dedent_source(
         """
         def f(stream: object) -> tuple[object, ...]:
             captured: list[object] = []
@@ -707,7 +702,7 @@ def test_default_rule_collection_keeps_tuple_unpack_attached_to_guard_then_separ
     )
 
     fixed_code = runner.apply_replacements(reports).code
-    assert fixed_code == _dedent(
+    assert fixed_code == dedent_source(
         """
         def f(subject: object) -> None:
             left, candidate, payload = inspect_subject(subject)
@@ -780,7 +775,7 @@ def test_bl100_combined_suite_boundary_fixes_do_not_overlap() -> None:
     }
 
     fixed_code = runner.apply_replacements(reports).code
-    assert fixed_code == _dedent(
+    assert fixed_code == dedent_source(
         """
         def f() -> None:
             work()
@@ -1302,7 +1297,7 @@ def test_bl400_fix_inserts_one_case_separator_and_converges() -> None:
 
     assert len(reports) == 1
     fixed_code = runner.apply_replacements(reports).code
-    expected = _dedent(
+    expected = dedent_source(
         """
         def f(value: int) -> int:
             match value:

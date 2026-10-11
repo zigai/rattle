@@ -4,11 +4,6 @@ import pytest
 
 
 @pytest.fixture
-def project_root() -> Path:
-    return Path(__file__).parent.parent
-
-
-@pytest.fixture
 def empty_module_project(tmp_path: Path) -> Path:
     (tmp_path / "pyproject.toml").write_text(
         '[tool.rattle]\nroot=true\nformatter="none"\nenable=[".rules"]\n'

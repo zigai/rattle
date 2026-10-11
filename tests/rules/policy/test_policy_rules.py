@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -16,10 +14,7 @@ from rattle.rules.policy.forbidden_name import ForbiddenName
 from rattle.rules.policy.line_count_limit import LineCountLimit
 from rattle.rules.policy.no_underscore_import_aliases import NoUnderscoreImportAliases
 from rattle.rules.policy.no_unsafe_tempfile_factories import NoUnsafeTempfileFactories
-
-
-def _dedent(source: str) -> str:
-    return textwrap.dedent(re.sub(r"\A\n", "", source))
+from tests.support import dedent_source
 
 
 def _run_rule(
@@ -29,7 +24,7 @@ def _run_rule(
     path: Path = Path("fixture.py"),
     root: Path | None = None,
 ) -> list[LintViolation]:
-    runner = LintRunner(path, _dedent(source).encode())
+    runner = LintRunner(path, dedent_source(source).encode())
 
     return list(runner.collect_violations([rule], Config(path=path, root=root or Path.cwd())))
 

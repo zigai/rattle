@@ -1,15 +1,10 @@
-import re
-import textwrap
 from pathlib import Path
 
 from rattle.config import collect_rules
 from rattle.config.models import Config
 from rattle.rule import Invalid
 from rattle.selectors import QualifiedRule
-
-
-def _dedent(source: str) -> str:
-    return textwrap.dedent(re.sub(r"\A\n", "", source))
+from tests.support import dedent_source
 
 
 def test_source_patterns_match_all_invalid_builtin_fixtures() -> None:
@@ -34,7 +29,7 @@ def test_source_patterns_match_all_invalid_builtin_fixtures() -> None:
 
         for index, raw_case in enumerate(rule.INVALID):
             case = Invalid(code=raw_case) if isinstance(raw_case, str) else raw_case
-            source = _dedent(case.code).encode()
+            source = dedent_source(case.code).encode()
             if not rule.should_lint_file(source, Path("invalid.py")):
                 failures.append(f"{rule.name}.INVALID[{index}]")
 

@@ -6,7 +6,6 @@ import pytest
 from libcst.metadata import CodePosition, CodeRange
 
 from rattle.config.models import Config
-from rattle.diagnostics import LintViolation
 from rattle.engine import LintRunner
 from rattle.rule import LintRule
 from rattle.rules.exports.no_underscore_all_exports import NoUnderscoreAllExports
@@ -43,17 +42,7 @@ from rattle.rules.style.no_exception_message_variables import NoExceptionMessage
 from rattle.rules.style.no_str_exception_translation import NoStrExceptionTranslation
 from rattle.rules.style.public_method_order import PublicMethodOrder
 from rattle.rules.typing.no_bare_object_annotations import NoBareObjectAnnotations
-
-
-def _reports(rule: LintRule, source: str) -> tuple[LintRunner, list[LintViolation]]:
-    path = Path("sample.py")
-    runner = LintRunner(path, dedent(source).encode())
-    return runner, list(runner.collect_violations([rule], Config(path=path)))
-
-
-def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
-    runner, reports = _reports(rule, source)
-    return reports, runner.apply_replacements(reports).code
+from tests.support import fix_rule, run_rule
 
 
 @pytest.mark.parametrize(
@@ -74,7 +63,7 @@ def _fixed(rule: LintRule, source: str) -> tuple[list[LintViolation], str]:
     ],
 )
 def test_comment_bearing_rewrites_are_diagnostic_only(rule: LintRule, source: str) -> None:
-    runner, reports = _reports(rule, source)
+    runner, reports = run_rule(rule, source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
@@ -82,7 +71,7 @@ def test_comment_bearing_rewrites_are_diagnostic_only(rule: LintRule, source: st
 
 
 def test_bytes_annotation_rewrite_is_diagnostic_only() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoStringTypeAnnotation(),
         'from __future__ import annotations\nvalue: b"int"\n',
     )
@@ -99,14 +88,14 @@ def test_bytes_annotation_rewrite_is_diagnostic_only() -> None:
     ],
 )
 def test_redundant_fstring_one_line_forms_do_not_create_docstrings(source: str) -> None:
-    runner, reports = _reports(NoRedundantFString(), source)
+    runner, reports = run_rule(NoRedundantFString(), source)
 
     assert len(reports) == 0
     assert runner.module.code == source
 
 
 def test_use_fstring_withholds_fix_when_class_call_may_return_tuple() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         UseFstring(),
         """
         class Factory:
@@ -122,7 +111,7 @@ def test_use_fstring_withholds_fix_when_class_call_may_return_tuple() -> None:
 
 
 def test_classmethod_rename_withholds_fix_for_dynamic_namespace_access() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         UseClsInClassmethod(),
         """
         class C:
@@ -144,7 +133,7 @@ def test_classmethod_rename_withholds_fix_for_dynamic_namespace_access() -> None
     ],
 )
 def test_exception_message_inlining_withholds_unsafe_fixes(source: str) -> None:
-    _runner, reports = _reports(NoExceptionMessageVariables(), source)
+    _runner, reports = run_rule(NoExceptionMessageVariables(), source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
@@ -279,7 +268,7 @@ def test_nested_parent_and_child_fixes_are_composed() -> None:
     ],
 )
 def test_alias_and_scope_false_negative_regressions(rule: LintRule, source: str) -> None:
-    _runner, reports = _reports(rule, source)
+    _runner, reports = run_rule(rule, source)
 
     assert len(reports) == 1
 
@@ -422,7 +411,7 @@ def test_false_positive_regressions_do_not_report(
     rule: LintRule,
     source: str,
 ) -> None:
-    _runner, reports = _reports(rule, source)
+    _runner, reports = run_rule(rule, source)
 
     assert reports == []
 
@@ -441,7 +430,7 @@ def test_use_comprehension_does_not_autofix_set_listcomp_order() -> None:
     result = set([make(name) for name in ["a", "b"]])
     """
 
-    _runner, reports = _reports(RewriteToComprehension(), source)
+    _runner, reports = run_rule(RewriteToComprehension(), source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
@@ -457,7 +446,7 @@ def test_no_named_tuple_does_not_autofix_to_dataclass() -> None:
     result = Foo(1).x
     """
 
-    _runner, reports = _reports(NoNamedTuple(), source)
+    _runner, reports = run_rule(NoNamedTuple(), source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
@@ -468,7 +457,7 @@ def test_no_redundant_list_comprehension_does_not_autofix_to_generator() -> None
     result = any([f(x) for x in xs])
     """
 
-    _runner, reports = _reports(NoRedundantListComprehension(), source)
+    _runner, reports = run_rule(NoRedundantListComprehension(), source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
@@ -487,7 +476,7 @@ def test_use_f_string_percent_s_autofix_uses_str_conversion() -> None:
     result = "%s" % Value()
     """
 
-    runner, reports = _reports(UseFstring(), source)
+    runner, reports = run_rule(UseFstring(), source)
     fixed = runner.apply_replacements(reports).code
 
     assert len(reports) == 1
@@ -512,7 +501,7 @@ def test_use_f_string_percent_s_autofix_uses_str_conversion() -> None:
     ],
 )
 def test_singleton_comparison_does_not_fix_dynamic_equality(source: str) -> None:
-    reports, fixed = _fixed(CompareSingletonPrimitivesByIs(), source)
+    reports, fixed = fix_rule(CompareSingletonPrimitivesByIs(), source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
@@ -520,7 +509,7 @@ def test_singleton_comparison_does_not_fix_dynamic_equality(source: str) -> None
 
 
 def test_singleton_comparison_safe_fix_adds_required_whitespace() -> None:
-    reports, fixed = _fixed(CompareSingletonPrimitivesByIs(), "None==False")
+    reports, fixed = fix_rule(CompareSingletonPrimitivesByIs(), "None==False")
 
     assert len(reports) == 1
     assert fixed == "None is False"
@@ -531,7 +520,7 @@ def test_singleton_comparison_safe_fix_adds_required_whitespace() -> None:
     ["False == -0", "False != -0", "True == +1", "True != +1"],
 )
 def test_singleton_comparison_allows_signed_boolean_number_comparisons(source: str) -> None:
-    _runner, reports = _reports(CompareSingletonPrimitivesByIs(), source)
+    _runner, reports = run_rule(CompareSingletonPrimitivesByIs(), source)
 
     assert reports == []
 
@@ -540,7 +529,7 @@ def test_singleton_comparison_allows_signed_boolean_number_comparisons(source: s
 def test_classmethod_missing_positional_parameter_does_not_duplicate_cls(
     parameters: str,
 ) -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         UseClsInClassmethod(),
         f"""
         class Example:
@@ -582,14 +571,14 @@ def test_classmethod_missing_positional_parameter_does_not_duplicate_cls(
     ],
 )
 def test_classmethod_unsafe_binding_renames_have_no_fix(source: str) -> None:
-    _runner, reports = _reports(UseClsInClassmethod(), source)
+    _runner, reports = run_rule(UseClsInClassmethod(), source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
 
 
 def test_concatenated_string_annotation_is_fixed_as_one_expression() -> None:
-    reports, fixed = _fixed(
+    reports, fixed = fix_rule(
         NoStringTypeAnnotation(),
         """
         from __future__ import annotations
@@ -604,7 +593,7 @@ def test_concatenated_string_annotation_is_fixed_as_one_expression() -> None:
 
 
 def test_late_typing_import_protects_literal_values() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoStringTypeAnnotation(),
         """
         from __future__ import annotations
@@ -620,7 +609,7 @@ def test_late_typing_import_protects_literal_values() -> None:
 
 
 def test_nested_annotated_metadata_string_is_not_unquoted() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoStringTypeAnnotation(),
         """
         from __future__ import annotations
@@ -634,7 +623,7 @@ def test_nested_annotated_metadata_string_is_not_unquoted() -> None:
 
 
 def test_multiline_future_import_enables_string_annotation_rule() -> None:
-    reports, fixed = _fixed(
+    reports, fixed = fix_rule(
         NoStringTypeAnnotation(),
         """
         from __future__ import (
@@ -661,13 +650,13 @@ def test_multiline_future_import_enables_string_annotation_rule() -> None:
     ],
 )
 def test_collection_literal_rule_skips_keyword_and_starred_arguments(source: str) -> None:
-    _runner, reports = _reports(RewriteToLiteral(), source)
+    _runner, reports = run_rule(RewriteToLiteral(), source)
 
     assert reports == []
 
 
 def test_dict_literal_fix_preserves_pair_comment() -> None:
-    reports, fixed = _fixed(
+    reports, fixed = fix_rule(
         RewriteToLiteral(),
         """
         value = dict([
@@ -696,20 +685,20 @@ def test_dict_literal_fix_preserves_pair_comment() -> None:
     ],
 )
 def test_redundant_fstring_does_not_create_docstring(source: str) -> None:
-    _runner, reports = _reports(NoRedundantFString(), source)
+    _runner, reports = run_rule(NoRedundantFString(), source)
 
     assert reports == []
 
 
 def test_empty_redundant_fstring_is_fixed() -> None:
-    reports, fixed = _fixed(NoRedundantFString(), 'value = f""')
+    reports, fixed = fix_rule(NoRedundantFString(), 'value = f""')
 
     assert len(reports) == 1
     assert fixed == 'value = ""'
 
 
 def test_collapsed_isinstance_diagnostic_has_no_eager_evaluation_fix() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         CollapseIsinstanceChecks(),
         "isinstance(value, Expected) or isinstance(value, build_type())",
     )
@@ -719,7 +708,7 @@ def test_collapsed_isinstance_diagnostic_has_no_eager_evaluation_fix() -> None:
 
 
 def test_redundant_lambda_diagnostic_preserves_late_binding() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoRedundantLambda(),
         """
         callback = lambda value: target(value)
@@ -732,7 +721,7 @@ def test_redundant_lambda_diagnostic_preserves_late_binding() -> None:
 
 
 def test_redundant_super_diagnostic_does_not_change_execution_frame() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoRedundantArgumentsSuper(),
         """
         class Child(Parent):
@@ -746,7 +735,7 @@ def test_redundant_super_diagnostic_does_not_change_execution_frame() -> None:
 
 
 def test_percent_format_unknown_expression_has_no_tuple_unsafe_fix() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         UseFstring(),
         """
         values = ("hello",)
@@ -759,7 +748,7 @@ def test_percent_format_unknown_expression_has_no_tuple_unsafe_fix() -> None:
 
 
 def test_percent_format_literal_keeps_safe_fstring_fix() -> None:
-    reports, fixed = _fixed(UseFstring(), 'result = "%s" % "hello"')
+    reports, fixed = fix_rule(UseFstring(), 'result = "%s" % "hello"')
 
     assert len(reports) == 1
     assert fixed == '''result = f"{'hello'!s}"'''
@@ -770,14 +759,14 @@ def test_percent_format_literal_keeps_safe_fstring_fix() -> None:
     ['"line\\nbreak"', 'f"{value}"', "function(\n    value,\n)"],
 )
 def test_percent_format_avoids_pre_312_invalid_fstring_fix(expression: str) -> None:
-    _runner, reports = _reports(UseFstring(), f'result = "%s" % {expression}')
+    _runner, reports = run_rule(UseFstring(), f'result = "%s" % {expression}')
 
     assert len(reports) == 1
     assert reports[0].replacement is None
 
 
 def test_comprehension_rewrite_does_not_change_generator_exception_semantics() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         RewriteToComprehension(),
         "value = list(stop() for _ in range(1))",
     )
@@ -787,7 +776,7 @@ def test_comprehension_rewrite_does_not_change_generator_exception_semantics() -
 
 
 def test_explicit_object_base_with_metaclass_has_no_fix() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoInheritFromObject(),
         """
         class Example(object, metaclass=Meta):
@@ -800,7 +789,7 @@ def test_explicit_object_base_with_metaclass_has_no_fix() -> None:
 
 
 def test_imported_builtin_object_base_is_detected() -> None:
-    reports, fixed = _fixed(
+    reports, fixed = fix_rule(
         NoInheritFromObject(),
         """
         from builtins import object
@@ -815,7 +804,7 @@ def test_imported_builtin_object_base_is_detected() -> None:
 
 
 def test_negated_equality_assertion_has_no_semantics_changing_fix() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoAssertTrueForComparisons(),
         "self.assertTrue(not left == right)",
     )
@@ -825,7 +814,7 @@ def test_negated_equality_assertion_has_no_semantics_changing_fix() -> None:
 
 
 def test_custom_assertion_destination_is_not_recommended() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoAssertTrueForComparisons(),
         """
         class Example:
@@ -841,7 +830,7 @@ def test_custom_assertion_destination_is_not_recommended() -> None:
 
 
 def test_comparison_comment_prevents_assertion_autofix() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         NoAssertTrueForComparisons(),
         """
         self.assertTrue(
@@ -856,7 +845,7 @@ def test_comparison_comment_prevents_assertion_autofix() -> None:
 
 
 def test_custom_union_and_optional_have_no_typing_rewrite() -> None:
-    _runner, reports = _reports(
+    _runner, reports = run_rule(
         ReplaceUnionWithOptional(),
         """
         class Union:
@@ -891,7 +880,7 @@ def test_custom_union_and_optional_have_no_typing_rewrite() -> None:
     ],
 )
 def test_or_in_except_detects_star_and_nested_forms(source: str) -> None:
-    _runner, reports = _reports(AvoidOrInExcept(), source)
+    _runner, reports = run_rule(AvoidOrInExcept(), source)
 
     assert len(reports) == 1
 
@@ -915,7 +904,7 @@ def test_membership_assertion_preserves_supported_polarities(
     replacement: str | None,
 ) -> None:
     source = f"self.{assertion}({condition})\n"
-    reports, fixed = _fixed(UseAssertIn(), source)
+    reports, fixed = fix_rule(UseAssertIn(), source)
 
     if replacement is None:
         assert reports == []
@@ -929,7 +918,7 @@ def test_membership_assertion_preserves_supported_polarities(
 
 @pytest.mark.parametrize("prefix", ["", "expr=", "*", "**"])
 def test_membership_assertion_preserves_single_argument_matcher_semantics(prefix: str) -> None:
-    reports, fixed = _fixed(UseAssertIn(), f"self.assertTrue({prefix}(a in b))\n")
+    reports, fixed = fix_rule(UseAssertIn(), f"self.assertTrue({prefix}(a in b))\n")
 
     assert len(reports) == 1
     assert fixed == "self.assertIn(a, b)\n"
@@ -947,7 +936,7 @@ def test_membership_assertion_preserves_single_argument_matcher_semantics(prefix
     ],
 )
 def test_membership_assertion_preserves_unsupported_call_shapes(source: str) -> None:
-    reports, fixed = _fixed(UseAssertIn(), source)
+    reports, fixed = fix_rule(UseAssertIn(), source)
 
     assert reports == []
     assert fixed == source
@@ -977,7 +966,7 @@ def test_membership_assertion_preserves_source_and_destination_overrides(
         "    def check(self, a, b):\n"
         f"        self.{assertion}({condition})\n"
     )
-    reports, fixed = _fixed(UseAssertIn(), source)
+    reports, fixed = fix_rule(UseAssertIn(), source)
 
     assert reports == []
     assert fixed == source
@@ -996,7 +985,7 @@ def test_membership_assertion_preserves_comments_for_every_supported_form(
     assertion: str, condition: str
 ) -> None:
     source = f"self.{assertion}(\n    {condition}  # preserve rationale\n)\n"
-    reports, fixed = _fixed(UseAssertIn(), source)
+    reports, fixed = fix_rule(UseAssertIn(), source)
 
     assert len(reports) == 1
     assert reports[0].replacement is None
@@ -1012,7 +1001,7 @@ def test_abc_class_rewrite_preserves_each_base_diagnostic_and_complete_replaceme
         "class Example(Keep,\tcollections.abc.Mapping, collections.abc.Sequence, metaclass=Meta):\n"
         "    pass\n"
     )
-    runner, reports = _reports(DeprecatedABCImport(), source)
+    runner, reports = run_rule(DeprecatedABCImport(), source)
     original_class = cst.ensure_type(runner.module.body[0], cst.ClassDef)
 
     assert len(reports) == 2
@@ -1040,7 +1029,7 @@ def test_no_string_type_annotation_tuple_parentheses() -> None:
     import ast
 
     code = 'from __future__ import annotations\nx: "int, str" = (1, "a")\n'
-    reports, fixed = _fixed(NoStringTypeAnnotation(), code)
+    reports, fixed = fix_rule(NoStringTypeAnnotation(), code)
     assert len(reports) == 1
     assert 'x: (int, str) = (1, "a")' in fixed
     ast.parse(fixed)
@@ -1053,5 +1042,5 @@ def test_no_bare_object_annotations_exempts_dunder_eq_other() -> None:
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 """
-    _runner, reports = _reports(NoBareObjectAnnotations(), code)
+    _runner, reports = run_rule(NoBareObjectAnnotations(), code)
     assert reports == []
