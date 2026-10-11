@@ -67,9 +67,21 @@ def test_module_all_ignores_function_local_all() -> None:
 
         __all__ = list(EXPORTS)
         """,
+        """
+        EXPORTS = ["_private"]
+        EXPORTS[0] = "public"
+        __all__ = EXPORTS
+        """,
+        """
+        EXPORTS = ["_private"]
+        ALIAS = EXPORTS
+        ALIAS.clear()
+        __all__ = EXPORTS
+        """,
     ],
+    ids=["import-rebound", "list-shadowed", "item-reassigned", "alias-cleared"],
 )
-def test_no_underscore_all_exports_does_not_use_stale_or_shadowed_alias_facts(
+def test_no_underscore_all_exports_ignores_invalidated_alias_facts(
     source: str,
 ) -> None:
     _runner, reports = run_rule(NoUnderscoreAllExports(), source)
@@ -128,28 +140,6 @@ def test_no_underscore_all_exports_does_not_mutate_augmented_tuple_alias() -> No
         __all__ = EXPORTS
         """,
     )
-
-    assert reports == []
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        """
-        EXPORTS = ["_private"]
-        EXPORTS[0] = "public"
-        __all__ = EXPORTS
-        """,
-        """
-        EXPORTS = ["_private"]
-        ALIAS = EXPORTS
-        ALIAS.clear()
-        __all__ = EXPORTS
-        """,
-    ],
-)
-def test_no_underscore_all_exports_invalidates_mutated_alias_facts(source: str) -> None:
-    _runner, reports = run_rule(NoUnderscoreAllExports(), source)
 
     assert reports == []
 
