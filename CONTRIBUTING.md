@@ -2,7 +2,7 @@
 
 ## Setup
 
-Rattle requires Python 3.10 or newer. We recommend using [uv][] to install Python:
+Rattle requires Python 3.11 or newer. We recommend using [uv][] to install Python:
 
 ```shell-session
 $ uv python install 3.13
