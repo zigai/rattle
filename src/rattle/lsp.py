@@ -181,7 +181,7 @@ class LSP:
         captured = capture(generator)
         deque(captured, maxlen=0)
         formatted_content = captured.result
-        if not formatted_content:
+        if formatted_content is None:
             return None
 
         doc: TextDocument = self.lsp.workspace.get_text_document(params.text_document.uri)

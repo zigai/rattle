@@ -1,12 +1,13 @@
 import os
 from collections.abc import Collection, Generator
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from libcst import Name, Pass
 
-from rattle.api import rattle_configured_file, rattle_paths
+from rattle.api import rattle_configured_file, rattle_paths, rattle_stdin
 from rattle.cache import ResultCache, rule_cache_fingerprint
 from rattle.cache.keys import (
     _clean_status_cache_key,
@@ -21,9 +22,22 @@ from rattle.diagnostics import CodePosition, CodeRange, FileContent, LintViolati
 from rattle.engine import LintRunner
 from rattle.rule import LintRule
 from rattle.selectors import QualifiedRule
+from tests.support import OutputStream, Stdin
 
 
 class TestApi:
+    def test_rattle_stdin_applies_empty_module_replacement(
+        self, empty_module_project: Path
+    ) -> None:
+        output = OutputStream()
+        path = empty_module_project / "sample.py"
+
+        with Stdin("pass\n"), redirect_stdout(output):
+            results = list(rattle_stdin(path, autofix=True))
+
+        assert [result.error for result in results] == [None]
+        assert output.getvalue() == ""
+
     def test_rattle_configured_file_uses_clean_cache(self, tmp_path: Path) -> None:
         root = tmp_path
         path = root / "clean.py"

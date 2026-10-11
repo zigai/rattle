@@ -15,6 +15,7 @@ from lsprotocol.types import (
     DocumentFormattingParams,
     FormattingOptions,
     PublishDiagnosticsParams,
+    TextDocumentContentChangePartial,
     TextDocumentIdentifier,
     TextDocumentItem,
 )
@@ -240,3 +241,32 @@ def test_lsp_format_empty_document() -> None:
     )
     edits = lsp.format(params)
     assert edits is None
+
+
+def test_lsp_format_applies_empty_module_replacement(empty_module_project: Path) -> None:
+    uri = (empty_module_project / "sample.py").as_uri()
+    lsp = LSP(Options(), LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0))
+    lsp.lsp.protocol._workspace = Workspace(empty_module_project.as_uri())
+    lsp.lsp.workspace.put_text_document(
+        TextDocumentItem(uri=uri, language_id="python", version=1, text="pass\n")
+    )
+    params = DocumentFormattingParams(
+        text_document=TextDocumentIdentifier(uri=uri),
+        options=FormattingOptions(tab_size=4, insert_spaces=True),
+    )
+
+    try:
+        edits = lsp.format(params)
+        assert edits is not None
+        document = lsp.lsp.workspace.get_text_document(uri)
+        for edit in sorted(
+            edits,
+            key=lambda edit: (edit.range.start.line, edit.range.start.character),
+            reverse=True,
+        ):
+            document.apply_change(
+                TextDocumentContentChangePartial(range=edit.range, text=edit.new_text)
+            )
+        assert document.source == ""
+    finally:
+        lsp.close()

@@ -236,7 +236,7 @@ class ConfiguredFileRun:
         cache_violations: list[LintViolation],
     ) -> None:
         assert self.stat is not None
-        if updated and updated != self.content:
+        if updated is not None and updated != self.content:
             LOG.info("%s: writing changes to file", self.path)
             self.path.write_bytes(updated)
             if self.defer_format and self.deferred_format_paths is not None:
@@ -289,7 +289,7 @@ def rattle_stdin(
             metrics_hook=metrics_hook,
         )
         if autofix:
-            sys.stdout.buffer.write(updated or stdin_content)
+            sys.stdout.buffer.write(stdin_content if updated is None else updated)
 
     except (CollectionError, ConfigError, OSError, UnicodeError) as e:
         LOG.debug("Linting stdin failed with %s", type(e).__name__)

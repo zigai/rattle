@@ -9,6 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
 from unittest import TestCase
+from unittest.mock import patch
 
 from rattle import __version__
 from rattle.cli import main
@@ -583,3 +584,14 @@ class CLIIntegrationTest(TestCase):
 
             assert result.stdout == ""
             assert result.exit_code == 0
+
+
+def test_fix_writes_empty_module_replacement(empty_module_project: Path) -> None:
+    path = empty_module_project / "sample.py"
+    path.write_bytes(b"pass\n")
+
+    with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
+        result = CliRunner().invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
+
+    assert path.read_bytes() == b""
+    assert result.exit_code == 0
