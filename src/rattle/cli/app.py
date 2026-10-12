@@ -15,8 +15,8 @@ from rattle.cli.commands.lsp import lsp
 from rattle.cli.commands.rules import rules_command
 from rattle.cli.commands.validate import validate_command
 from rattle.cli.environment import (
-    _reexec_with_uv,
-    _should_reexec_with_uv,
+    _project_rattle_for_reexec,
+    _reexec_project_rattle,
     _version,
 )
 from rattle.cli.options import usage_error
@@ -135,8 +135,9 @@ def main(args: list[str] | None = None) -> object:
     """Run the rattle CLI."""
     if args is None:
         args = sys.argv[1:]
-        if _should_reexec_with_uv(args):
-            _reexec_with_uv(args)
+        project_rattle = _project_rattle_for_reexec(args)
+        if project_rattle is not None:
+            _reexec_project_rattle(project_rattle, args)
 
     return build_app().run(args=_coalesce_repeated_list_options(args))
 

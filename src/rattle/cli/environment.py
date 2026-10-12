@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -56,24 +55,40 @@ def _find_uv_project_root(path: Path) -> Path | None:
     return None
 
 
-def _should_reexec_with_uv(args: list[str]) -> bool:
+def _project_environment(root: Path) -> Path:
+    configured = os.environ.get("UV_PROJECT_ENVIRONMENT")
+    if not configured:
+        return root / ".venv"
+
+    environment = Path(configured)
+    return environment if environment.is_absolute() else root / environment
+
+
+def _project_rattle(root: Path) -> Path | None:
+    environment = _project_environment(root)
+    if environment.resolve() == Path(sys.prefix).resolve():
+        return None
+
+    executable = environment / ("Scripts/rattle.exe" if os.name == "nt" else "bin/rattle")
+    return executable if executable.is_file() else None
+
+
+def _project_rattle_for_reexec(args: list[str]) -> Path | None:
     if os.environ.get(UV_REEXEC_ENV) or os.environ.get(UV_REEXEC_DISABLE_ENV):
-        return False
-    if shutil.which("uv") is None:
-        return False
+        return None
 
     command = next((arg for arg in args if not arg.startswith("-")), None)
     if command not in UV_REEXEC_COMMANDS:
-        return False
+        return None
 
-    return _find_uv_project_root(Path.cwd()) is not None
+    root = _find_uv_project_root(Path.cwd())
+    if root is None:
+        return None
+
+    return _project_rattle(root)
 
 
-def _reexec_with_uv(args: list[str]) -> None:
-    uv_path = shutil.which("uv")
-    if uv_path is None:
-        return
-
+def _reexec_project_rattle(executable: Path, args: list[str]) -> None:
     env = os.environ.copy()
     env[UV_REEXEC_ENV] = "1"
-    os.execve(uv_path, [uv_path, "run", "rattle", *args], env)  # noqa: S606
+    os.execve(executable, [str(executable), *args], env)  # noqa: S606
