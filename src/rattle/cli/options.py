@@ -41,7 +41,7 @@ def _resolve_input_paths(paths: tuple[Path, ...]) -> tuple[Path, ...]:
         if len(paths) != 2:
             usage_error(
                 'Reading from stdin needs exactly one path after "-" to name the code, '
-                "for example: rattle lint - src/module.py"
+                "for example: rattle check - src/module.py"
             )
         return paths
     return tuple(require_existing_path(path, argument="path") for path in paths)

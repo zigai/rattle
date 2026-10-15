@@ -163,10 +163,10 @@ Use the repository's command runner and configuration context. At minimum run:
 ```bash
 rattle validate pyproject.toml
 rattle rules --test --config pyproject.toml .
-rattle lint --diff .
+rattle check --diff .
 ```
 
-Run focused project tests for affected code. Apply `rattle fix` across the
+Run focused project tests for affected code. Apply `rattle check --fix` across the
 repository only when the user requests it.
 
 If the rule is noisy, add valid cases before changing the implementation. Test

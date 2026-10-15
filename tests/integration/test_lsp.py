@@ -284,15 +284,14 @@ def test_debouncer_clears_error_on_subsequent_call() -> None:
     assert runs == [True]
 
 
-def test_lsp_publishes_syntax_error_diagnostics() -> None:
+def test_lsp_publishes_syntax_error_diagnostics(tmp_path: Path) -> None:
+    uri = (tmp_path / "syntax_err.py").as_uri()
     lsp = LSP(
         Options(rules=[RuleNameSelector("no-annotated-self")]),
         LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0),
     )
-    lsp.lsp.protocol._workspace = Workspace("/tmp")
-    item = TextDocumentItem(
-        uri="file:///tmp/syntax_err.py", language_id="python", version=1, text="def foo("
-    )
+    lsp.lsp.protocol._workspace = Workspace(tmp_path.as_uri())
+    item = TextDocumentItem(uri=uri, language_id="python", version=1, text="def foo(")
     lsp.lsp.workspace.put_text_document(item)
 
     published: list[PublishDiagnosticsParams] = []
@@ -301,7 +300,7 @@ def test_lsp_publishes_syntax_error_diagnostics() -> None:
         published.append(params)
 
     lsp.lsp.text_document_publish_diagnostics = publish
-    lsp.validate("file:///tmp/syntax_err.py", 1)
+    lsp.validate(uri, 1)
 
     assert len(published) == 1
     assert len(published[0].diagnostics) == 1
@@ -363,17 +362,18 @@ def test_lsp_format_refreshes_side_effect_import_configuration(tmp_path: Path) -
         lsp.close()
 
 
-def test_lsp_format_empty_document() -> None:
+def test_lsp_format_empty_document(tmp_path: Path) -> None:
+    uri = (tmp_path / "empty.py").as_uri()
     lsp = LSP(
         Options(),
         LSPOptions(tcp=None, ws=None, stdio=False, debounce_interval=0),
     )
-    lsp.lsp.protocol._workspace = Workspace("/tmp")
-    item = TextDocumentItem(uri="file:///tmp/empty.py", language_id="python", version=1, text="")
+    lsp.lsp.protocol._workspace = Workspace(tmp_path.as_uri())
+    item = TextDocumentItem(uri=uri, language_id="python", version=1, text="")
     lsp.lsp.workspace.put_text_document(item)
 
     params = DocumentFormattingParams(
-        text_document=TextDocumentIdentifier(uri="file:///tmp/empty.py"),
+        text_document=TextDocumentIdentifier(uri=uri),
         options=FormattingOptions(tab_size=4, insert_spaces=True),
     )
     edits = lsp.format(params)

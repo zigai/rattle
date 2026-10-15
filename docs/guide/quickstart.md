@@ -29,13 +29,13 @@ Rattle also supports editor integrations, LSP, and pre-commit. See the
 See lints and suggested changes for a set of source files:
 
 ```console
-$ rattle lint <path>
+$ rattle check <path>
 ```
 
 Apply suggested changes on those same files automatically:
 
 ```console
-$ rattle fix <path>
+$ rattle check --fix <path>
 ```
 
 If given directories, Rattle will recurse them automatically, finding `.py`
@@ -59,7 +59,7 @@ handler: Callable[[...], int]
 With `modernization` enabled, running Rattle shows the rule violation:
 
 ```console
-$ rattle lint handlers.py
+$ rattle check handlers.py
 use-callable-ellipsis [*] Use Callable[..., T] instead of Callable[[...], T].
  --> handlers.py:4:10
   |
@@ -73,7 +73,7 @@ help: Apply the available autofix
 You can also see suggested changes by passing `--diff`:
 
 ```console
-$ rattle lint --diff handlers.py
+$ rattle check --diff handlers.py
 use-callable-ellipsis [*] Use Callable[..., T] instead of Callable[[...], T].
  --> handlers.py:4:10
   |
@@ -255,7 +255,7 @@ def main():
 ```
 
 ```console
-$ rattle lint --diff sourdough/baker.py
+$ rattle check --diff sourdough/baker.py
 hollywood-name-rule [*] It's underproved!
  --> sourdough/baker.py:2:12
   |
@@ -274,19 +274,19 @@ help: Apply the available autofix
      print(f"hello {name}")
 ```
 
-Note that the `lint` command only shows lint errors and suggested changes.
-The `fix` command applies those changes to the codebase:
+The `check` command only shows lint errors and suggested changes.
+Pass `--fix` to apply those changes to the codebase:
 
 ```console
-$ rattle fix sourdough/baker.py
+$ rattle check --fix sourdough/baker.py
 1 file checked, 1 fix applied
 ```
 
-Pass `--interactive` to confirm each available autofix one at a time.
+Pass `--fix --interactive` to confirm each available autofix one at a time.
 
 Now that the suggested changes have been applied, the codebase is clean:
 
 ```console
-$ rattle lint sourdough/baker.py
+$ rattle check sourdough/baker.py
 1 file clean
 ```

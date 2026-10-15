@@ -13,7 +13,7 @@ UV_REEXEC_DISABLE_ENV = "RATTLE_NO_UV_RUN_REEXEC"
 DEBUG_ENV = "RATTLE_DEBUG"
 METRICS_ENV = "RATTLE_METRICS"
 UV_PROJECT_MARKERS = ("uv.lock",)
-UV_REEXEC_COMMANDS = frozenset({"lint", "fix", "rules", "validate", "lsp", "explain"})
+UV_REEXEC_COMMANDS = frozenset({"check", "rules", "validate", "lsp", "explain"})
 TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 

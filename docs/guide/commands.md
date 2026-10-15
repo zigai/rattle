@@ -8,9 +8,9 @@ $ rattle COMMAND [OPTIONS] ...
 
 Use `--help` on any command to print its supported options.
 
-## Shared lint/fix options
+## Check options
 
-The following options are available on commands that check or fix code.
+The following options are available on `check`, with or without `--fix`.
 
 ### `--config / -c CONFIG`
 
@@ -23,7 +23,7 @@ Like Ruff's `--exclude`, direct path arguments are also excluded when they match
 the pattern.
 
 ```console
-$ rattle lint . --exclude "generated/**"
+$ rattle check . --exclude "generated/**"
 ```
 
 ### `--extend-exclude PATTERN`
@@ -33,7 +33,7 @@ arguments are still checked unless they are excluded by configuration with
 `force-exclude`.
 
 ```console
-$ rattle lint . --extend-exclude "docs/_build/**"
+$ rattle check . --extend-exclude "docs/_build/**"
 ```
 
 ### `--rules / -r RULES`
@@ -55,9 +55,9 @@ A selector that does not resolve to a rule is an error.
 For example:
 
 ```console
-$ rattle lint --rules "use-f-string" path/to/file.py
-$ rattle lint --rules "my-custom-rule" path/to/file.py
-$ rattle lint --rules "fixit,legacy" path/to/file.py
+$ rattle check --rules "use-f-string" path/to/file.py
+$ rattle check --rules "my-custom-rule" path/to/file.py
+$ rattle check --rules "fixit,legacy" path/to/file.py
 ```
 
 ### `--jobs / -j JOBS`
@@ -71,11 +71,11 @@ Print compact diagnostics.
 ### `--quiet / -q`
 
 Print only the final summary. `--quiet` cannot be used with `--diff`, `--stats`,
-or `fix --interactive`.
+or `--interactive`.
 
 ### `--diff / -d`
 
-Show fixes as unified diffs.
+Show available fixes as unified diffs, or applied changes with `--fix`.
 
 ### `--stats / -s`
 
@@ -89,25 +89,26 @@ Override the configured `output-format`: `rattle`, `vscode`, or `custom`.
 
 Override the configured `output-template` used by the `custom` output format.
 
-## `lint`
+## `check`
 
-Check files for Rattle violations. Use `- PATH` to check code from standard
-input as `PATH`.
+Check files for Rattle violations without modifying source files. With no paths,
+check the current directory. Use `- PATH` to check standard input as `PATH`.
 
 ```console
-$ rattle lint [OPTIONS] [PATH ...]
+$ rattle check [OPTIONS] [PATH ...]
 ```
 
 ### `--json`
 
 Print diagnostics as a JSON array on standard output. The summary still goes to
 standard error. Cannot be combined with `--quiet`, `--diff`, `--compact`,
-`--output-format`, or `--output-template`.
+`--output-format`, `--output-template`, or `--fix`.
 
-## `fix`
+### `--fix`
 
-Apply available autofixes to files. Use `- PATH` to fix code from standard
-input as `PATH` and write the fixed code to standard output.
+Apply available autofixes, then report remaining violations. Use `- PATH` to fix
+standard input as `PATH` and write fixed code to standard output; diagnostics
+and the summary go to standard error.
 
 By default, automatic fixing runs available autofixes until the file stops
 changing or no more autofixes are found. Diagnostics shown after fixing are
@@ -116,14 +117,14 @@ applied changes, or `--interactive` to review one initial pass of fixes before
 verification.
 
 ```console
-$ rattle fix [OPTIONS] [--interactive] [PATH ...]
+$ rattle check --fix [OPTIONS] [PATH ...]
 ```
 
 ### `--interactive / -i`
 
 Prompt before applying each autofix. Answer `y` to apply, `n` or Enter to skip,
 or `q` to stop prompting and leave the remaining fixes unapplied. This option
-requires a terminal on standard input and cannot be used with `- PATH`.
+requires `--fix` and a terminal on standard input, and cannot be used with `- PATH`.
 
 (lsp_command)=
 
@@ -222,4 +223,4 @@ Enable debug logging.
 
 ### `RATTLE_METRICS=1`
 
-Print internal run metrics for `lint` and `fix`.
+Print internal run metrics for `check`, with or without `--fix`.

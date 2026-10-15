@@ -8,9 +8,8 @@ from interfacy import ExecutableFlag, Interfacy, Param
 from interfacy.naming import NoAbbreviations
 from interfacy.plugins import ExecuteContext, InterfacyPlugin
 
+from rattle.cli.commands.check import check
 from rattle.cli.commands.explain import explain_command
-from rattle.cli.commands.fix import fix
-from rattle.cli.commands.lint import lint
 from rattle.cli.commands.lsp import lsp
 from rattle.cli.commands.rules import rules_command
 from rattle.cli.commands.validate import validate_command
@@ -23,9 +22,10 @@ from rattle.cli.options import usage_error
 from rattle.config import CollectionError, ConfigError
 
 CONFIG_PARAM = Param(short="c", metavar="<path>")
-LINT_PARAMS = {
+CHECK_PARAMS = {
     "config": CONFIG_PARAM,
     "diff": Param(short="d"),
+    "interactive": Param(short="i"),
     "exclude": Param(short="e", metavar="<pattern>"),
     "extend_exclude": Param(metavar="<pattern>"),
     "jobs": Param(short="j", metavar="<n>"),
@@ -34,10 +34,6 @@ LINT_PARAMS = {
     "stats": Param(short="s"),
     "output_format": Param(metavar="<rattle|vscode|custom>"),
     "output_template": Param(metavar="<template>"),
-}
-FIX_PARAMS = {
-    **LINT_PARAMS,
-    "interactive": Param(short="i"),
 }
 SIGPIPE_EXIT_CODE = 141
 DOCS_URL = "https://rattle.readthedocs.io/en/latest"
@@ -74,8 +70,7 @@ def build_app() -> Interfacy:
         ],
         plugins=[CommandErrorPlugin()],
     )
-    app.add_command(lint, params=LINT_PARAMS)
-    app.add_command(fix, params=FIX_PARAMS)
+    app.add_command(check, params=CHECK_PARAMS)
     app.add_command(
         lsp,
         params={

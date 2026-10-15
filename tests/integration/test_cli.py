@@ -67,7 +67,7 @@ class CLIIntegrationTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "no-redundant-f-string", path.as_posix()],
+                    ["check", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -83,7 +83,7 @@ class CLIIntegrationTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "no-redundant-f-string", "--diff", path.as_posix()],
+                    ["check", "-r", "no-redundant-f-string", "--diff", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -97,7 +97,7 @@ class CLIIntegrationTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    ["check", "--fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -112,7 +112,7 @@ class CLIIntegrationTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    ["check", "--fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -146,7 +146,7 @@ class CLIIntegrationTest(TestCase):
                 path.write_text(ruff_content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    ["check", "--fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -171,7 +171,7 @@ class CLIIntegrationTest(TestCase):
                 path.write_text(ruff_content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    ["check", "--fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -186,7 +186,7 @@ class CLIIntegrationTest(TestCase):
                 path.write_text(content)
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "no-redundant-f-string", path.as_posix()],
+                    ["check", "--fix", "-r", "no-redundant-f-string", path.as_posix()],
                     catch_exceptions=False,
                 )
 
@@ -198,7 +198,7 @@ class CLIIntegrationTest(TestCase):
             with self.subTest("linting via stdin"):
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "no-redundant-f-string", "-", path.as_posix()],
+                    ["check", "-r", "no-redundant-f-string", "-", path.as_posix()],
                     input=content,
                     catch_exceptions=False,
                 )
@@ -214,7 +214,7 @@ class CLIIntegrationTest(TestCase):
 
                 result = self.runner.invoke(
                     main,
-                    ["fix", "-r", "no-redundant-f-string", "-", path.as_posix()],
+                    ["check", "--fix", "-r", "no-redundant-f-string", "-", path.as_posix()],
                     input=content,
                     catch_exceptions=False,
                 )
@@ -224,14 +224,14 @@ class CLIIntegrationTest(TestCase):
 
     def test_this_file_is_clean(self) -> None:
         path = Path(__file__).resolve().as_posix()
-        result = self.runner.invoke(main, ["lint", path], catch_exceptions=False)
+        result = self.runner.invoke(main, ["check", path], catch_exceptions=False)
         assert result.stdout == ""
         assert result.exit_code == 0
         assert result.stderr == "1 file clean\n"
 
     def test_this_project_is_clean(self) -> None:
         project_dir = Path(__file__).resolve().parent.parent.as_posix()
-        result = self.runner.invoke(main, ["lint", project_dir], catch_exceptions=False)
+        result = self.runner.invoke(main, ["check", project_dir], catch_exceptions=False)
         assert result.stdout == ""
         assert result.exit_code == 0
 
@@ -241,7 +241,7 @@ class CLIIntegrationTest(TestCase):
             (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
+            result = self.runner.invoke(main, ["check", "-r", "use-f-string", td])
             assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert result.exit_code == 1
@@ -255,7 +255,7 @@ class CLIIntegrationTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-f-string", dirty.as_posix()],
+                ["check", "-r", "use-f-string", dirty.as_posix()],
                 catch_exceptions=False,
             )
             assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
@@ -293,7 +293,7 @@ class CLIIntegrationTest(TestCase):
             result = self.runner.invoke(
                 main,
                 [
-                    "lint",
+                    "check",
                     "--config",
                     (tdp / "pyproject.toml").as_posix(),
                     "--rules",
@@ -326,7 +326,7 @@ class CLIIntegrationTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-f-string", td],
+                ["check", "-r", "use-f-string", td],
                 catch_exceptions=False,
             )
 
@@ -352,7 +352,7 @@ class CLIIntegrationTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-f-string", td],
+                ["check", "-r", "use-f-string", td],
                 catch_exceptions=False,
             )
 
@@ -371,7 +371,7 @@ class CLIIntegrationTest(TestCase):
             result = self.runner.invoke(
                 main,
                 [
-                    "lint",
+                    "check",
                     "-r",
                     "use-f-string",
                     td,
@@ -409,7 +409,7 @@ class CLIIntegrationTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-f-string", td, "--exclude", "included.py"],
+                ["check", "-r", "use-f-string", td, "--exclude", "included.py"],
                 catch_exceptions=False,
             )
 
@@ -426,7 +426,7 @@ class CLIIntegrationTest(TestCase):
 
             result = self.runner.invoke(
                 main,
-                ["lint", "-r", "use-f-string", td, "--extend-exclude", "generated.py"],
+                ["check", "-r", "use-f-string", td, "--extend-exclude", "generated.py"],
                 catch_exceptions=False,
             )
 
@@ -435,7 +435,7 @@ class CLIIntegrationTest(TestCase):
             assert result.exit_code == 1
             assert result.stderr == "1 file checked, 1 violation in 1 file, 1 autofixable\n"
 
-    def test_lint_stats_groups_violations_by_rule(self) -> None:
+    def test_check_stats_groups_violations_by_rule(self) -> None:
         with TemporaryDirectory() as td:
             tdp = Path(td).resolve()
             nested = tdp / "pkg"
@@ -449,7 +449,7 @@ class CLIIntegrationTest(TestCase):
             try:
                 result = self.runner.invoke(
                     main,
-                    ["lint", "-r", "use-f-string", "--stats", tdp.as_posix()],
+                    ["check", "-r", "use-f-string", "--stats", tdp.as_posix()],
                     catch_exceptions=False,
                 )
             finally:
@@ -465,7 +465,7 @@ class CLIIntegrationTest(TestCase):
             (tdp / "clean.py").write_text("name = 'Kirby'\nprint(f'hello {name}')")
             (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
+            result = self.runner.invoke(main, ["check", "-r", "use-f-string", td])
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
             assert re.search(r" --> .*broken\.py:1:1", result.output)
             assert result.exit_code == 1
@@ -478,7 +478,7 @@ class CLIIntegrationTest(TestCase):
             (tdp / "dirty.py").write_text("name = 'Kirby'\nprint('hello %s' % name)\n")
             (tdp / "broken.py").write_text("print)\n")
 
-            result = self.runner.invoke(main, ["lint", "-r", "use-f-string", td])
+            result = self.runner.invoke(main, ["check", "-r", "use-f-string", td])
             assert "use-f-string [*] Use an f-string instead of `%` formatting" in result.output
             assert re.search(r" --> .*dirty\.py:2:7", result.output)
             assert "invalid-syntax: tokenizer error: unmatched ')'" in result.output
@@ -534,7 +534,7 @@ class CLIIntegrationTest(TestCase):
 
             expected = clean.read_text()
 
-            result = self.runner.invoke(main, ["fix", "-r", "legacy", td])
+            result = self.runner.invoke(main, ["check", "--fix", "-r", "legacy", td])
 
             with self.subTest("clean"):
                 assert expected == clean.read_text()
@@ -548,7 +548,7 @@ class CLIIntegrationTest(TestCase):
             assert result.stdout == ""
             assert result.stderr == "3 files checked, 4 fixes applied\n"
 
-    def test_lint_directory_with_no_rules_enabled(self) -> None:
+    def test_check_directory_with_no_rules_enabled(self) -> None:
         content = dedent(
             """\
                 import foo
@@ -558,7 +558,7 @@ class CLIIntegrationTest(TestCase):
                     value = f"hello world"
             """
         )
-        with self.subTest("lint"), TemporaryDirectory() as td:
+        with self.subTest("check"), TemporaryDirectory() as td:
             tdp = Path(td).resolve()
             path = tdp / "file.py"
 
@@ -567,14 +567,14 @@ class CLIIntegrationTest(TestCase):
             path.write_text(content)
             result = self.runner.invoke(
                 main,
-                ["lint", path.as_posix()],
+                ["check", path.as_posix()],
                 catch_exceptions=False,
             )
 
             assert result.stdout == ""
             assert result.exit_code == 0
 
-        with self.subTest("fix"), TemporaryDirectory() as td:
+        with self.subTest("check --fix"), TemporaryDirectory() as td:
             tdp = Path(td).resolve()
             path = tdp / "file.py"
 
@@ -583,7 +583,7 @@ class CLIIntegrationTest(TestCase):
             path.write_text(content)
             result = self.runner.invoke(
                 main,
-                ["fix", path.as_posix()],
+                ["check", "--fix", path.as_posix()],
                 catch_exceptions=False,
             )
 
@@ -607,7 +607,7 @@ def test_interactive_fix_preserves_intervening_save(tmp_path: Path) -> None:
     ):
         result = CliRunner().invoke(
             main,
-            ["fix", "--interactive", "--rules", "use-literal", path.as_posix()],
+            ["check", "--fix", "--interactive", "--rules", "use-literal", path.as_posix()],
             catch_exceptions=False,
         )
 
@@ -638,7 +638,9 @@ def test_fix_respects_recursive_exclusions(
     )
 
     with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
-        result = CliRunner().invoke(main, ["fix", tmp_path.as_posix()], catch_exceptions=False)
+        result = CliRunner().invoke(
+            main, ["check", "--fix", tmp_path.as_posix()], catch_exceptions=False
+        )
 
     assert result.exit_code == 0
     assert path.read_bytes() == expected
@@ -651,7 +653,9 @@ def test_percent_format_fix_preserves_starred_tuple_value(tmp_path: Path) -> Non
 
     with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
         result = CliRunner().invoke(
-            main, ["fix", "--rules", "use-f-string", path.as_posix()], catch_exceptions=False
+            main,
+            ["check", "--fix", "--rules", "use-f-string", path.as_posix()],
+            catch_exceptions=False,
         )
 
     namespace: dict[str, object] = {}
@@ -660,7 +664,7 @@ def test_percent_format_fix_preserves_starred_tuple_value(tmp_path: Path) -> Non
     assert result.exit_code in (0, 1)
 
 
-def test_lint_cache_detects_metadata_preserving_edit(tmp_path: Path) -> None:
+def test_check_cache_detects_metadata_preserving_edit(tmp_path: Path) -> None:
     path = tmp_path / "sample.py"
     path.write_bytes(b'import os\nos.getenv("x")\n')
     (tmp_path / "pyproject.toml").write_text(
@@ -672,11 +676,11 @@ def test_lint_cache_detects_metadata_preserving_edit(tmp_path: Path) -> None:
         os.environ,
         {"RATTLE_CACHE_DIR": (tmp_path / "cache").as_posix(), "RATTLE_DISABLE_CACHE": ""},
     ):
-        clean = runner.invoke(main, ["lint", "--json", path.as_posix()], catch_exceptions=False)
+        clean = runner.invoke(main, ["check", "--json", path.as_posix()], catch_exceptions=False)
         original_stat = path.stat()
         path.write_bytes(b'import os\nos.system("x")\n')
         os.utime(path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
-        cached = runner.invoke(main, ["lint", "--json", path.as_posix()], catch_exceptions=False)
+        cached = runner.invoke(main, ["check", "--json", path.as_posix()], catch_exceptions=False)
 
     assert clean.exit_code == 0
     assert json.loads(clean.stdout) == []
@@ -691,7 +695,9 @@ def test_fix_writes_empty_module_replacement(empty_module_project: Path) -> None
     path.write_bytes(b"pass\n")
 
     with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
-        result = CliRunner().invoke(main, ["fix", path.as_posix()], catch_exceptions=False)
+        result = CliRunner().invoke(
+            main, ["check", "--fix", path.as_posix()], catch_exceptions=False
+        )
 
     assert path.read_bytes() == b""
     assert result.exit_code == 0
@@ -704,7 +710,7 @@ def test_fix_writes_empty_module_replacement(empty_module_project: Path) -> None
         pytest.param("vendor/scripts/run.py", 1, ["forbidden-call"], id="outside-exemption"),
     ],
 )
-def test_lint_anchors_per_file_exemptions(
+def test_check_anchors_per_file_exemptions(
     tmp_path: Path, relative_path: str, expected_exit: int, expected_rules: list[str]
 ) -> None:
     path = tmp_path / relative_path
@@ -718,7 +724,7 @@ def test_lint_anchors_per_file_exemptions(
 
     with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
         result = CliRunner().invoke(
-            main, ["lint", "--json", path.as_posix()], catch_exceptions=False
+            main, ["check", "--json", path.as_posix()], catch_exceptions=False
         )
 
     assert result.exit_code == expected_exit
@@ -732,7 +738,9 @@ def test_percent_format_fix_applies_literal_tuple_safely(tmp_path: Path) -> None
 
     with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
         result = CliRunner().invoke(
-            main, ["fix", "--rules", "use-f-string", path.as_posix()], catch_exceptions=False
+            main,
+            ["check", "--fix", "--rules", "use-f-string", path.as_posix()],
+            catch_exceptions=False,
         )
 
     namespace: dict[str, object] = {}
@@ -758,7 +766,9 @@ def test_percent_format_fix_preserves_conversion_order(tmp_path: Path) -> None:
 
     with patch.dict(os.environ, {"RATTLE_DISABLE_CACHE": "1"}):
         result = CliRunner().invoke(
-            main, ["fix", "--rules", "use-f-string", path.as_posix()], catch_exceptions=False
+            main,
+            ["check", "--fix", "--rules", "use-f-string", path.as_posix()],
+            catch_exceptions=False,
         )
 
     namespace: dict[str, object] = {}
@@ -768,7 +778,7 @@ def test_percent_format_fix_preserves_conversion_order(tmp_path: Path) -> None:
     assert result.exit_code in (0, 1)
 
 
-def test_lint_cache_detects_metadata_preserving_config_edit(tmp_path: Path) -> None:
+def test_check_cache_detects_metadata_preserving_config_edit(tmp_path: Path) -> None:
     for index in range(20):
         (tmp_path / f"sample{index:02}.py").write_text("import os\nos.system('x')\n")
     config_path = tmp_path / "pyproject.toml"
@@ -782,13 +792,13 @@ def test_lint_cache_detects_metadata_preserving_config_edit(tmp_path: Path) -> N
         {"RATTLE_CACHE_DIR": (tmp_path / "cache").as_posix(), "RATTLE_DISABLE_CACHE": ""},
     ):
         clean = runner.invoke(
-            main, ["lint", "--json", "--jobs", "1", tmp_path.as_posix()], catch_exceptions=False
+            main, ["check", "--json", "--jobs", "1", tmp_path.as_posix()], catch_exceptions=False
         )
         original_stat = config_path.stat()
         config_path.write_text(config_path.read_text().replace("os.getenv", "os.system"))
         os.utime(config_path, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
         changed = runner.invoke(
-            main, ["lint", "--json", "--jobs", "1", tmp_path.as_posix()], catch_exceptions=False
+            main, ["check", "--json", "--jobs", "1", tmp_path.as_posix()], catch_exceptions=False
         )
 
     assert clean.exit_code == 0
@@ -803,7 +813,7 @@ def test_lint_cache_detects_metadata_preserving_config_edit(tmp_path: Path) -> N
 
 @pytest.mark.parametrize("edited_name", ["rules.py", "helpers.py"])
 @pytest.mark.parametrize("file_count", [1, 20], ids=["result-cache", "clean-status-cache"])
-def test_lint_cache_detects_metadata_preserving_rule_edit(
+def test_check_cache_detects_metadata_preserving_rule_edit(
     tmp_path: Path, edited_name: str, file_count: int
 ) -> None:
     paths = [tmp_path / f"sample{index:02}.py" for index in range(file_count)]
@@ -831,7 +841,7 @@ def test_lint_cache_detects_metadata_preserving_rule_edit(
         "-B",
         "-m",
         "rattle",
-        "lint",
+        "check",
         "--json",
         "--jobs",
         "1",
@@ -856,3 +866,151 @@ def test_lint_cache_detects_metadata_preserving_rule_edit(
     assert [diagnostic["rule"] for diagnostic in json.loads(changed.stdout)] == [
         "marker-check"
     ] * file_count
+
+
+@pytest.mark.parametrize("fix", [False, True], ids=["preview", "apply"])
+def test_check_diff_only_writes_when_fix_is_requested(tmp_path: Path, fix: bool) -> None:
+    path = tmp_path / "sample.py"
+    source = "value = list([0])\n"
+    path.write_text(source)
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nformatter="none"\nenable=["use-literal"]\n'
+    )
+    args = ["check", "--diff", path.as_posix()]
+    if fix:
+        args.append("--fix")
+
+    result = CliRunner().invoke(main, args, catch_exceptions=False)
+
+    assert result.exit_code == (0 if fix else 1)
+    assert path.read_text() == ("value = [0]\n" if fix else source)
+    assert "--- a/sample.py" in result.stdout
+    assert "+++ b/sample.py" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        (["--interactive"], "--interactive requires --fix"),
+        (["--fix", "--json"], "--json and --fix cannot be used together"),
+        (
+            ["--fix", "--quiet", "--interactive"],
+            "--quiet and --interactive cannot be used together",
+        ),
+        (["--fix", "--quiet", "--diff"], "--quiet and --diff cannot be used together"),
+        (["--fix", "--quiet", "--stats"], "--quiet and --stats cannot be used together"),
+        (["--quiet", "--diff"], "--quiet and --diff cannot be used together"),
+        (["--quiet", "--stats"], "--quiet and --stats cannot be used together"),
+        (["--json", "--quiet"], "--json and --quiet cannot be used together"),
+        (["--json", "--diff"], "--json and --diff cannot be used together"),
+        (["--json", "--compact"], "--json and --compact cannot be used together"),
+        (
+            ["--json", "--output-format", "vscode"],
+            "--json and --output-format cannot be used together",
+        ),
+        (
+            ["--json", "--output-template", "{path}:{line}"],
+            "--json and --output-template cannot be used together",
+        ),
+    ],
+)
+def test_check_rejects_invalid_modes_without_writing(
+    tmp_path: Path, options: list[str], message: str
+) -> None:
+    path = tmp_path / "sample.py"
+    source = "value = list([0])\n"
+    path.write_text(source)
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nformatter="none"\nenable=["use-literal"]\n'
+    )
+
+    result = CliRunner().invoke(main, ["check", *options, path.as_posix()], catch_exceptions=False)
+
+    assert result.exit_code == 2
+    assert message in result.stderr
+    assert path.read_text() == source
+    assert result.stdout == ""
+
+
+@pytest.mark.parametrize("fix", [False, True], ids=["check", "fix"])
+def test_check_defaults_to_current_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fix: bool
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    path = tmp_path / "sample.py"
+    source = "value = list([0])\n"
+    path.write_text(source)
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nformatter="none"\nenable=["use-literal"]\n'
+    )
+
+    result = CliRunner().invoke(
+        main, ["check", "--fix"] if fix else ["check"], catch_exceptions=False
+    )
+
+    assert result.exit_code == (0 if fix else 1)
+    assert path.read_text() == ("value = [0]\n" if fix else source)
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected", "expected_exit"),
+    [
+        ("y\n", "value = [0]\n", 0),
+        ("n\n", "value = list([0])\n", 1),
+        ("q\n", "value = list([0])\n", 1),
+    ],
+)
+def test_check_interactive_applies_only_accepted_fixes(
+    tmp_path: Path, answer: str, expected: str, expected_exit: int
+) -> None:
+    path = tmp_path / "sample.py"
+    path.write_text("value = list([0])\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nformatter="none"\nenable=["use-literal"]\n'
+    )
+
+    with patch.object(InputStream, "isatty", return_value=True):
+        result = CliRunner().invoke(
+            main,
+            ["check", "--fix", "--interactive", path.as_posix()],
+            input=answer,
+            catch_exceptions=False,
+        )
+
+    assert result.exit_code == expected_exit
+    assert path.read_text() == expected
+    assert "Apply autofix?" in result.stderr
+
+
+@pytest.mark.parametrize("stdin", [False, True], ids=["non-terminal", "stdin-source"])
+def test_check_interactive_requires_a_terminal_and_file_input(tmp_path: Path, stdin: bool) -> None:
+    path = tmp_path / "sample.py"
+    source = "value = list([0])\n"
+    path.write_text(source)
+    paths = ["-", path.as_posix()] if stdin else [path.as_posix()]
+
+    result = CliRunner().invoke(
+        main, ["check", "--fix", "--interactive", *paths], input=source, catch_exceptions=False
+    )
+
+    assert result.exit_code == 2
+    assert ("cannot be used with stdin" if stdin else "requires a terminal") in result.stderr
+    assert result.stdout == ""
+    assert path.read_text() == source
+
+
+def test_check_fix_reports_remaining_violations_from_final_source(tmp_path: Path) -> None:
+    path = tmp_path / "sample.py"
+    path.write_text("import os\nvalue = list([0])\nos.system(value)\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.rattle]\nroot=true\nformatter="none"\nenable=["use-literal", "forbidden-call"]\n'
+        '[tool.rattle.options."forbidden-call"]\nforbidden_calls=["os.system"]\n'
+    )
+
+    result = CliRunner().invoke(main, ["check", "--fix", path.as_posix()], catch_exceptions=False)
+
+    assert result.exit_code == 1
+    assert path.read_text() == "import os\nvalue = [0]\nos.system(value)\n"
+    assert "forbidden-call" in result.stdout
+    assert "use-literal" not in result.stdout
+    assert result.stderr == "1 file checked, 1 violation in 1 file, 1 fix applied\n"
