@@ -1,12 +1,12 @@
 - id: rattle-lint
-  name: Rattle - lint
+  name: Rattle - check
   description: This hook shows Rattle lints and suggested changes without applying autofixes.
-  entry: rattle lint --diff
+  entry: rattle check --diff
   language: python
   types: [python]
 - id: rattle-fix
-  name: Rattle - lint and apply autofixes
+  name: Rattle - check and apply autofixes
   description: This hook shows Rattle lints and applies suggested changes.
-  entry: rattle fix
+  entry: rattle check --fix
   language: python
   types: [python]

@@ -21,5 +21,5 @@ jobs:
         run: uv run --group dev ruff format --check src/rattle scripts examples docs/conf.py
       - name: Run Ruff lint
         run: uv run --group dev ruff check src/rattle scripts examples docs/conf.py
-      - name: Run Rattle lint
-        run: uv run --group dev python -m rattle lint src/rattle
+      - name: Run Rattle check
+        run: uv run --group dev python -m rattle check src/rattle

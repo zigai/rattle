@@ -29,10 +29,13 @@ def install_rattle(environment: Path) -> Path:
     return executable
 
 
-def test_hands_off_to_rattle_installed_in_project_environment(project: Path) -> None:
+@pytest.mark.parametrize("options", [[], ["--fix"]])
+def test_hands_off_to_rattle_installed_in_project_environment(
+    project: Path, options: list[str]
+) -> None:
     executable = install_rattle(project / ".venv")
 
-    assert _project_rattle_for_reexec(["lint", "."]) == executable
+    assert _project_rattle_for_reexec(["check", *options, "."]) == executable
 
 
 def test_stays_in_process_when_already_running_in_project_environment(
@@ -41,13 +44,13 @@ def test_stays_in_process_when_already_running_in_project_environment(
     install_rattle(project / ".venv")
     monkeypatch.setattr(sys, "prefix", str(project / ".venv"))
 
-    assert _project_rattle_for_reexec(["lint", "."]) is None
+    assert _project_rattle_for_reexec(["check", "."]) is None
 
 
 def test_stays_in_process_when_project_environment_lacks_rattle(project: Path) -> None:
     (project / ".venv").mkdir()
 
-    assert _project_rattle_for_reexec(["lint", "."]) is None
+    assert _project_rattle_for_reexec(["check", "."]) is None
 
 
 @pytest.mark.parametrize("configured", ["envs/ci", "absolute"])
@@ -61,11 +64,11 @@ def test_uses_configured_project_environment(
     executable = install_rattle(environment)
     install_rattle(project / ".venv")
 
-    assert _project_rattle_for_reexec(["lint", "."]) == executable
+    assert _project_rattle_for_reexec(["check", "."]) == executable
 
 
 def test_stays_in_process_after_handoff(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     install_rattle(project / ".venv")
     monkeypatch.setenv("RATTLE_UV_RUN_REEXEC", "1")
 
-    assert _project_rattle_for_reexec(["lint", "."]) is None
+    assert _project_rattle_for_reexec(["check", "."]) is None

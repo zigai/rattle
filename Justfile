@@ -27,7 +27,7 @@ venv: install
 lint: _require-uv
   uv run --group dev ruff check src/rattle scripts examples docs/conf.py
   uv run --group dev ruff format --check src/rattle scripts examples docs/conf.py
-  uv run --group dev python -m rattle lint src/rattle
+  uv run --group dev python -m rattle check src/rattle
 
 # Format code
 format: _require-uv

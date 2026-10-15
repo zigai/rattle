@@ -93,13 +93,13 @@ forbidden_calls = ["typing.cast"]
 Adjust the list to match the project, then lint the repository:
 
 ```bash
-rattle lint .
+rattle check .
 ```
 
 Apply available autofixes:
 
 ```bash
-rattle fix .
+rattle check --fix .
 ```
 
 Explain rule metadata, examples, and settings:

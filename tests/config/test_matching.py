@@ -326,7 +326,7 @@ class ConfigTest(TestCase):
 
             with self.subTest("linting vscode"):
                 filepath.write_text(content)
-                result = runner.invoke(main, ["lint", filepath.as_posix()], catch_exceptions=False)
+                result = runner.invoke(main, ["check", filepath.as_posix()], catch_exceptions=False)
                 assert result.exit_code == 1
                 assert any(
                     re.fullmatch(output_format_regex, line) for line in result.stdout.splitlines()
@@ -335,7 +335,7 @@ class ConfigTest(TestCase):
             with self.subTest("fixing vscode"):
                 filepath.write_text(content)
                 result = runner.invoke(
-                    main, ["fix", "--diff", filepath.as_posix()], catch_exceptions=False
+                    main, ["check", "--fix", "--diff", filepath.as_posix()], catch_exceptions=False
                 )
                 assert result.exit_code == 0
                 assert any(
@@ -357,7 +357,7 @@ class ConfigTest(TestCase):
 
             with self.subTest("linting custom"):
                 filepath.write_text(content)
-                result = runner.invoke(main, ["lint", filepath.as_posix()], catch_exceptions=False)
+                result = runner.invoke(main, ["check", filepath.as_posix()], catch_exceptions=False)
                 assert result.exit_code == 1
                 assert any(
                     re.fullmatch(custom_output_format_regex, line)
@@ -367,7 +367,7 @@ class ConfigTest(TestCase):
             with self.subTest("fixing custom"):
                 filepath.write_text(content)
                 result = runner.invoke(
-                    main, ["fix", "--diff", filepath.as_posix()], catch_exceptions=False
+                    main, ["check", "--fix", "--diff", filepath.as_posix()], catch_exceptions=False
                 )
                 assert result.exit_code == 0
                 assert any(
@@ -401,6 +401,6 @@ class ConfigTest(TestCase):
                 nested_file.write_text("name = '{name}'.format(name='Jane Doe')")
 
                 result = runner.invoke(
-                    main, ["lint", nested_file.as_posix()], catch_exceptions=False
+                    main, ["check", nested_file.as_posix()], catch_exceptions=False
                 )
                 assert re.search(r"CUSTOM use-f-string .*nested_f_string\.py", result.output)
