@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
@@ -443,3 +444,91 @@ def test_builtin_collections_resolve_rules() -> None:
     ]:
         rules = collect_rules(Config(enable=[QualifiedRule(collection)], python_version=None))
         assert len(rules) > 0, f"Collection {collection} resolved 0 rules"
+
+
+@pytest.mark.parametrize(
+    ("module", "source", "reason", "cause_type"),
+    [
+        (
+            ".rules",
+            None,
+            "Rule module '.rules' was not found",
+            ModuleNotFoundError,
+        ),
+        (
+            "missing_rule_collection",
+            None,
+            "Rule module 'missing_rule_collection' was not found",
+            ModuleNotFoundError,
+        ),
+        (
+            "missing_rule_collection.rules",
+            None,
+            "Rule module 'missing_rule_collection.rules' was not found",
+            ModuleNotFoundError,
+        ),
+        (
+            ".rules",
+            "import missing_rule_dependency\n",
+            "Dependency module 'missing_rule_dependency' was not found",
+            ModuleNotFoundError,
+        ),
+        (
+            ".rules",
+            "from .missing_support import VALUE\n",
+            "Dependency module '.missing_support' was not found",
+            ModuleNotFoundError,
+        ),
+        (
+            ".rules",
+            'raise ImportError("private import detail")\n',
+            "ImportError while importing '.rules'",
+            ImportError,
+        ),
+    ],
+)
+def test_rule_import_errors_explain_failure_and_preserve_cause(
+    tmp_path: Path,
+    module: str,
+    source: str | None,
+    reason: str,
+    cause_type: type[ImportError],
+) -> None:
+    if source is not None:
+        (tmp_path / "rules.py").write_text(source, encoding="utf-8")
+    rule = QualifiedRule(module, local="." if module.startswith(".") else None, root=tmp_path)
+
+    with pytest.raises(config.CollectionError) as caught:
+        list(config.find_rules(rule))
+
+    error = caught.value
+    assert error.rule == rule
+    assert reason in str(error)
+    assert f"Python interpreter: {sys.executable}" in str(error)
+    assert type(error.__cause__) is cause_type
+    assert "private import detail" not in str(error)
+    if cause_type is ImportError:
+        assert error.__cause__.args == ("private import detail",)
+        assert "Dependency module" not in str(error)
+
+
+@pytest.mark.parametrize("strict", [False, True], ids=["non-strict", "strict"])
+def test_rule_import_errors_preserve_registry_loading_policy(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, strict: bool
+) -> None:
+    (tmp_path / "rules.py").write_text("import missing_rule_dependency\n", encoding="utf-8")
+    rule = QualifiedRule(".rules", local=".", root=tmp_path)
+
+    if strict:
+        with pytest.raises(config.CollectionError) as caught:
+            config.RuleRegistry.load([rule], root=tmp_path, strict=True)
+        assert caplog.records == []
+    else:
+        registry = config.RuleRegistry.load([rule], root=tmp_path, strict=False)
+        with pytest.raises(config.CollectionError) as caught:
+            registry.resolve(rule)
+        assert "Dependency module 'missing_rule_dependency' was not found" in caplog.text
+        assert registry.imported_rules[rule] == ()
+
+    assert "Dependency module 'missing_rule_dependency' was not found" in str(caught.value)
+    assert isinstance(caught.value.__cause__, ModuleNotFoundError)

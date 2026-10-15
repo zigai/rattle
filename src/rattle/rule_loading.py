@@ -238,6 +238,35 @@ def local_rule_loader(rule: QualifiedRule) -> Iterator[None]:
                 sys.modules.pop(key, None)
 
 
+def _rule_import_error(rule: QualifiedRule, error: ImportError) -> CollectionError:
+    module = f"{RATTLE_LOCAL_MODULE}{rule.module}" if rule.local else rule.module
+    if isinstance(error, ModuleNotFoundError) and error.name:
+        if module == error.name or module.startswith(f"{error.name}."):
+            reason = f"Rule module {rule.module!r} was not found."
+            action = "Check the configured rule selector and module location."
+        else:
+            missing = error.name
+            if missing.startswith(f"{RATTLE_LOCAL_MODULE}."):
+                missing = missing.removeprefix(RATTLE_LOCAL_MODULE)
+                action = "Check the rule's local import paths."
+            else:
+                action = (
+                    "Make the rule's dependencies available in this Python environment, "
+                    "or run Rattle in the environment containing them."
+                )
+            reason = f"Dependency module {missing!r} was not found while importing {rule.module!r}."
+    else:
+        reason = f"{type(error).__name__} while importing {rule.module!r}."
+        action = "Check the rule's imports and compatibility in this Python environment."
+
+    location = f" from {rule.root}" if rule.local else ""
+    return CollectionError(
+        f"could not import rule(s) {rule}{location}\n"
+        f"{reason}\nPython interpreter: {sys.executable}\n{action}",
+        rule,
+    )
+
+
 def find_rules(rule: QualifiedRule) -> Iterable[type[LintRule]]:
     """
     Import the rule's qualified module name and return a list of collected rule classes.
@@ -270,10 +299,7 @@ def find_rules(rule: QualifiedRule) -> Iterable[type[LintRule]]:
                 yield module_rules[name]
 
     except ImportError as e:
-        if rule.local:
-            raise CollectionError(f"could not import rule(s) {rule} from {rule.root}", rule) from e
-        else:
-            raise CollectionError(f"could not import rule(s) {rule}", rule) from e
+        raise _rule_import_error(rule, e) from e
 
 
 def walk_module(module: ModuleType) -> dict[str, type[LintRule]]:

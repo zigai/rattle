@@ -44,10 +44,10 @@ Rattle accepts three selector forms:
   concrete rule (`module:rule-name`)
 - exact built-in rule names such as `use-f-string`
 
-Rules bundled with Rattle, or available in the environment's `site-packages`,
-can be referenced as a rule collection, as a group by their fully-qualified package
-name, individually by adding a colon and the kebab-case rule name, or by the
-built-in rule name:
+Rules bundled with Rattle, or available in the invoked interpreter's
+`site-packages`, can be referenced as a rule collection, by their fully-qualified
+package name, individually by adding a colon and the kebab-case rule name, or by
+the built-in rule name. Rule dependencies must also be available to that interpreter:
 
 ```toml
 enable = [
