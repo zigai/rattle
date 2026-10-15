@@ -14,7 +14,9 @@ To enable this, install the `lsp` extras, for example:
 $ pip install "rattle-lint[lsp]"
 ```
 
-Then configure an LSP client to launch and connect to the Rattle LSP server.
+Configure the LSP client to launch Rattle in a Python environment containing
+the `lsp` extras and any custom-rule dependencies. For project-managed
+dependencies, use the project environment's Python followed by `-m rattle lsp`.
 See the {ref}`lsp_command` command reference for usage details.
 
 Examples of client setup:
@@ -48,7 +50,10 @@ lspconfig.rattle.setup({})
 Rattle can be included as a hook for [pre-commit](https://pre-commit.com).
 
 Once you have [installed pre-commit](https://pre-commit.com/#installation),
-add one of Rattle's hooks to `.pre-commit-config.yaml`.
+add one of Rattle's hooks to `.pre-commit-config.yaml`. Python hooks run in
+pre-commit's environment; add installed rule packages and their dependencies
+with `additional_dependencies`. Local rule sources are resolved from the
+repository configuration.
 
 To run lint rules on commit:
 

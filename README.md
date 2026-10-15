@@ -94,7 +94,10 @@ enable = [
 forbidden_calls = ["typing.cast"]
 ```
 
-Adjust the list to match the project, then lint the repository:
+Adjust the list to match the project, then check the repository. Rattle uses
+the invoked Python environment; install custom-rule dependencies there. For a
+uv-managed project, install Rattle as a project dependency and use
+`uv run python -m rattle check .`.
 
 ```bash
 rattle check .

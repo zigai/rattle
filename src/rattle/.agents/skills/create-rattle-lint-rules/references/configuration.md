@@ -11,7 +11,9 @@ or applying path-specific scope.
 
 ## Installation and layout
 
-Install Rattle with:
+Install Rattle and any rule dependencies in the same Python environment.
+For a uv project with Rattle installed as a project dependency, use
+`uv run python -m rattle check .`. To install Rattle directly:
 
 ```bash
 pip install "rattle-lint>=2.1.0"

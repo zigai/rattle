@@ -10,6 +10,10 @@ Install Rattle from PyPI:
 $ pip install rattle-lint
 ```
 
+Install custom-rule dependencies in the same Python environment as Rattle.
+For a uv-managed project, install Rattle as a project dependency and run
+`uv run python -m rattle check .`.
+
 By default, Rattle runs with no enabled lint rules. Enable rule collections in
 `pyproject.toml`:
 
@@ -238,9 +242,10 @@ module path relative to the directory containing the config file. This allows
 Rattle to locate and import the rule without installing a plugin into the
 environment.
 
-If your custom rule imports other libraries from the repo, those imports must
-be relative imports, and they must stay within the same directory tree as the
-configuration file.
+If your custom rule imports other modules from the repo, use relative imports
+within the configuration directory tree, or configure `enable-root-import`.
+Third-party rule dependencies must be installed in the Python environment
+running Rattle.
 ```
 
 Once enabled, Rattle can run the new rule against the codebase:

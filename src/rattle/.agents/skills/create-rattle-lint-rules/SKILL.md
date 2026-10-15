@@ -151,7 +151,9 @@ editing configuration.
 
 Enable local rules with import selectors and use canonical kebab-case names in
 configuration and CLI commands. Target options at one concrete rule, never a
-package or module selector.
+package or module selector. Install rule dependencies in the Python environment
+running Rattle. For a uv project with Rattle installed as a project dependency,
+use `uv run python -m rattle check .`.
 
 Complete this step when `rattle rules <path>` resolves the intended rule,
 settings, and path scope without enabling unrelated rules.

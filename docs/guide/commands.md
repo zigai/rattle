@@ -6,7 +6,10 @@
 $ rattle COMMAND [OPTIONS] ...
 ```
 
-Use `--help` on any command to print its supported options.
+Use `--help` on any command to print its supported options. Commands use the
+invoked Python environment, which must contain any custom-rule dependencies.
+For a uv project with Rattle installed as a project dependency, use
+`uv run python -m rattle check .`.
 
 ## Check options
 

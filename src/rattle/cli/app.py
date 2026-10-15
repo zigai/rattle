@@ -13,11 +13,7 @@ from rattle.cli.commands.explain import explain_command
 from rattle.cli.commands.lsp import lsp
 from rattle.cli.commands.rules import rules_command
 from rattle.cli.commands.validate import validate_command
-from rattle.cli.environment import (
-    _project_rattle_for_reexec,
-    _reexec_project_rattle,
-    _version,
-)
+from rattle.cli.environment import _version
 from rattle.cli.options import usage_error
 from rattle.config import CollectionError, ConfigError
 
@@ -130,9 +126,6 @@ def main(args: list[str] | None = None) -> object:
     """Run the rattle CLI."""
     if args is None:
         args = sys.argv[1:]
-        project_rattle = _project_rattle_for_reexec(args)
-        if project_rattle is not None:
-            _reexec_project_rattle(project_rattle, args)
 
     return build_app().run(args=_coalesce_repeated_list_options(args))
 
