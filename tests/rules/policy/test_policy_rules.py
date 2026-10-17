@@ -472,6 +472,23 @@ def test_forbidden_import_reports_configured_module_import() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "statement",
+    ["import {module}", "from {module} import name", "from {module} import *"],
+)
+@pytest.mark.parametrize("whitespace", ["", " ", "\t", " \\\n"])
+def test_forbidden_import_matches_dotted_names_with_whitespace(
+    statement: str, whitespace: str
+) -> None:
+    module = f"blocked{whitespace}.{whitespace}internal"
+
+    reports = _run_forbidden_import(statement.format(module=module), ["blocked.internal"])
+
+    assert [report.message for report in reports] == [
+        "Do not import across forbidden boundary 'blocked.internal'."
+    ]
+
+
 def test_forbidden_import_reports_configured_submodule_import() -> None:
     reports = _run_forbidden_import(
         """
@@ -508,6 +525,21 @@ def test_forbidden_import_reports_custom_message() -> None:
 
     assert [report.message for report in reports] == [
         "Import through blocked_package.public_api instead."
+    ]
+
+
+@pytest.mark.parametrize("separator", [" ", "  ", "\t", " \\\n"])
+@pytest.mark.parametrize("target", [". import name", ".child import name", ". import *"])
+def test_forbidden_import_checks_relative_imports_without_boundary_in_source(
+    separator: str, target: str
+) -> None:
+    source = f"from{separator}{target}"
+    assert "blocked" not in source
+
+    reports = _run_forbidden_import(source, ["blocked"], path=Path("blocked/module.py"))
+
+    assert [report.message for report in reports] == [
+        "Do not import across forbidden boundary 'blocked'."
     ]
 
 

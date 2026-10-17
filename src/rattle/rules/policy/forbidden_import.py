@@ -6,9 +6,7 @@ from pathlib import Path
 import libcst as cst
 
 from rattle.rule import LintRule, RuleSetting
-from rattle.rules.helpers import optional_setting_text, setting_fields
-
-_CODEGEN_MODULE = cst.Module(body=[])
+from rattle.rules.helpers import dotted_name, optional_setting_text, setting_fields
 
 
 @dataclass(frozen=True)
@@ -43,10 +41,6 @@ def _parse_forbidden_imports_setting(value: object) -> tuple[ForbiddenImportEntr
     assert isinstance(value, list | tuple)
 
     return tuple(_parse_forbidden_import(entry) for entry in value)
-
-
-def _node_name(node: cst.BaseExpression) -> str:
-    return _CODEGEN_MODULE.code_for_node(node)
 
 
 def _full_imported_name(module_name: str, imported_name: str) -> str:
@@ -89,7 +83,7 @@ class ForbiddenImport(LintRule):
     def should_lint_file(self, source: bytes, path: Path) -> bool:
         self._current_file_path = path
 
-        if b"from ." in source:
+        if b"from" in source:
             return True
 
         for entry in _parse_forbidden_imports_setting(self.settings.get("forbidden_imports", ())):
@@ -126,7 +120,8 @@ class ForbiddenImport(LintRule):
 
     def visit_Import(self, node: cst.Import) -> None:
         for imported_alias in node.names:
-            imported_name = _node_name(imported_alias.name)
+            imported_name = dotted_name(imported_alias.name)
+            assert imported_name is not None
             boundary = self._forbidden_boundary_for_import_name(imported_name)
             if boundary is None:
                 continue
@@ -138,7 +133,8 @@ class ForbiddenImport(LintRule):
             self._report_moduleless_relative_import(node)
             return
 
-        module_name = _node_name(node.module)
+        module_name = dotted_name(node.module)
+        assert module_name is not None
         if isinstance(node.names, cst.ImportStar):
             boundary = self._forbidden_boundary_for_import_name(
                 module_name, relative_level=len(node.relative)
@@ -149,7 +145,8 @@ class ForbiddenImport(LintRule):
             return
 
         for imported_alias in node.names:
-            imported_name = _node_name(imported_alias.name)
+            imported_name = dotted_name(imported_alias.name)
+            assert imported_name is not None
             full_name = _full_imported_name(module_name, imported_name)
             boundary = self._forbidden_boundary_for_import_name(
                 full_name, relative_level=len(node.relative)
@@ -169,7 +166,8 @@ class ForbiddenImport(LintRule):
             return
 
         for imported_alias in node.names:
-            imported_name = _node_name(imported_alias.name)
+            imported_name = dotted_name(imported_alias.name)
+            assert imported_name is not None
             boundary = self._forbidden_boundary_for_import_name(
                 imported_name, relative_level=len(node.relative)
             )
