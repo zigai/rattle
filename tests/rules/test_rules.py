@@ -700,6 +700,57 @@ def test_percent_format_unknown_expression_has_no_tuple_unsafe_fix() -> None:
     assert reports[0].replacement is None
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+        value = 'ok'
+        def f():
+            global value
+            value = value
+            return '%s' % value
+        """,
+        """
+        first = second = 'ok'
+        def f():
+            global first, second
+            first = second
+            second = first
+            return '%s' % first
+        """,
+        """
+        def outer():
+            value = 'ok'
+            def inner():
+                nonlocal value
+                value = value
+                return '%s' % value
+        """,
+    ],
+)
+def test_percent_format_cyclic_binding_is_diagnostic_only(source: str) -> None:
+    runner, reports = run_rule(UseFstring(), source)
+
+    assert len(reports) == 1
+    assert reports[0].replacement is None
+    assert runner.apply_replacements(reports).code == runner.module.code
+
+
+@pytest.mark.parametrize(
+    "bindings",
+    [
+        "value = 'ok'",
+        "original = 'ok'\nalias = original\nvalue = alias",
+        "original = 'ok'\nvalue = original\nvalue = original",
+    ],
+)
+def test_percent_format_acyclic_bindings_keep_safe_fix(bindings: str) -> None:
+    reports, fixed = fix_rule(UseFstring(), bindings + '\nresult = "%s" % value')
+
+    assert len(reports) == 1
+    assert fixed == bindings + '\nresult = f"{value!s}"'
+
+
 def test_percent_format_literal_keeps_safe_fstring_fix() -> None:
     reports, fixed = fix_rule(UseFstring(), 'result = "%s" % "hello"')
 

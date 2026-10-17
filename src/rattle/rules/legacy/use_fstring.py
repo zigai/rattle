@@ -206,7 +206,13 @@ class UseFstring(LintRule):
         ) and isinstance(cst.ensure_type(node.left, cst.SimpleString).evaluated_value, str):
             self.report(node, self.MESSAGE)
 
-    def _is_known_non_tuple(self, expression: cst.BaseExpression) -> bool:
+    def _is_known_non_tuple(
+        self,
+        expression: cst.BaseExpression,
+        seen: frozenset[cst.CSTNode] = frozenset(),
+    ) -> bool:
+        if expression in seen:
+            return False
         if isinstance(
             expression,
             (
@@ -229,7 +235,7 @@ class UseFstring(LintRule):
             assignments = self._reference_assignments(expression)
             return bool(assignments) and all(
                 (value := self._assignment_value(assignment)) is not None
-                and self._is_known_non_tuple(value)
+                and self._is_known_non_tuple(value, seen | {expression})
                 for assignment in assignments
             )
         if isinstance(expression, cst.Call) and isinstance(expression.func, cst.Name):
