@@ -136,6 +136,16 @@ def test_no_static_if_condition_keeps_dynamic_truthiness(condition: str) -> None
     assert reports == []
 
 
+@pytest.mark.parametrize(
+    "condition",
+    ["1 < 'a'", "1 <= None", "None > 1", "1 >= 'a'", "1 in 2", "1 not in 2", "1 < 2 < 'a'"],
+)
+def test_static_if_invalid_literal_comparison_is_unknown(condition: str) -> None:
+    _runner, reports = run_rule(NoStaticIfCondition(), f"if {condition}:\n    pass\n")
+
+    assert reports == []
+
+
 def test_static_if_large_integer_does_not_crash() -> None:
     _runner, reports = run_rule(NoStaticIfCondition(), "if " + "1" * 5_000 + ":\n    pass\n")
 

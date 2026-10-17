@@ -244,7 +244,7 @@ class NoStaticIfCondition(LintRule):
                 if not op_func(current_val, next_val):
                     return False
                 current_val = next_val
-            except (ValueError, SyntaxError):
+            except (TypeError, ValueError, SyntaxError):
                 return None
         return True
 
