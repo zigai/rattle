@@ -10,7 +10,7 @@ from msgspec.json import Decoder as JsonDecoder
 
 from rattle.diagnostics import CodePosition, CodeRange, LintViolation, Result
 
-CACHE_VERSION = "results-v1"
+CACHE_VERSION = "results-v2"
 
 
 class CachedCodePosition(Struct, frozen=True):
@@ -66,7 +66,7 @@ class SerializedViolationCacheEntry(Struct, frozen=True):
 
 
 class ResultCacheEntry(Struct, frozen=True, kw_only=True, omit_defaults=True):
-    version: Literal["results-v1"]
+    version: Literal["results-v2"]
     mtime_ns: int
     size: int
     status: Literal["clean", "violations"]
@@ -77,7 +77,7 @@ class ResultCacheEntry(Struct, frozen=True, kw_only=True, omit_defaults=True):
 
 
 class CleanStatusCacheEntry(Struct, frozen=True, kw_only=True, omit_defaults=True):
-    version: Literal["results-v1"]
+    version: Literal["results-v2"]
     status: Literal["clean"]
     mtime_ns: int
     size: int

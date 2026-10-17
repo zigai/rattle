@@ -15,12 +15,13 @@ from rattle.cache.keys import (
     _path_stat_fingerprint,
     _rule_fingerprints_match,
 )
-from rattle.cache.models import ResultCacheEntry
+from rattle.cache.models import CACHE_VERSION, ResultCacheEntry
 from rattle.cache.store import _prune_cache
 from rattle.config.models import Config
 from rattle.diagnostics import CodePosition, CodeRange, FileContent, LintViolation, Result
 from rattle.engine import LintRunner
 from rattle.rule import LintRule
+from rattle.rule_loading import collect_rules
 from rattle.selectors import QualifiedRule
 from tests.support import OutputStream, Stdin
 
@@ -196,6 +197,70 @@ class TestApi:
 
             assert rule_cache_fingerprint(PackageRule()) != first
 
+    @pytest.mark.parametrize(
+        ("dependency", "original", "updated"),
+        [
+            ("base.py", "if should_report():", "if True:"),
+            ("flags.py", "False", "True"),
+        ],
+    )
+    def test_result_and_clean_status_caches_invalidate_imported_rule_dependencies(
+        self, tmp_path: Path, dependency: str, original: str, updated: str
+    ) -> None:
+        package = tmp_path / "checks"
+        shared = package / "shared"
+        shared.mkdir(parents=True)
+        (package / "__init__.py").write_text("")
+        (shared / "__init__.py").write_text("")
+        (shared / "flags.py").write_text("ENABLED = False\n")
+        (shared / "helpers.py").write_text(
+            "from .flags import ENABLED\ndef should_report():\n    return ENABLED\n"
+        )
+        (shared / "base.py").write_text(
+            "from rattle import LintRule\n"
+            "from .helpers import should_report\n"
+            "class BaseRule(LintRule):\n"
+            "    def visit_Module(self, node):\n"
+            "        if should_report():\n"
+            "            self.report(node, 'Blocked module.')\n"
+        )
+        (package / "rules.py").write_text(
+            "from .shared.base import BaseRule\n"
+            "class CustomRule(BaseRule):\n"
+            "    def visit_Module(self, node):\n"
+            "        super().visit_Module(node)\n"
+        )
+        path = tmp_path / "sample.py"
+        path.write_text("pass\n")
+        config = Config(
+            path=path,
+            root=tmp_path,
+            enable=[QualifiedRule(".checks.rules", "custom-rule", local=".", root=tmp_path)],
+        )
+        rules = collect_rules(config)
+        cache = ResultCache(tmp_path / "cache")
+        stat = path.stat()
+        cache_key = cache.result_key(path, stat, config, include_diff=False)
+        cache.write_result(cache_key, stat, rules=rules)
+        cache.write_clean_status(
+            path, stat, options=None, explicit_path=True, include_diff=False, rules=rules
+        )
+        assert cache._read_result(cache_key, stat, path=path, config=config, rules=rules) == [
+            Result(path, violation=None, config=config)
+        ]
+        assert cache._read_clean_status(
+            path, options=None, explicit_path=True, include_diff=False
+        ) == Result(path, violation=None)
+
+        dependency_path = shared / dependency
+        dependency_path.write_text(dependency_path.read_text().replace(original, updated))
+
+        assert cache._read_result(cache_key, stat, path=path, config=config, rules=rules) is None
+        assert (
+            cache._read_clean_status(path, options=None, explicit_path=True, include_diff=False)
+            is None
+        )
+
     def test_clean_status_cache_key_includes_interpreter_version(self, tmp_path: Path) -> None:
         path = tmp_path / "clean.py"
         path.write_text("pass\n")
@@ -259,7 +324,7 @@ class TestApi:
 
     def test_invalid_base64_cached_source_is_rejected(self) -> None:
         entry = ResultCacheEntry(
-            version="results-v1",
+            version=CACHE_VERSION,
             mtime_ns=0,
             size=0,
             status="violations",

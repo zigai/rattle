@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import base64
 import binascii
 import hashlib
@@ -7,7 +8,9 @@ import inspect
 import json
 import os
 import platform
+import sys
 from collections.abc import Collection
+from functools import cache
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from stat import S_ISREG
@@ -54,8 +57,7 @@ def _runtime_fingerprint() -> tuple[tuple[str, str | None], ...]:
     )
 
 
-def rule_cache_fingerprint(rule: LintRule) -> tuple[object, ...]:
-    rule_type = type(rule)
+def _rule_source_path(rule_type: type[LintRule]) -> Path | None:
     try:
         source_path = inspect.getsourcefile(rule_type)
     except TypeError:
@@ -67,33 +69,119 @@ def rule_cache_fingerprint(rule: LintRule) -> tuple[object, ...]:
                 source_path = value.__code__.co_filename
                 break
 
-    resolved_source_path = Path(source_path).resolve() if source_path else None
+    return Path(source_path).resolve() if source_path else None
+
+
+def rule_cache_fingerprint(rule: LintRule) -> tuple[object, ...]:
+    rule_type = type(rule)
+    resolved_source_path = _rule_source_path(rule_type)
     return (
         rule_type.__module__,
         rule_type.__qualname__,
         _path_stat_fingerprint(resolved_source_path),
         _path_stat_fingerprint(resolved_source_path.parent if resolved_source_path else None),
-        _sibling_python_file_fingerprints(resolved_source_path),
+        _rule_source_fingerprints(rule_type, resolved_source_path),
         tuple(
             sorted((name, _jsonable_option_value(value)) for name, value in rule.settings.items())
         ),
     )
 
 
-def _sibling_python_file_fingerprints(
+def _imported_module_paths(module_name: str) -> set[Path]:
+    package_name = module_name.partition(".")[0]
+    if package_name in sys.stdlib_module_names or package_name == "libcst":
+        return set()
+    paths: set[Path] = set()
+    parts = module_name.split(".")
+    for length in range(1, len(parts) + 1):
+        module = sys.modules.get(".".join(parts[:length]))
+        if module is None:
+            continue
+        try:
+            source_path = inspect.getsourcefile(module)
+        except TypeError:
+            continue
+        if source_path:
+            paths.add(Path(source_path).resolve())
+    return paths
+
+
+def _relative_import_paths(directory: Path, module_name: str) -> set[Path]:
+    package_path = directory / "__init__.py"
+    paths = {package_path.resolve()} if package_path.is_file() else set()
+    for part in module_name.split(".") if module_name else ():
+        directory /= part
+        package_path = directory / "__init__.py"
+        if package_path.is_file():
+            paths.add(package_path.resolve())
+    module_path = directory.with_suffix(".py")
+    if module_name and module_path.is_file():
+        paths.add(module_path.resolve())
+    return paths
+
+
+def _import_from_paths(source_path: Path, node: ast.ImportFrom) -> set[Path]:
+    if not node.level:
+        paths = _imported_module_paths(node.module or "")
+        for alias in node.names:
+            paths.update(_imported_module_paths(f"{node.module}.{alias.name}"))
+        return paths
+
+    directory = source_path.parent
+    for _level in range(node.level - 1):
+        directory = directory.parent
+    paths = _relative_import_paths(directory, node.module or "")
+    for alias in node.names:
+        imported_name = f"{node.module}.{alias.name}" if node.module else alias.name
+        paths.update(_relative_import_paths(directory, imported_name))
+    return paths
+
+
+@cache
+def _source_imports(source: bytes) -> tuple[ast.Import | ast.ImportFrom, ...]:
+    return tuple(
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, (ast.Import, ast.ImportFrom))
+    )
+
+
+def _source_import_paths(source_path: Path) -> set[Path]:
+    try:
+        imports = _source_imports(source_path.read_bytes())
+    except (OSError, SyntaxError):
+        return set()
+    paths: set[Path] = set()
+    for node in imports:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                paths.update(_imported_module_paths(alias.name))
+        elif isinstance(node, ast.ImportFrom):
+            paths.update(_import_from_paths(source_path, node))
+    return paths
+
+
+def _rule_source_fingerprints(
+    rule_type: type[LintRule],
     source_path: Path | None,
 ) -> tuple[tuple[str, int, int, str | None], ...]:
-    if source_path is None:
-        return ()
     try:
-        paths = sorted(source_path.parent.glob("*.py"))
+        paths = set(source_path.parent.glob("*.py")) if source_path else set()
     except OSError:
-        return ()
-    return tuple(
-        fingerprint
-        for path in paths
-        if (fingerprint := _path_stat_fingerprint(path.resolve())) is not None
-    )
+        paths = set()
+    for base_type in rule_type.__mro__:
+        if issubclass(base_type, LintRule) and (base_path := _rule_source_path(base_type)):
+            paths.add(base_path)
+    fingerprints: dict[Path, tuple[str, int, int, str | None]] = {}
+    while paths:
+        path = paths.pop().resolve()
+        if path in fingerprints:
+            continue
+        fingerprint = _path_stat_fingerprint(path)
+        if fingerprint is not None:
+            fingerprints[path] = fingerprint
+            paths.update(_source_import_paths(path) - fingerprints.keys())
+    return tuple(fingerprints[path] for path in sorted(fingerprints))
 
 
 def _clean_cache_key(
