@@ -502,13 +502,22 @@ def materialize_rule_plan(plan: Collection[RulePlanEntry]) -> list[LintRule]:
     return materialized_rules
 
 
+def _selector_cache_key(selector: RuleSelector) -> tuple[str, Path | None]:
+    return (
+        str(selector),
+        selector.root.resolve()
+        if isinstance(selector, QualifiedRule) and selector.root is not None
+        else None,
+    )
+
+
 def _config_rule_plan_key(config: Config) -> tuple[object, ...]:
     return (
         config.root,
         config.enable_root_import,
-        tuple(str(selector) for selector in config.rule_imports),
-        tuple(str(selector) for selector in config.enable),
-        tuple(str(selector) for selector in config.disable),
+        tuple(_selector_cache_key(selector) for selector in config.rule_imports),
+        tuple(_selector_cache_key(selector) for selector in config.enable),
+        tuple(_selector_cache_key(selector) for selector in config.disable),
         (
             config.tags.include,
             config.tags.exclude,

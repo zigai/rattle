@@ -16,6 +16,7 @@ from packaging.version import Version
 from rattle import config, rule_loading
 from rattle.config import collect_rules
 from rattle.config.models import Config
+from rattle.engine import LintRunner
 from rattle.rule import LintRule
 from rattle.selectors import QualifiedRule, RuleNameSelector, Tags
 
@@ -431,6 +432,37 @@ class ConfigTest(TestCase):
                     python_version=None,
                 )
             )
+
+
+def test_local_rule_plans_keep_each_configuration_directory(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text("[tool.rattle]\nroot = true\n")
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    for directory in (first, second):
+        directory.mkdir()
+        (directory / "pyproject.toml").write_text('[tool.rattle]\nenable = [".rules:local-rule"]\n')
+        (directory / "rules.py").write_text(
+            "from rattle import LintRule\n"
+            "class LocalRule(LintRule):\n"
+            "    def visit_Module(self, node):\n"
+            f"        self.report(node, {directory.name!r})\n"
+        )
+
+    first_config = config.generate_config(first / "sample.py")
+    second_config = config.generate_config(second / "sample.py")
+    first_reports = list(
+        LintRunner(first_config.path, b"pass\n").collect_violations(
+            collect_rules(first_config), first_config
+        )
+    )
+    second_reports = list(
+        LintRunner(second_config.path, b"pass\n").collect_violations(
+            collect_rules(second_config), second_config
+        )
+    )
+
+    assert [report.message for report in first_reports] == ["first"]
+    assert [report.message for report in second_reports] == ["second"]
 
 
 def test_builtin_collections_resolve_rules() -> None:
