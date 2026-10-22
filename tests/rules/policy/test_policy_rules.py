@@ -8,9 +8,11 @@ import rattle.rules.policy.forbidden_import as forbidden_import_module
 from rattle import Config, LintRule
 from rattle.diagnostics import LintViolation
 from rattle.engine import LintRunner
+from rattle.rule import RuleConfigurationError
 from rattle.rules.policy.forbidden_call import ForbiddenCall
 from rattle.rules.policy.forbidden_import import ForbiddenImport
 from rattle.rules.policy.forbidden_name import ForbiddenName
+from rattle.rules.policy.import_contracts import ImportContracts
 from rattle.rules.policy.line_count_limit import LineCountLimit
 from rattle.rules.policy.no_underscore_import_aliases import NoUnderscoreImportAliases
 from rattle.rules.policy.no_unsafe_tempfile_factories import NoUnsafeTempfileFactories
@@ -1260,6 +1262,398 @@ def test_forbidden_name_catches_import_from() -> None:
     reports = _run_forbidden_name("from requests import get", ["import:requests"])
     assert len(reports) == 1
     assert "requests" in reports[0].message
+
+
+def _run_import_contracts(
+    source: str,
+    contracts: list[dict[str, object]],
+    *,
+    path: str = "src/parcel/orders/logic.py",
+    source_roots: list[str] | None = None,
+    ignore_type_checking: bool = True,
+) -> list[LintViolation]:
+    rule = ImportContracts()
+    rule.configure(
+        {
+            "contracts": contracts,
+            "source_roots": source_roots if source_roots is not None else ["src"],
+            "ignore_type_checking": ignore_type_checking,
+        }
+    )
+    root = Path("/workspace")
+    return _run_rule(rule, source, path=root / path, root=root)
+
+
+def _transport_contract() -> dict[str, object]:
+    return {
+        "type": "forbidden",
+        "name": "transport-purity",
+        "source": ["parcel.**"],
+        "forbid": ["webkit", "parcel.*.router"],
+        "allow": ["parcel.*.router", "parcel.*.dependencies"],
+        "message": "Keep transport at the edge.",
+    }
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import webkit",
+        "import webkit.responses as responses",
+        "import webkit . responses as responses",
+        "from webkit import Response as R",
+        "from webkit.responses import *",
+        "from parcel.billing import router as edge",
+        "from parcel.billing.router import handle",
+        "from ..billing import router",
+        "from ..billing.router import handle",
+        "from ..billing.router import *",
+        "def run():\n    import webkit",
+        "class Handler:\n    def run(self):\n        from webkit import Response",
+    ],
+)
+def test_import_contracts_report_all_direct_import_forms(source: str) -> None:
+    reports = _run_import_contracts(source, [_transport_contract()])
+
+    assert len(reports) == 1
+    assert reports[0].rule_name == "import-contracts"
+    assert "transport-purity" in reports[0].message
+    assert "Keep transport at the edge." in reports[0].message
+    assert reports[0].replacement is None
+    assert reports[0].range is not None
+
+
+@pytest.mark.parametrize(
+    ("path", "source", "expected"),
+    [
+        ("src/parcel/orders/router.py", "import webkit", 0),
+        ("src/parcel/orders/dependencies.py", "import webkit", 0),
+        ("src/parcel/orders/router/helper.py", "import webkit", 1),
+        ("src/parcel/orders/nested/router.py", "import webkit", 1),
+        ("src/parcel/__init__.py", "import webkit", 1),
+        ("src/parcel/orders/__init__.py", "from . import router", 1),
+        ("src/parcel/orders/__init__.py", "from .router import *", 1),
+        ("src/parcel/orders/logic.py", "from . import router", 1),
+        ("src/parcel/orders/logic.py", "from .. import orders", 0),
+        ("src/parcel/orders/logic.py", "from ...billing import router", 0),
+        ("src/parcel/orders/logic.py", "from .webkit import Response", 0),
+        ("src/parcel/orders/logic.py", "import webkit_extra", 0),
+        ("src/parcel/orders/logic.py", "import parcel.billing.router_extra", 0),
+        ("src/other/logic.py", "import webkit", 0),
+        ("vendor/parcel/orders/logic.py", "import webkit", 0),
+    ],
+)
+def test_import_contracts_resolve_modules_without_filesystem_suffix_guesses(
+    path: str, source: str, expected: int
+) -> None:
+    assert len(_run_import_contracts(source, [_transport_contract()], path=path)) == expected
+
+
+@pytest.mark.parametrize(
+    ("source_pattern", "path", "expected"),
+    [
+        ("parcel.*.router", "src/parcel/orders/router.py", 1),
+        ("parcel.*.router", "src/parcel/orders/nested/router.py", 0),
+        ("parcel.**.router", "src/parcel/router.py", 1),
+        ("parcel.**.router", "src/parcel/orders/nested/router.py", 1),
+        ("parcel.**", "src/parcel/__init__.py", 1),
+        ("**.router", "src/router.py", 1),
+        ("**", "src/parcel/orders/logic.py", 1),
+    ],
+)
+def test_import_contracts_match_whole_source_module_patterns(
+    source_pattern: str, path: str, expected: int
+) -> None:
+    contract = {
+        "type": "forbidden",
+        "name": "boundary",
+        "source": [source_pattern],
+        "forbid": ["blocked"],
+    }
+
+    assert len(_run_import_contracts("import blocked", [contract], path=path)) == expected
+
+
+@pytest.mark.parametrize("ignore", [True, False])
+def test_import_contracts_configure_type_checking_imports(ignore: bool) -> None:
+    reports = _run_import_contracts(
+        "from typing import TYPE_CHECKING as TC\nif TC:\n    import webkit",
+        [_transport_contract()],
+        ignore_type_checking=ignore,
+    )
+
+    assert len(reports) == (0 if ignore else 1)
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("import typing as t\nif t.TYPE_CHECKING:\n    import webkit", 0),
+        ("from typing_extensions import TYPE_CHECKING\nif TYPE_CHECKING:\n    import webkit", 0),
+        (
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    if enabled:\n        import webkit",
+            0,
+        ),
+        (
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    pass\nelse:\n    import webkit",
+            1,
+        ),
+        ("from typing import TYPE_CHECKING\nif not TYPE_CHECKING:\n    import webkit", 1),
+        (
+            "from typing import TYPE_CHECKING\nif not TYPE_CHECKING:\n    pass\nelse:\n    import webkit",
+            0,
+        ),
+        ("from typing import TYPE_CHECKING\nif TYPE_CHECKING and enabled:\n    import webkit", 0),
+        ("from typing import TYPE_CHECKING\nif TYPE_CHECKING or enabled:\n    import webkit", 1),
+        ("TYPE_CHECKING = True\nif TYPE_CHECKING:\n    import webkit", 1),
+        (
+            "from typing import TYPE_CHECKING\ndef run(TYPE_CHECKING):\n    if TYPE_CHECKING:\n        import webkit",
+            1,
+        ),
+    ],
+)
+def test_import_contracts_only_ignore_proven_type_checking_branches(
+    source: str, expected: int
+) -> None:
+    assert len(_run_import_contracts(source, [_transport_contract()])) == expected
+
+
+def _layers_contract() -> dict[str, object]:
+    return {
+        "type": "layers",
+        "name": "architecture",
+        "root": "parcel",
+        "layers": [
+            {"modules": ["http.**", "worker.**"]},
+            {
+                "modules": ["*.**"],
+                "exclude": ["http.**", "worker.**", "adapters.**", "platform.**", "records.**"],
+            },
+            {"modules": ["adapters.**"]},
+            {"modules": ["platform.**"]},
+            {"modules": ["records.**"]},
+        ],
+        "message": "Depend downwards.",
+    }
+
+
+@pytest.mark.parametrize(
+    ("module", "target", "expected"),
+    [
+        ("orders.logic", "parcel.http.router", 1),
+        ("adapters.client", "parcel.orders.service", 1),
+        ("platform.db", "parcel.adapters.client", 1),
+        ("records.item", "parcel.platform.db", 1),
+        ("platform.db", "parcel.records.item", 0),
+        ("http.router", "parcel.orders.service", 0),
+        ("http.router", "parcel.worker.jobs", 0),
+        ("orders.logic", "parcel.billing.service", 0),
+        ("orders.logic", "parcel.orders.other", 0),
+        ("records.item", "external.http.router", 0),
+    ],
+)
+def test_import_contracts_enforce_layers_and_peers(module: str, target: str, expected: int) -> None:
+    reports = _run_import_contracts(
+        f"import {target}", [_layers_contract()], path=f"src/parcel/{module.replace('.', '/')}.py"
+    )
+
+    assert len(reports) == expected
+    if reports:
+        assert "architecture" in reports[0].message
+        assert "Depend downwards." in reports[0].message
+
+
+def _independence_contract() -> dict[str, object]:
+    return {
+        "type": "independence",
+        "name": "domain-apis",
+        "packages": ["parcel.*"],
+        "exclude": ["parcel.platform.**"],
+        "public": ["service", "schemas", "dependencies"],
+    }
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("import parcel.billing.storage", 1),
+        ("from parcel.billing import storage as db", 1),
+        ("from ..billing.storage import find", 1),
+        ("import parcel.billing", 1),
+        ("from parcel import billing", 1),
+        ("from parcel.billing import *", 1),
+        ("from parcel.billing import service", 0),
+        ("from parcel.billing.service import find", 0),
+        ("import parcel.billing.service.internal", 0),
+        ("from parcel.billing.schemas import *", 0),
+        ("from parcel.billing.dependencies import resolve", 0),
+        ("import parcel.billing.service_extra", 1),
+        ("import parcel.orders.storage", 0),
+        ("import parcel.platform.db", 0),
+        ("import outside.billing.storage", 0),
+    ],
+)
+def test_import_contracts_require_public_sibling_modules(source: str, expected: int) -> None:
+    reports = _run_import_contracts(source, [_independence_contract()])
+
+    assert len(reports) == expected
+    if reports:
+        assert "domain-apis" in reports[0].message
+
+
+def test_import_contracts_layers_cover_from_imports_of_exact_modules() -> None:
+    reports = _run_import_contracts(
+        "from parcel.edge import Handler",
+        [
+            {
+                "type": "layers",
+                "name": "flow",
+                "root": "parcel",
+                "layers": [{"modules": ["edge"]}, {"modules": ["core"]}],
+            }
+        ],
+        path="src/parcel/core.py",
+    )
+
+    assert len(reports) == 1
+
+
+def test_import_contracts_support_literal_siblings_and_excluded_sources() -> None:
+    contract = _independence_contract()
+    contract["packages"] = ["parcel.orders", "parcel.billing"]
+    reports = _run_import_contracts(
+        "import parcel.orders.storage", [contract], path="src/parcel/billing/logic.py"
+    )
+    excluded = _run_import_contracts(
+        "import parcel.orders.storage", [_independence_contract()], path="src/parcel/platform/db.py"
+    )
+
+    assert len(reports) == 1
+    assert excluded == []
+
+
+@pytest.mark.parametrize("source", ["from . import *", "def run():\n    from . import storage"])
+def test_import_contracts_keep_function_local_relative_imports_and_package_stars(
+    source: str,
+) -> None:
+    contract = {
+        "type": "forbidden",
+        "name": "leaf",
+        "source": ["parcel.orders.**"],
+        "forbid": ["parcel.orders"],
+    }
+    reports = _run_import_contracts(source, [contract])
+
+    assert len(reports) == 1
+
+
+def test_import_contracts_do_not_follow_other_files_or_reexports(tmp_path: Path) -> None:
+    (tmp_path / "wrapper.py").write_text("import webkit\n")
+    source = b"import wrapper\n"
+    rule = ImportContracts()
+    rule.configure(
+        {
+            "contracts": [
+                {"type": "forbidden", "name": "direct", "source": ["**"], "forbid": ["webkit"]}
+            ]
+        }
+    )
+    path = tmp_path / "consumer.py"
+
+    assert (
+        list(LintRunner(path, source).collect_violations([rule], Config(path=path, root=tmp_path)))
+        == []
+    )
+
+
+def test_import_contracts_reset_module_identity_between_files() -> None:
+    rule = ImportContracts()
+    rule.configure({"source_roots": ["src"], "contracts": [_transport_contract()]})
+    root = Path("/workspace")
+
+    assert (
+        len(_run_rule(rule, "import webkit", path=root / "src/parcel/orders/logic.py", root=root))
+        == 1
+    )
+    assert (
+        _run_rule(rule, "import webkit", path=root / "vendor/parcel/orders/logic.py", root=root)
+        == []
+    )
+    rule.configure({"source_roots": ["src"], "contracts": []})
+    assert (
+        _run_rule(rule, "import webkit", path=root / "src/parcel/orders/logic.py", root=root) == []
+    )
+
+
+def test_import_contracts_apply_every_matching_contract_per_import() -> None:
+    reports = _run_import_contracts(
+        "import parcel.billing.router as edge",
+        [_transport_contract(), _independence_contract()],
+    )
+
+    assert len(reports) == 2
+    assert "transport-purity" in reports[0].message
+    assert "domain-apis" in reports[1].message
+
+
+def test_import_contracts_check_each_alias_separately() -> None:
+    reports = _run_import_contracts(
+        "from parcel.billing import router as r, service as s",
+        [_transport_contract()],
+    )
+
+    assert len(reports) == 1
+    assert reports[0].range is not None
+    assert reports[0].range.start.column == 27
+
+
+def test_import_contracts_use_the_most_specific_source_root() -> None:
+    reports = _run_import_contracts(
+        "import webkit",
+        [_transport_contract()],
+        path="apps/server/src/parcel/orders/logic.py",
+        source_roots=[".", "apps/server/src"],
+    )
+
+    assert len(reports) == 1
+
+
+@pytest.mark.parametrize(
+    "contract",
+    [
+        {"type": "unknown", "name": "bad"},
+        {"type": "forbidden", "name": "bad", "source": [], "forbid": ["x"]},
+        {"type": "forbidden", "name": "bad", "source": ["x"], "forbid": []},
+        {"type": "forbidden", "name": "", "source": ["x"], "forbid": ["y"]},
+        {"type": "forbidden", "name": "bad", "source": ["x..y"], "forbid": ["y"]},
+        {"type": "forbidden", "name": "bad", "source": ["x*"], "forbid": ["y"]},
+        {"type": "forbidden", "name": "bad", "source": ["x"], "forbid": ["y"], "typo": "x"},
+        {
+            "type": "layers",
+            "name": "bad",
+            "root": "x.*",
+            "layers": [{"modules": ["x"]}, {"modules": ["y"]}],
+        },
+        {"type": "layers", "name": "bad", "layers": [{"modules": ["x"]}]},
+        {"type": "layers", "name": "bad", "layers": [{"modules": []}, {"modules": ["y"]}]},
+        {"type": "independence", "name": "bad", "packages": ["x.**"], "public": ["api"]},
+        {"type": "independence", "name": "bad", "packages": ["x.one", "y.two"], "public": ["api"]},
+    ],
+)
+def test_import_contracts_reject_invalid_contracts(contract: dict[str, object]) -> None:
+    with pytest.raises(RuleConfigurationError):
+        ImportContracts().configure({"contracts": [contract]})
+
+
+@pytest.mark.parametrize("roots", [[], ["/absolute"], ["../outside"]])
+def test_import_contracts_reject_invalid_source_roots(roots: list[str]) -> None:
+    with pytest.raises(RuleConfigurationError):
+        ImportContracts().configure({"source_roots": roots})
+
+
+def test_import_contracts_reject_duplicate_contract_names() -> None:
+    with pytest.raises(RuleConfigurationError):
+        ImportContracts().configure({"contracts": [_transport_contract(), _transport_contract()]})
 
 
 def test_underscore_import_alias_range_targets_alias_name() -> None:

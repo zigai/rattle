@@ -434,6 +434,65 @@ class ConfigTest(TestCase):
             )
 
 
+def test_import_contracts_load_nested_toml_options(tmp_path: Path) -> None:
+    project = tmp_path / "pyproject.toml"
+    project.write_text(
+        dedent(
+            """\
+            [tool.rattle]
+            root = true
+            enable = ["import-contracts"]
+            enable-root-import = true
+
+            [tool.rattle.options.import-contracts]
+            source_roots = ["packages/server/src"]
+
+            [[tool.rattle.options.import-contracts.contracts]]
+            type = "layers"
+            name = "application-flow"
+            root = "parcel"
+            message = "Core stays independent."
+            layers = [{modules = ["edge.**"]}, {modules = ["core.**"]}]
+
+            [[tool.rattle.options.import-contracts.contracts]]
+            type = "forbidden"
+            name = "core-transport"
+            source = ["parcel.core.**"]
+            forbid = ["webkit"]
+            """
+        )
+    )
+    path = tmp_path / "packages/server/src/parcel/core/__init__.py"
+    cfg = config.generate_config(path)
+    rules = collect_rules(cfg)
+    reports = list(
+        LintRunner(path, b"from ..edge import handler\nimport webkit\n").collect_violations(
+            rules, cfg
+        )
+    )
+
+    assert config.validate_config(project) == []
+    assert len(reports) == 2
+    assert "application-flow" in reports[0].message
+    assert "Core stays independent." in reports[0].message
+    assert "core-transport" in reports[1].message
+
+
+def test_import_contracts_validation_checks_nested_contract_fields(tmp_path: Path) -> None:
+    project = tmp_path / "pyproject.toml"
+    project.write_text(
+        '[tool.rattle]\nroot = true\nenable = ["import-contracts"]\n'
+        "[[tool.rattle.options.import-contracts.contracts]]\n"
+        'type = "forbidden"\nname = "boundary"\nsource = ["parcel.**"]\n'
+        'forbid = ["webkit"]\nallow_indirect_imports = true\n'
+    )
+
+    errors = config.validate_config(project)
+
+    assert len(errors) == 1
+    assert "import-contracts" in errors[0]
+
+
 def test_local_rule_plans_keep_each_configuration_directory(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").write_text("[tool.rattle]\nroot = true\n")
     first = tmp_path / "first"

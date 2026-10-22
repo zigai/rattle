@@ -15,7 +15,7 @@ For migration from Fixit, overlapping Fixit-derived rules remain available in th
 
 ## Features
 
-- 51 built-in lint rules
+- 52 built-in lint rules
 - Autofix support when a rule can safely rewrite code
 - Local custom rules that can live inside your repository
 - Hierarchical `pyproject.toml` configuration

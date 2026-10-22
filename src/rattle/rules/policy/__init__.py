@@ -3,6 +3,7 @@
 from rattle.rules.policy.forbidden_call import ForbiddenCall
 from rattle.rules.policy.forbidden_import import ForbiddenImport
 from rattle.rules.policy.forbidden_name import ForbiddenName
+from rattle.rules.policy.import_contracts import ImportContracts
 from rattle.rules.policy.line_count_limit import LineCountLimit
 from rattle.rules.policy.no_relative_imports import NoRelativeImports
 from rattle.rules.policy.no_underscore_import_aliases import NoUnderscoreImportAliases
@@ -12,6 +13,7 @@ __all__ = [
     "ForbiddenCall",
     "ForbiddenImport",
     "ForbiddenName",
+    "ImportContracts",
     "LineCountLimit",
     "NoRelativeImports",
     "NoUnderscoreImportAliases",

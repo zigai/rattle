@@ -24,6 +24,7 @@ enable = ["policy"]
 | [forbidden-call](../rules/forbidden-call.md) | Do not call forbidden callable '{symbol}'. | Any | No |
 | [forbidden-import](../rules/forbidden-import.md) | Do not import across forbidden boundary '{boundary}'. | Any | No |
 | [forbidden-name](../rules/forbidden-name.md) | Do not use forbidden {kind} name '{name}'. | Any | No |
+| [import-contracts](../rules/import-contracts.md) | Import contract '{contract}' forbids '{source}' importing '{target}'. | Any | No |
 | [line-count-limit](../rules/line-count-limit.md) | {target} has {actual_lines} lines, exceeding the configured limit of {max_lines}. | Any | No |
 | [no-relative-imports](../rules/no-relative-imports.md) | Use absolute imports instead of relative imports. | Any | No |
 | [no-underscore-import-aliases](../rules/no-underscore-import-aliases.md) | Import aliases must not start with an underscore. | Any | No |
