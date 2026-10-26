@@ -147,6 +147,31 @@ class PathLintRun:
         return min(len(self.included_paths), worker_count)
 
 
+def _walk_paths(path: Path) -> Generator[Path, None, None]:
+    root = trailrunner.project_root(path)
+    ignored = trailrunner.gitignore(root)
+    pending = [path.resolve()]
+    visited: set[Path] = set()
+    while pending:
+        current = pending.pop()
+        is_directory = current.is_dir()
+        if not is_directory and not current.is_file():
+            continue
+
+        resolved = current.resolve()
+        if not resolved.is_relative_to(root) or ignored.match_file(resolved.relative_to(root)):
+            continue
+
+        if is_directory:
+            if resolved in visited:
+                continue
+
+            visited.add(resolved)
+            pending.extend(reversed(list(current.iterdir())))
+        elif current.name.endswith((".py", ".pyi")):
+            yield current
+
+
 def _expand_paths(paths: Iterable[Path]) -> tuple[list[tuple[Path, bool]], bool, Path]:
     expanded_paths: list[tuple[Path, bool]] = []
     is_stdin = False
@@ -168,9 +193,7 @@ def _expand_paths(paths: Iterable[Path]) -> tuple[list[tuple[Path, bool]], bool,
             if is_explicit:
                 expanded_paths.append((path, True))
             else:
-                expanded_paths.extend(
-                    (expanded_path, False) for expanded_path in trailrunner.walk(path)
-                )
+                expanded_paths.extend((expanded_path, False) for expanded_path in _walk_paths(path))
 
     return expanded_paths, is_stdin, stdin_path
 
@@ -201,9 +224,9 @@ def rattle_paths(
     """
     Lint multiple files or directories, recursively expanding each path.
 
-    Walks all paths given, obeying any ``.gitignore`` exclusions, finding Python source
-    files. Lints each file found using :func:`rattle_file`, using a process pool when
-    more than one file is being linted.
+    Recursively finds Python source files, following internal links and obeying
+    ``.gitignore`` exclusions. Lints each file using :func:`rattle_file`, with a
+    process pool when more than one file is being linted.
 
     Yields :class:`Result` objects for each path, lint error, or exception found.
     See :func:`rattle_bytes` for semantics.
