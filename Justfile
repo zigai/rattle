@@ -7,21 +7,14 @@ _:
 _require-uv:
   @uv --version > /dev/null || (echo "Please install uv: https://docs.astral.sh/uv/" && exit 1)
 
-# Install all dependency groups into the local environment
-install: _require-uv
+# Setup or update local dev environment with all dependency groups and install pre-commit hooks
+setup: _require-uv
   uv sync --inexact --all-groups
+  uv run --group dev pre-commit install
 
-# Install the dev dependencies used for local testing and CI
-install-dev: _require-uv
-  uv sync --inexact --group dev
-
-# Install only the docs dependencies used for documentation builds
-install-docs: _require-uv
-  uv sync --inexact --group docs
-
-# Create or refresh the local virtual environment
-venv: install
-  @echo 'run `source .venv/bin/activate` to activate virtualenv'
+# Install the CLI executable to ~/.local/bin
+install: _require-uv
+  uv tool install --editable .
 
 # Check code style and potential issues
 lint: _require-uv
@@ -95,10 +88,6 @@ test *args: _require-uv
 build: _require-uv
   uv build
 
-# Setup or update local dev environment and install pre-commit hooks
-sync: install
-  uv run --group dev pre-commit install
-
 # Run tests with coverage and show a coverage report
 coverage: _require-uv
   uv run --group dev coverage run -m pytest
@@ -132,7 +121,7 @@ check: lint test coverage typecheck spell
   uv run --group dev ruff format --check src/rattle scripts examples docs/conf.py
 
 # Run the main local workflow
-all: install test lint docs
+all: setup test lint docs
 
 # List available recipes
 help:
@@ -140,5 +129,3 @@ help:
 
 alias fmt := format
 alias cov := coverage
-alias html := docs
-alias pyright := typecheck

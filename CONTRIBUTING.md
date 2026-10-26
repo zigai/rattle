@@ -10,10 +10,10 @@ $ uv python install 3.13
 $ uv python pin 3.13
 ```
 
-You can then sync a local development environment with `just`:
+You can then set up a local development environment with `just`:
 
 ```shell-session
-$ just sync
+$ just setup
 ```
 
 This installs all project extras into `.venv` and sets up the local
@@ -100,7 +100,7 @@ to match the project workflow.
 Make sure you've created an environment for Rattle:
 
 ```shell-session
-$ just sync
+$ just setup
 ```
 
 Now, the VS Code Python module should be able to find and offer the local
