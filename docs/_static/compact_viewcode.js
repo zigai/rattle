@@ -6,10 +6,7 @@
 
     document.querySelectorAll(".viewcode-block").forEach((block) => {
       const previous = block.previousSibling;
-      if (
-        previous instanceof Text
-        && /^\n{3,}$/.test(previous.nodeValue || "")
-      ) {
+      if (previous instanceof Text && /^\n{3,}$/.test(previous.nodeValue || "")) {
         previous.nodeValue = "\n\n";
       }
 

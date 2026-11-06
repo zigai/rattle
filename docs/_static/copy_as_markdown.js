@@ -48,9 +48,7 @@
     }
     const header = rows[0];
     const divider = header.map(() => "---");
-    return [header, divider, ...rows.slice(1)]
-      .map((row) => `| ${row.join(" | ")} |`)
-      .join("\n");
+    return [header, divider, ...rows.slice(1)].map((row) => `| ${row.join(" | ")} |`).join("\n");
   }
 
   function inlineMarkdown(node) {

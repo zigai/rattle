@@ -1,4 +1,2 @@
 [tool.rattle]
-enable = [
-    ".rules.hollywood",
-]
+enable = [".rules.hollywood"]
