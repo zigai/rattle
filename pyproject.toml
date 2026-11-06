@@ -66,10 +66,9 @@ dev = [
     { include-group = "test" },
     "attribution == 1.8.0",
     "build > 1",
-    "codespell>=2.4.2",
     "coverage>=7.14.1",
     "pre-commit>=4.6.0",
-    "pyright",
+    "pyrefly>=1.2.0",
 ]
 lsp = ["pygls[ws] >= 2.0,<2.2"]
 pretty = ["rich >= 12.6.0"]
@@ -207,19 +206,19 @@ exclude = ["/.github", "/examples", "/legacy"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/rattle"]
 
-[tool.pyright]
-include = ["src/rattle"]
-extraPaths = ["src"]
-pythonVersion = "3.11"
-typeCheckingMode = "standard"
-reportMissingTypeStubs = false
-reportPrivateImportUsage = "none"
-reportUnnecessaryTypeIgnoreComment = "warning"
-reportMissingParameterType = "warning"
-
-[tool.codespell]
-skip = ".git,.venv,uv.lock,html,htmlcov,build,dist,docs/_build,*.egg-info,__pycache__,*.pyc,.pytest_cache,.ruff_cache"
-ignore-words-list = "implementors,NotIn"
+[tool.pyrefly]
+project-includes = ["src/rattle"]
+project-excludes = ["tests/**"]
+search-path = ["src"]
+disable-search-path-heuristics = true
+python-version = "3.11"
+enabled-ignores = ["type", "pyrefly"]
+use-ignore-files = true
+check-unannotated-defs = true
+infer-return-types = "checked"
+infer-with-first-use = true
+strict-callable-subtyping = false
+spec-compliant-overloads = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -227,6 +226,8 @@ python_files = ["test_*.py"]
 
 [tool.coverage.run]
 omit = ["/tmp/*", "*/tmp/*"]
+parallel = true
+patch = ["subprocess"]
 
 [tool.coverage.report]
 omit = ["/tmp/*", "*/tmp/*"]

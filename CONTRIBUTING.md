@@ -60,7 +60,7 @@ $ just docs
 $ open html/index.html
 ```
 
-To run the full test, lint, typecheck, spell-check, and header-check suite:
+To run the full test, lint, typecheck and header-check suite:
 
 ```shell-session
 $ just check
