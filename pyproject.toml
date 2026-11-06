@@ -67,7 +67,6 @@ dev = [
     "attribution == 1.8.0",
     "build > 1",
     "coverage>=7.14.1",
-    "pre-commit>=4.6.0",
     "pyrefly>=1.2.0",
 ]
 lsp = ["pygls[ws] >= 2.0,<2.2"]

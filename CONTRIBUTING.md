@@ -16,8 +16,8 @@ You can then set up a local development environment with `just`:
 $ just setup
 ```
 
-This installs all project extras into `.venv` and sets up the local
-`pre-commit` hooks. Once created, activate the environment:
+This installs all project extras into `.venv`. Once created, activate
+the environment:
 
 ```shell-session
 $ source .venv/bin/activate

@@ -1,10 +1,9 @@
 set positional-arguments
 set script-interpreter := ['uv', 'run', '--no-project', '--', 'python']
 
-# Setup or update local dev environment with all dependency groups and install pre-commit hooks
+# Setup or update local dev environment with all dependency groups
 setup: require-uv
     uv sync --inexact --all-groups
-    uv run --group dev pre-commit install
 
 # Install the CLI executable to ~/.local/bin
 install: require-uv
@@ -19,6 +18,7 @@ lint: require-uv
 # Format code
 format: require-uv
     uv run --group dev ruff format src/rattle scripts examples docs/conf.py
+    @git ls-files -co --exclude-standard -z | while IFS= read -r -d '' file; do if [[ -f $file ]]; then printf '%s\0' "$file"; fi; done | xargs -0 -r oxfmt --no-error-on-unmatched-pattern '!**/*.md'
 
 # Fix automatically fixable linting issues
 fix: require-uv
@@ -117,6 +117,8 @@ all: setup test lint docs
 # Check formatting without changing files
 formatcheck:
     uv run --group dev ruff format --check src/rattle scripts examples docs/conf.py
+    @git ls-files -co --exclude-standard -z | while IFS= read -r -d '' file; do if [[ -f $file ]]; then printf '%s\0' "$file"; fi; done | xargs -0 -r oxfmt --check --no-error-on-unmatched-pattern '!**/*.md'
+    @git ls-files -co --exclude-standard -z | while IFS= read -r -d '' file; do if [[ -f $file ]]; then printf '%s\0' "$file"; fi; done | xargs -0 -r editorconfig-checker -disable-indent-size -disable-indentation -disable-max-line-length -disable-charset
 
 # Synchronize dependency locks without upgrading dependencies
 [no-exit-message]
