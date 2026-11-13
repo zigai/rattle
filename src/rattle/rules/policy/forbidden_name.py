@@ -106,9 +106,7 @@ class ForbiddenName(LintRule):
 
         self._messages_by_rule: dict[str, str | None] = {}
 
-    def should_lint_file(self, source: bytes, path: Path) -> bool:
-        del path
-
+    def should_lint_file(self, source: bytes, _path: Path, /) -> bool:
         for entry in _parse_forbidden_names_setting(self.settings.get("forbidden_names", ())):
             pattern = entry.pattern
             if _is_glob(pattern):

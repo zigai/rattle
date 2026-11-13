@@ -6,7 +6,8 @@
 
 import ast
 import operator
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import libcst as cst
 import libcst.matchers as m
@@ -14,7 +15,7 @@ import libcst.matchers as m
 from rattle.rule import Invalid, LintRule, Valid
 from rattle.rules.helpers import is_static_literal_expression
 
-_CMP_OPS = {
+_CMP_OPS: dict[type[cst.BaseCompOp], Callable[[Any, Any], object]] = {
     cst.Equal: operator.eq,
     cst.NotEqual: operator.ne,
     cst.LessThan: operator.lt,

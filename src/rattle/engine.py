@@ -6,7 +6,7 @@
 import logging
 import time
 from collections import defaultdict
-from collections.abc import Callable, Collection, Generator, Iterator, Mapping
+from collections.abc import Callable, Collection, Generator, Mapping
 from contextlib import ExitStack, contextmanager
 from dataclasses import replace
 from functools import partial
@@ -79,7 +79,11 @@ def diff_violation(path: Path, module: Module, violation: LintViolation) -> str:
         def on_visit(self, node: CSTNode) -> bool:
             return node is not violation.node
 
-        def on_leave(
+        # libcst 1.9 types on_leave as returning the visited node's own type, but its runtime
+        # accepts any node or sentinel that fits the parent field, and libcst's own
+        # _ChildReplacementTransformer overrides it the same way. Covered by
+        # tests/execution/test_engine.py; drop the ignore when libcst widens the stub.
+        def on_leave(  # pyrefly: ignore[bad-override]
             self, original_node: CSTNode, updated_node: CSTNode
         ) -> NodeReplacement[CSTNode]:
             if original_node is violation.node:
@@ -343,7 +347,7 @@ class LintRunner:
         """
 
         @contextmanager
-        def visit_hook(name: str) -> Iterator[None]:
+        def visit_hook(name: str) -> Generator[None]:
             start = time.perf_counter()
             try:
                 yield
@@ -483,7 +487,11 @@ class LintRunner:
                 self._pending = dict(nested_replacements)
                 self._tree_nodes = tree_nodes
 
-            def on_leave(
+            # libcst 1.9 types on_leave as returning the visited node's own type, but its runtime
+            # accepts any node or sentinel that fits the parent field, and libcst's own
+            # _ChildReplacementTransformer overrides it the same way. Covered by
+            # tests/execution/test_engine.py; drop the ignore when libcst widens the stub.
+            def on_leave(  # pyrefly: ignore[bad-override]
                 self,
                 original_node: CSTNode,
                 updated_node: CSTNode,
@@ -499,7 +507,11 @@ class LintRunner:
                 return updated_node
 
         class ReplacementTransformer(CSTTransformer):
-            def on_leave(
+            # libcst 1.9 types on_leave as returning the visited node's own type, but its runtime
+            # accepts any node or sentinel that fits the parent field, and libcst's own
+            # _ChildReplacementTransformer overrides it the same way. Covered by
+            # tests/execution/test_engine.py; drop the ignore when libcst widens the stub.
+            def on_leave(  # pyrefly: ignore[bad-override]
                 self,
                 original_node: CSTNode,
                 updated_node: CSTNode,

@@ -151,7 +151,7 @@ class UseAsyncSleepInAsyncDef(LintRule):
     def visit_NamedExpr(self, node: cst.NamedExpr) -> None:
         self._time_sleep_aliases.record(node.target, node.value, self._time_sleep_alias_value)
 
-    def should_lint_file(self, source: FileContent, _path: Path) -> bool:
+    def should_lint_file(self, source: FileContent, _path: Path, /) -> bool:
         return b"sleep" in source and b"async" in source
 
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:

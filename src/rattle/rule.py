@@ -387,7 +387,7 @@ class LintRule(BatchableCSTVisitor):
     def qualified_name(cls) -> str:
         return f"{cls.__module__}:{cls.name}"
 
-    def should_lint_file(self, source: FileContent, _path: Path) -> bool:
+    def should_lint_file(self, source: FileContent, _path: Path, /) -> bool:
         return not self.SOURCE_PATTERNS or any(
             _source_pattern_matches(source, pattern) for pattern in self.SOURCE_PATTERNS
         )

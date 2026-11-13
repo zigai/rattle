@@ -288,7 +288,7 @@ class ImportContracts(LintRule):
         except ValueError as e:
             raise RuleConfigurationError(f"{self.name}: {e}") from None
 
-    def should_lint_file(self, source: bytes, _path: Path) -> bool:
+    def should_lint_file(self, source: bytes, _path: Path, /) -> bool:
         return bool(self._contracts) and b"import" in source
 
     def visit_Module(self, node: cst.Module) -> None:

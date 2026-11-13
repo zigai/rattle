@@ -23,7 +23,7 @@ def _drive_rattle_bytes(
     runner: Generator[Result, bool, FileContent | None],
     *,
     cacheable: bool,
-) -> Generator[Result, bool, tuple[FileContent | None, bool, bool, list[LintViolation]]]:
+) -> Generator[Result, bool | None, tuple[FileContent | None, bool, bool, list[LintViolation]]]:
     clean = True
     cache_violations: list[LintViolation] = []
 

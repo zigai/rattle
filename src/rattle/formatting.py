@@ -63,7 +63,7 @@ class Formatter:
     def __init_subclass__(cls) -> None:
         FORMAT_STYLES[cls.STYLE] = cls
 
-    def format(self, module: Module, _path: Path) -> FileContent:
+    def format(self, module: Module, _path: Path, /) -> FileContent:
         """Format the given :class:`~libcst.Module` and return it as UTF-8 encoded bytes."""
         return module.bytes
 
@@ -71,7 +71,7 @@ class Formatter:
 class BlackFormatter(Formatter):
     STYLE = "black"
 
-    def format(self, module: Module, path: Path) -> FileContent:
+    def format(self, module: Module, path: Path, /) -> FileContent:
         import black
 
         mode = _black_config(path.resolve())
@@ -82,7 +82,7 @@ class BlackFormatter(Formatter):
 class UfmtFormatter(Formatter):
     STYLE = "ufmt"
 
-    def format(self, module: Module, path: Path) -> FileContent:
+    def format(self, module: Module, path: Path, /) -> FileContent:
         import ufmt
 
         resolved_path = path.resolve()
@@ -97,7 +97,7 @@ class UfmtFormatter(Formatter):
 class RuffFormatter(Formatter):
     STYLE = "ruff"
 
-    def format(self, module: Module, path: Path) -> FileContent:
+    def format(self, module: Module, path: Path, /) -> FileContent:
         return _run_ruff_format(
             [
                 "--stdin-filename",
@@ -111,7 +111,7 @@ class RuffFormatter(Formatter):
 class AutoFormatter(Formatter):
     STYLE = "auto"
 
-    def format(self, module: Module, path: Path) -> FileContent:
+    def format(self, module: Module, path: Path, /) -> FileContent:
         style = _detect_formatter_style(path)
         if style is None:
             return module.bytes

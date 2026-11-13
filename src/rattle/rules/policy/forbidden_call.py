@@ -101,9 +101,7 @@ class ForbiddenCall(LintRule):
         self._aliases = AssignmentAliasTracker[str](self)
         self._star_import_modules: set[str] = set()
 
-    def should_lint_file(self, source: bytes, path: Path) -> bool:
-        del path
-
+    def should_lint_file(self, source: bytes, _path: Path, /) -> bool:
         return any(
             entry.symbol.rsplit(".", 1)[-1].encode() in source
             for entry in _parse_forbidden_calls_setting(self.settings.get("forbidden_calls", ()))

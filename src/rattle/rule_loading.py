@@ -6,7 +6,7 @@ import logging
 import pkgutil
 import sys
 from collections import defaultdict
-from collections.abc import Collection, Iterable, Iterator, Mapping
+from collections.abc import Collection, Generator, Iterable, Iterator, Mapping
 from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -197,7 +197,7 @@ def is_rule(obj: type[T]) -> bool:
 
 
 @contextmanager
-def local_rule_loader(rule: QualifiedRule) -> Iterator[None]:
+def local_rule_loader(rule: QualifiedRule) -> Generator[None]:
     """
     Allows importing local rules from arbitrary paths as submodules of rattle.local.
 

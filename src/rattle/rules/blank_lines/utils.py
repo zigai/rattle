@@ -747,9 +747,7 @@ def is_compact_guard_if(statement: cst.BaseStatement) -> bool:
 
     if isinstance(statement.body, cst.SimpleStatementSuite):
         body_small = statement.body.body
-        return bool(
-            1 <= len(body_small) <= 2 and isinstance(body_small[-1], BRANCH_SMALL_STATEMENTS)
-        )
+        return 1 <= len(body_small) <= 2 and isinstance(body_small[-1], BRANCH_SMALL_STATEMENTS)
 
     if not isinstance(statement.body, cst.IndentedBlock):
         return False

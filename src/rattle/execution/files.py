@@ -169,10 +169,12 @@ class ConfiguredFileRun:
                     explicit_path=self.explicit_path,
                 )
                 if self.cache_session.read_complete_entry():
-                    yield from (self.cache_session.cached_results or [])
+                    for result in self.cache_session.cached_results or []:
+                        yield result
                     return
 
-                yield from self.cache_session.prepare_autofix_passthrough()
+                for result in self.cache_session.prepare_autofix_passthrough():
+                    yield result
                 self.rules = self.cache_session.rules
 
             if not self.rules:

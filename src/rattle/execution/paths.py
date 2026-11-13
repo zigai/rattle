@@ -64,7 +64,8 @@ class PathLintRun:
             self._pending_paths(),
             options=self.options,
         )
-        yield from self.cached_clean_results
+        for result in self.cached_clean_results:  # noqa: UP028 - list iterators cannot take send() responses
+            yield result
         if not self.included_paths:
             return
         if len(self.included_paths) == 1 or not self.parallel:
@@ -115,7 +116,8 @@ class PathLintRun:
             if self.metrics_hook is not None:
                 for metrics in batch_result.metrics:
                     self.metrics_hook(metrics)
-            yield from batch_result.results
+            for result in batch_result.results:  # noqa: UP028 - list iterators cannot take send() responses
+                yield result
 
         if self.deferred_format_paths:
             format_paths(self.deferred_format_paths, Config(formatter="ruff"))

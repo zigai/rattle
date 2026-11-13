@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import base64
-import binascii
 import hashlib
 import inspect
 import json
@@ -356,7 +355,7 @@ def _decode_cached_source(entry: ResultCacheEntry) -> FileContent | None:
 
     try:
         return base64.b64decode(entry.source, validate=True)
-    except (ValueError, binascii.Error):
+    except ValueError:
         return None
 
 

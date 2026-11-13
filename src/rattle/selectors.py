@@ -110,7 +110,7 @@ class Tags(Container[str]):
 
         if any(tag in self.exclude for tag in tags):
             return False
-        return bool(not self.include or any(tag in self.include for tag in tags))
+        return not self.include or any(tag in self.include for tag in tags)
 
 
 __all__ = [

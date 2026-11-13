@@ -34,15 +34,12 @@ def _gen_match_simple_expression(
 ) -> Callable[[cst.BaseExpression], bool]:
     def _match_simple_expression(node: cst.BaseExpression) -> bool:
         # either each element in Tuple is simple expression or the entire expression is simple.
-        return bool(
-            (
-                isinstance(node, cst.Tuple)
-                and all(
-                    len(codegen(elm.value)) <= simple_expression_max_length for elm in node.elements
-                )
+        return (
+            isinstance(node, cst.Tuple)
+            and all(
+                len(codegen(elm.value)) <= simple_expression_max_length for elm in node.elements
             )
-            or len(codegen(node)) <= simple_expression_max_length
-        )
+        ) or len(codegen(node)) <= simple_expression_max_length
 
     return _match_simple_expression
 

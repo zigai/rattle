@@ -115,26 +115,28 @@ class BaseBlankLinesRule(BatchableCSTVisitor):
     def _branch_anchor_range(self, statement: cst.BaseStatement) -> CodeRange:
         if isinstance(statement, cst.SimpleStatementLine) and len(statement.body) == 1:
             branch = statement.body[0]
-            keyword = {
+            keywords: dict[type[cst.BaseSmallStatement], str] = {
                 cst.Break: "break",
                 cst.Continue: "continue",
                 cst.Raise: "raise",
                 cst.Return: "return",
-            }.get(type(branch))
+            }
+            keyword = keywords.get(type(branch))
             if keyword is not None:
                 return self._range_for_keyword(statement, keyword)
 
         return self._first_line_range(statement)
 
     def _block_header_anchor_range(self, statement: cst.BaseStatement) -> CodeRange:
-        keyword = {
+        keywords: dict[type[cst.BaseStatement], str] = {
             cst.For: "for",
             cst.If: "if",
             cst.Match: "match",
             cst.Try: "try",
             cst.While: "while",
             cst.With: "with",
-        }.get(type(statement))
+        }
+        keyword = keywords.get(type(statement))
         if keyword is not None:
             if isinstance(statement, (cst.For, cst.With)) and statement.asynchronous is not None:
                 keyword = f"async {keyword}"

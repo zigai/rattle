@@ -612,7 +612,7 @@ class NoUnderscoreAllExports(LintRule):
         if exported_name in self.setting("allowed_exports", list[str]):
             return True
 
-        return bool(
+        return (
             self.setting("allow_dunder_exports", bool)
             and exported_name.startswith("__")
             and exported_name.endswith("__")

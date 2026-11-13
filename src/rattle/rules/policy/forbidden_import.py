@@ -80,7 +80,7 @@ class ForbiddenImport(LintRule):
         self._ordered_boundaries: list[str] | None = None
         self._current_file_path: Path | None = None
 
-    def should_lint_file(self, source: bytes, path: Path) -> bool:
+    def should_lint_file(self, source: bytes, path: Path, /) -> bool:
         self._current_file_path = path
 
         if b"from" in source:
