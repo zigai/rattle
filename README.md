@@ -1,11 +1,12 @@
 # Rattle
 
-[![Tests](https://github.com/zigai/rattle/actions/workflows/tests.yml/badge.svg)](https://github.com/zigai/rattle/actions/workflows/tests.yml)
-[![Documentation Status](https://readthedocs.org/projects/rattle/badge/?version=latest)](https://rattle.readthedocs.io/en/latest/?badge=latest)
-[![PyPI version](https://badge.fury.io/py/rattle-lint.svg)](https://badge.fury.io/py/rattle-lint)
-![Supported versions](https://img.shields.io/badge/python-3.11+-blue.svg)
-[![Downloads](https://static.pepy.tech/badge/rattle-lint)](https://pepy.tech/project/rattle-lint)
-[![License: MIT](https://img.shields.io/badge/license-MIT-4b5563.svg)](https://github.com/zigai/rattle/blob/main/LICENSE)
+[![tests](https://img.shields.io/github/actions/workflow/status/zigai/rattle/tests.yml?branch=main&label=tests&labelColor=30363d)](https://github.com/zigai/rattle/actions/workflows/tests.yml)
+[![docs](https://img.shields.io/readthedocs/rattle?label=docs&logo=readthedocs&logoColor=white&labelColor=30363d)](https://rattle.readthedocs.io/en/latest/)
+[![PyPI](https://img.shields.io/pypi/v/rattle-lint?label=PyPI&color=blue&logo=pypi&logoColor=white&labelColor=30363d)](https://pypi.org/project/rattle-lint/)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white&labelColor=30363d)](pyproject.toml)
+[![downloads](https://img.shields.io/pypi/dm/rattle-lint?label=downloads&color=blue&labelColor=30363d)](https://pepy.tech/projects/rattle-lint)
+[![downloads](https://img.shields.io/pepy/dt/rattle-lint?label=downloads&color=blue&labelColor=30363d)](https://pepy.tech/projects/rattle-lint)
+[![license](https://img.shields.io/github/license/zigai/rattle?label=license&labelColor=30363d)](LICENSE)
 
 Rattle is a Python linting framework built on [LibCST](https://libcst.readthedocs.io) with support for autofixes, custom in-repo lint rules, and hierarchical configuration.
 
