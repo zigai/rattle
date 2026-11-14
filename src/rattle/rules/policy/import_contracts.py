@@ -279,7 +279,7 @@ class ImportContracts(LintRule):
     def configure(self, raw_settings: Mapping[str, object]) -> None:
         super().configure(raw_settings)
         roots = self.setting("source_roots", list[str])
-        if not roots or any(Path(root).is_absolute() or ".." in Path(root).parts for root in roots):
+        if not roots or any(Path(root).anchor or ".." in Path(root).parts for root in roots):
             raise RuleConfigurationError(
                 f"{self.name}: source_roots must be nonempty paths within the config root"
             )
